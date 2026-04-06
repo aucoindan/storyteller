@@ -108,7 +108,7 @@
     "wink-nlp": "^2.3.0",
     "yauzl": "^3.2.0",
     "yazl": "^3.3.1",
-    "zod": "^4.1.13"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@dotenvx/dotenvx": "^1.44.1",

@@ -9,7 +9,7 @@ import {
 } from "@robingenz/zli"
 import { Presets, SingleBar } from "cli-progress"
 import { ensureDirSync } from "fs-extra"
-import { z } from "zod"
+import { z } from "zod/v4"
 
 import { type RecognitionOptions } from "../api/Recognition.ts"
 import {
@@ -190,7 +190,7 @@ const statusCommand = defineCommand({
 const transcribeCommand = defineCommand({
   description: "Transcribe a single file with whisper.cpp",
   args: z.tuple([z.string().describe("Input audio file path")], {
-    errorMap: (issue) => {
+    error: (issue) => {
       if (issue.code === "too_small") {
         return {
           message: "Input audio file path is required",
@@ -372,7 +372,7 @@ const serverCommand = defineCommand({
 const vadCommand = defineCommand({
   description: "Run voice activity detection on an audio file",
   args: z.tuple([z.string().describe("Input audio file path")], {
-    errorMap: (issue) => {
+    error: (issue) => {
       if (issue.code === "too_small") {
         return {
           message: "Input audio file path is required",
