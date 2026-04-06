@@ -2,10 +2,10 @@
 
 import { build } from "esbuild"
 import { builtinModules } from "node:module"
-import { basename, join } from "node:path"
+import { basename, join, resolve } from "node:path"
 import { copyFileSync, writeFileSync } from "node:fs"
+import nodeGypBuild from "node-gyp-build"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import { extname } from "node:path"
 import { randomUUID } from "node:crypto"
 
 const nodePrefix = new Set(builtinModules)
@@ -39,6 +39,38 @@ await build({
             return { path: `node:${args.path}`, external: true }
           }
         })
+      },
+    },
+    {
+      name: "node-gyp-build",
+      setup(build) {
+        build.onResolve({ filter: /^node-gyp-build$/ }, () => ({
+          path: "node-gyp-build",
+          namespace: "node-gyp-build",
+        }))
+
+        build.onLoad(
+          { filter: /^node-gyp-build$/, namespace: "node-gyp-build" },
+          () => {
+            const prebuildPath = nodeGypBuild.path(
+              resolve(import.meta.dirname, "../"),
+            )
+            // const assetName = `${basename(prebuildPath, ".node")}-${randomUUID()}.node`
+            // discoveredAssets.set(assetName, prebuildPath)
+
+            return {
+              loader: "js",
+              resolveDir: resolve(import.meta.dirname, "../"),
+              contents: `
+const nativeModule = require(${JSON.stringify(prebuildPath)});
+
+module.exports = function requireBinding() {
+  return nativeModule;
+}
+              `,
+            }
+          },
+        )
       },
     },
     {
@@ -109,5 +141,7 @@ const seaConfig = {
   disableExperimentalSEAWarning: true,
   assets,
 }
+
+console.log(seaConfig)
 
 writeFileSync("sea-config.json", JSON.stringify(seaConfig, null, 2) + "\n")
