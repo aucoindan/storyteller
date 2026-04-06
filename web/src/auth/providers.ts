@@ -186,4 +186,4 @@ export const Providers = {
   zoom: Zoom,
 }
 
-export { type PublicProvider } from "@auth/core/types"
+export type { PublicProvider } from "@auth/core/types"
