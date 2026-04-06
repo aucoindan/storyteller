@@ -137,6 +137,45 @@ export interface Collection {
 
 export type PackageElement = XmlElement<"package">
 
+const MP3_FILE_EXTENSIONS = [".mp3"] as const
+const MPEG4_FILE_EXTENSIONS = [".mp4", ".m4a", ".m4b"] as const
+const AAC_FILE_EXTENSIONS = [".aac"] as const
+const OGG_FILE_EXTENSIONS = [".ogg", ".oga", ".mogg"] as const
+const OPUS_FILE_EXTENSIONS = [".opus"] as const
+const WAVE_FILE_EXTENSIONS = [".wav"] as const
+const AIFF_FILE_EXTENSIONS = [".aiff"] as const
+const FLAC_FILE_EXTENSIONS = [".flac"] as const
+const ALAC_FILE_EXTENSIONS = [".alac"] as const
+const WEBM_FILE_EXTENSIONS = [".weba"] as const
+
+const AUDIO_FILE_EXTENSIONS = [
+  ...MP3_FILE_EXTENSIONS,
+  ...AAC_FILE_EXTENSIONS,
+  ...MPEG4_FILE_EXTENSIONS,
+  ...OPUS_FILE_EXTENSIONS,
+  ...OGG_FILE_EXTENSIONS,
+  ...WAVE_FILE_EXTENSIONS,
+  ...AIFF_FILE_EXTENSIONS,
+  ...FLAC_FILE_EXTENSIONS,
+  ...ALAC_FILE_EXTENSIONS,
+  ...WEBM_FILE_EXTENSIONS,
+] as const
+
+/**
+ * Determines if a file with the given name or extension might contain audio.
+ *
+ * @remarks
+ * Note that extension-based file type determination is only a heuristic; both
+ * false negatives and false positives are possible.  False positives are
+ * especially likely, since many file types can optionally contain audio.
+ *
+ * @param ext The extension (or complete filename) to check
+ * @returns Whether the file *may* contain audio
+ */
+function isAudioFile(filenameOrExt: string): boolean {
+  return AUDIO_FILE_EXTENSIONS.some((ext) => filenameOrExt.endsWith(ext))
+}
+
 /**
  * A single EPUB instance.
  *
@@ -2545,8 +2584,10 @@ export class Epub {
       zipfile.addFile(
         join(entry.parentPath, entry.name),
         join(entry.parentPath, entry.name).replace(`${this.extractPath}/`, ""),
+        { compress: !isAudioFile(entry.name) },
       )
     }
+
     zipfile.end()
     await promise
 
