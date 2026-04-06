@@ -127,6 +127,8 @@ export async function transcribe(
 
           options.logger?.info(`Found existing transcription for ${filepath}`)
           transcriptions.push(transcriptionFilepath)
+          options.onProgress?.((transcriptions.length + 1) / filenames.length)
+          return
         } catch {
           //
         }
