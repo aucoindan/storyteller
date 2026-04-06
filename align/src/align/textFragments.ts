@@ -104,7 +104,7 @@ export class TextFragmentTrie {
     }
 
     if (prefix) {
-      fragment += `${encodeURIComponent(prefix)}-,`
+      fragment += `${encodeTextFragmentPart(prefix)}-,`
     }
 
     let startNode: Node | null = node
@@ -114,7 +114,7 @@ export class TextFragmentTrie {
       startNode = startNode.parent
     }
 
-    fragment += encodeURIComponent(start)
+    fragment += encodeTextFragmentPart(start)
 
     const remainingSentence = span.slice(start.length + node.value.length)
 
@@ -126,11 +126,17 @@ export class TextFragmentTrie {
     }
 
     if (end) {
-      fragment += `,${encodeURIComponent(end)}`
+      fragment += `,${encodeTextFragmentPart(end)}`
     }
 
     return fragment
   }
+}
+
+function encodeTextFragmentPart(part: string) {
+  return encodeURIComponent(part)
+    .replaceAll(/-/g, "%2d")
+    .replaceAll(/,/g, "%2c")
 }
 
 class Node {

@@ -36,6 +36,8 @@ import { markup } from "../markup/markup.ts"
 import { markupCommand } from "../markup/parse.ts"
 import { processCommand, processParser } from "../process/parse.ts"
 import { processAudiobook } from "../process/processAudiobook.ts"
+import { snapshotCommand } from "../snapshot/parse.ts"
+import { snapshotAlignment } from "../snapshot/snapshot.ts"
 import { transcribeCommand, transcribeParser } from "../transcribe/parse.ts"
 import { transcribe } from "../transcribe/transcribe.ts"
 
@@ -75,6 +77,7 @@ const parser = or(
   markupCommand,
   alignCommand,
   pipelineCommand,
+  snapshotCommand,
 )
 
 async function main() {
@@ -382,6 +385,11 @@ async function main() {
       if (parsed.time) {
         alignTiming.print()
       }
+      break
+    }
+
+    case "snapshot": {
+      await snapshotAlignment(parsed.epub, parsed.transcriptions, parsed.output)
     }
   }
 }
