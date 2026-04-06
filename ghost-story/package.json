@@ -101,6 +101,10 @@
       "./vad": {
         "types": "./dist/api/VoiceActivityDetection.d.ts",
         "default": "./dist/api/VoiceActivityDetection.js"
+      },
+      "./constants": {
+        "types": "./dist/constants.d.ts",
+        "default": "./dist/constants.js"
       }
     }
   }
