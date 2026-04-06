@@ -135,7 +135,7 @@ export interface Collection {
   position?: string
 }
 
-export type PackageElement = XmlElement<"package"> | XmlElement<"opf:package">
+export type PackageElement = XmlElement<"package">
 
 /**
  * A single EPUB instance.
@@ -526,10 +526,29 @@ export class Epub {
       throw error
     }
 
-    return new this(
+    const epub = new this(
       extractPath,
       typeof pathOrData === "string" ? pathOrData : undefined,
     )
+
+    try {
+      await epub.getPackageElement()
+    } catch (e) {
+      epub.discardAndClose()
+      console.error(e)
+      throw new Error(
+        "This is not a valid EPUB 3 publication. This library only support EPUB 3, not EPUB 2. Try using an automatic conversion tool to convert this publication to EPUB 3.",
+      )
+    }
+
+    const packageEl = await epub.getPackageElement()
+    if (!packageEl[":@"]?.["@_version"]?.startsWith("3.")) {
+      throw new Error(
+        "This is not a valid EPUB 3 publication. This library only support EPUB 3, not EPUB 2. Try using an automatic conversion tool to convert this publication to EPUB 3.",
+      )
+    }
+
+    return epub
   }
 
   async copy(path?: string): Promise<Epub> {
@@ -613,20 +632,6 @@ export class Epub {
     return this.rootfile
   }
 
-  private migratePackageDocument(packageDocument: ParsedXml) {
-    for (const element of packageDocument) {
-      if (Epub.isXmlTextNode(element)) continue
-      const elementName = Epub.getXmlElementName(element)
-      if (elementName.startsWith("opf:")) {
-        element[elementName.replace("opf:", "") as ElementName] =
-          Epub.getXmlChildren(element)
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete element[elementName]
-        this.migratePackageDocument(Epub.getXmlChildren(element))
-      }
-    }
-  }
-
   private async getPackageDocument() {
     const rootfile = await this.getRootfile()
     const packageDocumentString = await this.getFileData(rootfile, "utf-8")
@@ -646,9 +651,7 @@ export class Epub {
   private async getPackageElement() {
     const packageDocument = await this.getPackageDocument()
 
-    const packageElement =
-      Epub.findXmlChildByName("package", packageDocument) ??
-      Epub.findXmlChildByName("opf:package", packageDocument)
+    const packageElement = Epub.findXmlChildByName("package", packageDocument)
 
     if (!packageElement) {
       throw new Error(
@@ -656,9 +659,7 @@ export class Epub {
       )
     }
 
-    this.migratePackageDocument(packageDocument)
-
-    return packageElement as XmlElement<"package">
+    return packageElement
   }
 
   /**
@@ -683,9 +684,7 @@ export class Epub {
     await this.packageMutex.runExclusive(async () => {
       const packageDocument = await this.getPackageDocument()
 
-      const packageElement =
-        Epub.findXmlChildByName("package", packageDocument) ??
-        Epub.findXmlChildByName("opf:package", packageDocument)
+      const packageElement = Epub.findXmlChildByName("package", packageDocument)
 
       if (!packageElement) {
         throw new Error(
