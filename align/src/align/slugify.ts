@@ -8,19 +8,19 @@ const replacerMap = new WeakMap<
   ReturnType<typeof createReplacers>
 >()
 
-function createReplacers(locale: Intl.Locale) {
-  const maximizedLocale = locale.maximize()
+function getCurrencySymbols(locale: Intl.Locale) {
+  const region = locale.maximize().region
 
   const demoNumber = 123456.789
   const currencyFormat = new Intl.NumberFormat(locale, {
     style: "currency",
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    currency: getCurrency(locale.maximize().region!)!,
+    currency: region ? getCurrency(locale.maximize().region!)! : "USD",
   })
 
   const currencyParts = currencyFormat.formatToParts(demoNumber)
 
-  const currencySymbols = currencyParts.reduce(
+  return currencyParts.reduce(
     (acc, part, index) => {
       if (part.type === "group") {
         return {
@@ -45,6 +45,37 @@ function createReplacers(locale: Intl.Locale) {
     },
     { group: "", decimal: "", currency: "", currencyLeading: true },
   )
+}
+
+function getNumberSymbols(locale: Intl.Locale) {
+  const demoNumber = 123456.789
+  const numberFormat = new Intl.NumberFormat(locale)
+  const numberParts = numberFormat.formatToParts(demoNumber)
+
+  return numberParts.reduce(
+    (acc, part) => {
+      if (part.type === "group") {
+        return {
+          ...acc,
+          group: part.value,
+        }
+      }
+      if (part.type === "decimal") {
+        return {
+          ...acc,
+          decimal: part.value,
+        }
+      }
+      return acc
+    },
+    { group: "", decimal: "" },
+  )
+}
+
+function createReplacers(locale: Intl.Locale) {
+  const maximizedLocale = locale.maximize()
+
+  const currencySymbols = getCurrencySymbols(maximizedLocale)
 
   const numeralRegexPart = `(\\p{Number}[\\p{Number}${currencySymbols.group}]*(?:[${currencySymbols.decimal}]\\p{Number}*)?)`
   const currencyRegex = currencySymbols.currencyLeading
@@ -73,27 +104,7 @@ function createReplacers(locale: Intl.Locale) {
     }
   }
 
-  const numberFormat = new Intl.NumberFormat(locale)
-  const numberParts = numberFormat.formatToParts(demoNumber)
-
-  const numberSymbols = numberParts.reduce(
-    (acc, part) => {
-      if (part.type === "group") {
-        return {
-          ...acc,
-          group: part.value,
-        }
-      }
-      if (part.type === "decimal") {
-        return {
-          ...acc,
-          decimal: part.value,
-        }
-      }
-      return acc
-    },
-    { group: "", decimal: "" },
-  )
+  const numberSymbols = getNumberSymbols(maximizedLocale)
 
   const numberRegex = new RegExp(
     `(\\p{Number}[\\p{Number}${numberSymbols.group}]*(?:[${numberSymbols.decimal}]\\p{Number}*)?)`,
