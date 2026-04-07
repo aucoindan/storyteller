@@ -1,5 +1,11 @@
+import Constants from "expo-constants"
 import { Link } from "expo-router"
-import { PlusIcon } from "lucide-react-native"
+import {
+  BookOpenIcon,
+  BugIcon,
+  ExternalLinkIcon,
+  PlusIcon,
+} from "lucide-react-native"
 import { Fragment } from "react"
 import { View } from "react-native"
 import { ScrollView } from "react-native-gesture-handler"
@@ -13,6 +19,7 @@ import { Icon } from "@/components/ui/icon"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Text } from "@/components/ui/text"
+import { DiscordIcon } from "@/icons/DiscordIcon"
 import {
   useDeleteServerMutation,
   useGetGlobalPreferencesQuery,
@@ -158,7 +165,7 @@ export default function Settings() {
           </View>
         </View>
         <ReadingSettings />
-        <View className="my-8 gap-4">
+        <View className="mt-8 gap-4">
           <Text variant="h2">Logging</Text>
           <Button
             variant="secondary"
@@ -185,9 +192,64 @@ export default function Settings() {
               <Text>View logs</Text>
             </Button>
           </Link>
-          {/* Spacer for the miniplayer */}
-          <View className="h-40 w-full" />
         </View>
+        <View className="my-8">
+          <Text variant="h2">About</Text>
+
+          <Text variant="p" className="text-muted-foreground mt-2 text-sm">
+            Version {Constants.expoConfig?.version}
+          </Text>
+
+          <View className="mt-4 gap-3">
+            <View className="flex-row items-center justify-start gap-2 rounded-lg">
+              <Icon
+                as={BookOpenIcon}
+                size={20}
+                className="text-foreground/50"
+              />
+              <Link
+                href="https://storyteller-platform.dev/"
+                className="ml-1 text-base"
+              >
+                Documentation
+              </Link>
+              <Icon
+                as={ExternalLinkIcon}
+                size={14}
+                className="text-muted-foreground"
+              />
+            </View>
+
+            <View className="flex-row items-center justify-start gap-2 rounded-lg">
+              <Icon as={BugIcon} size={20} className="text-orange-500" />
+              <Link
+                href="https://gitlab.com/storyteller-platform/storyteller/-/issues/new?type=ISSUE"
+                className="ml-1 text-base"
+              >
+                Report an issue
+              </Link>
+              <Icon
+                as={ExternalLinkIcon}
+                size={14}
+                className="text-muted-foreground"
+              />
+            </View>
+
+            <View className="flex-row items-center justify-start gap-2 rounded-lg">
+              <DiscordIcon size={20} />
+              <Link href="https://discord.gg/KhSvFqcrza" className="text-base">
+                Join us on Discord
+              </Link>
+              <Icon
+                as={ExternalLinkIcon}
+                size={14}
+                className="text-muted-foreground"
+              />
+            </View>
+          </View>
+        </View>
+
+        <View className="h-40 w-full" />
       </ScrollView>
       <MiniPlayerWidget />
     </View>
