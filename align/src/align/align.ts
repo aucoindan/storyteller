@@ -33,9 +33,9 @@ import {
   expandEmptySentenceRanges,
   getChapterDuration,
   getSentenceRanges,
-  interpolateSentenceRanges,
   mapTranscriptionTimeline,
 } from "./getSentenceRanges.ts"
+import { interpolateSentenceRanges } from "./interpolateSentenceRanges.ts"
 import { findBoundaries } from "./search.ts"
 import { slugify } from "./slugify.ts"
 import { TextFragmentTrie } from "./textFragments.ts"
@@ -642,9 +642,18 @@ export class Aligner {
 
     const sentenceRanges: SentenceRange[] = []
     const chapterSentenceCounts: Record<string, number> = {}
+    const audioFileDurations: Record<string, number> = {}
 
     for (const alignedChapter of audioOrderedChapters) {
       sentenceRanges.push(...alignedChapter.sentenceRanges)
+
+      for (const sentenceRange of sentenceRanges) {
+        if (!(sentenceRange.audiofile in audioFileDurations)) {
+          audioFileDurations[sentenceRange.audiofile] = await getTrackDuration(
+            sentenceRange.audiofile,
+          )
+        }
+      }
 
       const sentences = await this.getChapterSentences(
         alignedChapter.chapter.id,
@@ -652,9 +661,10 @@ export class Aligner {
       chapterSentenceCounts[alignedChapter.chapter.id] = sentences.length
     }
 
-    const interpolated = await interpolateSentenceRanges(
+    const interpolated = interpolateSentenceRanges(
       sentenceRanges,
       chapterSentenceCounts,
+      audioFileDurations,
     )
 
     const expanded = expandEmptySentenceRanges(interpolated)
@@ -667,7 +677,7 @@ export class Aligner {
       )
       const finalSentenceRanges = collapsed.slice(
         collapsedStart,
-        collapsedStart + sentences.length - 1,
+        collapsedStart + sentences.length,
       )
       alignedChapter.sentenceRanges = finalSentenceRanges
       for (const [i, wordRanges] of enumerate(alignedChapter.wordRanges)) {
