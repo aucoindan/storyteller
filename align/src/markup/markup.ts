@@ -1,7 +1,6 @@
 import { copyFile } from "node:fs/promises"
 import { basename } from "node:path/posix"
 
-import { type Sentence } from "@echogarden/text-segmentation"
 import { type Logger } from "pino"
 
 import { Epub, type ParsedXml } from "@storyteller-platform/epub"
@@ -11,12 +10,16 @@ import {
   createTiming,
 } from "@storyteller-platform/ghost-story"
 
-import { type Mapping } from "./map.ts"
 import { Mark } from "./model.ts"
 import { parseDom } from "./parseDom.ts"
-import { getXhtmlSegmentation } from "./segmentation.ts"
+import { segmentChapter } from "./segmentation.ts"
 import { serializeDom } from "./serializeDom.ts"
-import { addMark } from "./transform.ts"
+import {
+  addMark,
+  inlineFootnotes,
+  liftText,
+  replaceFootnotes,
+} from "./transform.ts"
 
 export interface MarkupOptions {
   granularity?: "word" | "sentence"
@@ -59,17 +62,11 @@ export async function markup(
 
     const chapterXml = await epub.readXhtmlItemContents(chapterId)
 
-    const { result: segmentation, mapping } = await getXhtmlSegmentation(
-      Epub.getXhtmlBody(chapterXml),
-      { primaryLocale: primaryLocale },
-    )
-
-    const { markedUp, timing: chapterTiming } = markupChapter(
+    const { markedUp, timing: chapterTiming } = await markupChapter(
       chapterId,
       chapterXml,
       options.granularity ?? "sentence",
-      segmentation,
-      mapping,
+      primaryLocale,
     )
     timing.add(chapterTiming.summary())
 
@@ -81,12 +78,11 @@ export async function markup(
   return timing
 }
 
-export function markupChapter(
+export async function markupChapter(
   chapterId: string,
   chapterXml: ParsedXml,
   granularity: "word" | "sentence",
-  segmentation: Sentence[],
-  mapping: Mapping,
+  locale: Intl.Locale | null,
 ) {
   const timing = createTiming()
   const html = Epub.findXmlChildByName("html", chapterXml)
@@ -103,8 +99,18 @@ export function markupChapter(
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const taggedBody = Epub.findXmlChildByName("body", taggedHtml["html"])!
 
+  const original = parseDom(Epub.getXmlChildren(body))
+
+  const inlined = inlineFootnotes(original)
+
+  const lifted = liftText(inlined.root)
+
+  const segmentation = await segmentChapter(lifted.result, {
+    primaryLocale: locale,
+  })
+
   timing.time("mark up", () => {
-    let root = parseDom(Epub.getXmlChildren(body))
+    let root = inlined.root
     let pos = 0
     let i = 0
     for (const sentence of segmentation) {
@@ -115,8 +121,8 @@ export function markupChapter(
           if (word.text.match(/\S/)) {
             root = addMark(
               root,
-              mapping.invert().map(wordPos),
-              mapping
+              lifted.mapping.invert().map(wordPos),
+              lifted.mapping
                 .invert()
                 .map(wordPos + word.text.replace(/\n$/, "").length, -1),
               new Mark("span", { id: `${chapterId}-s${i}-w${j}` }),
@@ -129,8 +135,8 @@ export function markupChapter(
       if (sentence.text.match(/\S/)) {
         root = addMark(
           root,
-          mapping.invert().map(pos),
-          mapping
+          lifted.mapping.invert().map(pos),
+          lifted.mapping
             .invert()
             .map(pos + sentence.text.replace(/\n$/, "").length, -1),
           new Mark("span", { id: `${chapterId}-s${i}` }),
@@ -139,7 +145,14 @@ export function markupChapter(
       }
       pos += sentence.text.replace(/\n$/, "").length
     }
-    taggedBody["body"] = serializeDom(root)
+
+    const replaced = replaceFootnotes(
+      original,
+      root,
+      inlined.footnotePairs,
+      inlined.mapping,
+    )
+    taggedBody["body"] = serializeDom(replaced)
   })
 
   return { markedUp: chapterXml, timing }

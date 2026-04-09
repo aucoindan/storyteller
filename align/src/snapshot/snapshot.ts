@@ -10,7 +10,9 @@ import { type Sentence } from "@echogarden/text-segmentation"
 import { Epub, type ParsedXml } from "@storyteller-platform/epub"
 import { type RecognitionResult } from "@storyteller-platform/ghost-story"
 
-import { getXhtmlSegmentation } from "../markup/segmentation.ts"
+import { parseDom } from "../markup/parseDom.ts"
+import { segmentChapter } from "../markup/segmentation.ts"
+import { inlineFootnotes, liftText } from "../markup/transform.ts"
 
 export async function snapshotAlignment(
   epubPath: string,
@@ -68,12 +70,16 @@ export async function createAlignmentSnapshot(
       "utf-8",
     )
     const chapterXml = Epub.xhtmlParser.parse(chapterContents) as ParsedXml
-    const { result: segmentation } = await getXhtmlSegmentation(
-      Epub.getXhtmlBody(chapterXml),
-      {
-        primaryLocale: new Intl.Locale("en-US"),
-      },
-    )
+    const original = parseDom(Epub.getXhtmlBody(chapterXml))
+
+    const inlined = inlineFootnotes(original)
+
+    const lifted = liftText(inlined.root)
+
+    const segmentation = await segmentChapter(lifted.result, {
+      primaryLocale: new Intl.Locale("en-US"),
+    })
+
     let lastChapterSentence = -1
     const chapterSentences = segmentation.filter((s) => s.text.match(/\S/))
     for (const par of Epub.getXmlChildren(seq)) {

@@ -20,7 +20,9 @@ import {
 import { type RecognitionResult } from "@storyteller-platform/ghost-story/recognition"
 
 import { getTrackDuration } from "../common/ffmpeg.ts"
-import { getXhtmlSegmentation } from "../markup/segmentation.ts"
+import { parseDom } from "../markup/parseDom.ts"
+import { segmentChapter } from "../markup/segmentation.ts"
+import { inlineFootnotes, liftText } from "../markup/transform.ts"
 
 import {
   type MappedTimeline,
@@ -213,12 +215,15 @@ export class Aligner {
   private async getChapterSentences(chapterId: string) {
     const chapterXml = await this.epub.readXhtmlItemContents(chapterId)
 
-    const { result: segmentation } = await getXhtmlSegmentation(
-      Epub.getXhtmlBody(chapterXml),
-      {
-        primaryLocale: this.languageOverride ?? (await this.epub.getLanguage()),
-      },
-    )
+    const original = parseDom(Epub.getXhtmlBody(chapterXml))
+
+    const inlined = inlineFootnotes(original)
+
+    const lifted = liftText(inlined.root)
+
+    const segmentation = await segmentChapter(lifted.result, {
+      primaryLocale: this.languageOverride ?? (await this.epub.getLanguage()),
+    })
 
     return segmentation.filter((s) => s.text.match(/\S/))
   }

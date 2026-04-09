@@ -15,19 +15,19 @@ export function buildNgramIndex(text: string) {
   return index
 }
 
+const NGRAM_SIZE = 5
+
 export function* ngrams(text: string) {
   const words = text.split("-")
 
-  let pos = 0
-  for (const i of range(words.length - 4)) {
-    const ngram = words.slice(i, i + 5).join("-")
-    yield [ngram, pos] as const
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    pos += words[i]!.length + 1
+  for (const i of range(words.length - NGRAM_SIZE - 1)) {
+    const ngram = words.slice(i, i + NGRAM_SIZE).join("-")
+    yield [ngram, i] as const
   }
 }
 
 export function collectBoundaryVotes(query: string, document: string) {
+  const queryWords = query.split("-")
   const documentIndex = buildNgramIndex(document)
 
   let skippedNgrams = 0
@@ -46,7 +46,7 @@ export function collectBoundaryVotes(query: string, document: string) {
 
     for (const documentStart of documentStarts) {
       startVotes.push(documentStart - start)
-      endVotes.push(documentStart + (query.length - start))
+      endVotes.push(documentStart + (queryWords.length - start))
     }
   }
 
@@ -93,6 +93,18 @@ function chooseBestFromBins(bins: Map<number, number[]>, dir: 1 | -1) {
   return dir > 0 ? max(best) ?? null : min(best) ?? null
 }
 
+function getOffsetFromWordIndex(wordIndex: number, document: string) {
+  const words = document.split("-")
+
+  let offset = 0
+  for (const i of range(Math.min(words.length, Math.max(0, wordIndex)))) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    offset += words[i]!.length + 1
+  }
+
+  return offset
+}
+
 export function findBoundaries(query: string, document: string) {
   const boundaryVotes = collectBoundaryVotes(query, document)
   if (!boundaryVotes) return null
@@ -111,5 +123,8 @@ export function findBoundaries(query: string, document: string) {
     return null
   }
 
-  return { start: bestStart, end: bestEnd }
+  return {
+    start: getOffsetFromWordIndex(bestStart, document),
+    end: getOffsetFromWordIndex(bestEnd, document),
+  }
 }

@@ -1,11 +1,13 @@
 import { Mapping, StepMap } from "./map.ts"
 import {
+  FootnoteNode,
   type Mark,
-  type Node,
+  Node,
   type Root,
   TextNode,
   descendants,
 } from "./model.ts"
+import { findFootnotePairs } from "./parseDom.ts"
 
 export function addMark(root: Root, from: number, to: number, mark: Mark) {
   const result = root.split(from).split(to)
@@ -46,10 +48,17 @@ function addMarkToNode(
 
 export function liftText(root: Root) {
   const mapping = new Mapping()
+
   let text = ""
   let textLength = 0
   let lastTextEnd = 0
+
   descendants(root, (node, pos, parent, index) => {
+    if (node instanceof FootnoteNode) {
+      if (!text.endsWith("\n")) {
+        text += "\n"
+      }
+    }
     if (node.isBlock) {
       return !!node.textContent.match(/\S/)
     }
@@ -100,4 +109,66 @@ export function liftText(root: Root) {
     return true
   })
   return { result: text, mapping }
+}
+
+export function inlineFootnotes(root: Root) {
+  const footnotePairs = findFootnotePairs(root)
+
+  const mapping = new Mapping()
+
+  let transformed = root
+  for (const [noterefPos, footnotePos] of footnotePairs.entries()) {
+    const noteref = root.resolve(noterefPos).nodeAfter
+    const footnote = root.resolve(footnotePos).nodeAfter
+
+    if (!noteref || !(footnote instanceof Node)) continue
+
+    transformed = transformed.replace(mapping.map(noterefPos), footnote)
+    mapping.appendMap(
+      new StepMap([
+        mapping.map(noterefPos),
+        noteref.nodeSize,
+        footnote.nodeSize,
+      ]),
+    )
+    transformed = transformed.replace(
+      mapping.map(footnotePos),
+      new Node(footnote.tagName),
+    )
+    mapping.appendMap(
+      new StepMap([mapping.map(footnotePos), footnote.nodeSize, 1]),
+    )
+  }
+
+  return { root: transformed, footnotePairs, mapping }
+}
+
+export function replaceFootnotes(
+  original: Root,
+  root: Root,
+  footnotePairs: Map<number, number>,
+  mapping: Mapping,
+) {
+  let transformed = root
+  for (const [noterefPos, footnotePos] of footnotePairs.entries()) {
+    const noteref = original.resolve(noterefPos).nodeAfter
+    const footnote = transformed.resolve(mapping.map(noterefPos)).nodeAfter
+
+    if (!(noteref instanceof Node) || !(footnote instanceof Node)) continue
+
+    transformed = transformed.replace(mapping.map(noterefPos), noteref)
+    mapping.appendMap(
+      new StepMap([
+        mapping.map(noterefPos),
+        footnote.nodeSize,
+        noteref.nodeSize,
+      ]),
+    )
+    transformed = transformed.replace(mapping.map(footnotePos), footnote)
+    mapping.appendMap(
+      new StepMap([mapping.map(footnotePos), 1, footnote.nodeSize]),
+    )
+  }
+
+  return transformed
 }
