@@ -337,7 +337,7 @@ public actor AudiobookPlayerActor {
 
     func seekBy(amount: Double, bounded: Bool) async {
         let endPosition = getPosition() + amount
-        let currentTrack = tracks[currentIndex]
+        guard let currentTrack = getCurrentTrack() else { return }
 
         if endPosition < 0.0 {
             if currentIndex == 0 || bounded {
