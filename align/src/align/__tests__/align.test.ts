@@ -11,6 +11,8 @@ import { createLogger } from "../../common/logging.ts"
 import { createAlignmentSnapshot } from "../../snapshot/snapshot.ts"
 import { Aligner } from "../align.ts"
 
+const itLocally = process.env["TEST_LOCAL_ONLY"] ? it : it.skip
+
 function createTestLogger() {
   return createLogger(process.env["CI"] ? "silent" : "info")
 }
@@ -201,6 +203,69 @@ void describe("align", () => {
       ),
       join("src", "align", "__fixtures__", "peter-and-wendy", "audio"),
       join("src", "align", "__fixtures__", "peter-and-wendy", "transcriptions"),
+    )
+  })
+
+  // These books are not public commons, so Shane runs these tests locally but the
+  // books and snapshots aren't checked in
+  void itLocally("should align The Way of Kings", async (context) => {
+    await testAlignBook(
+      context,
+      "sentence",
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "way-of-kings",
+        "text",
+        "The Way of Kings.epub",
+      ),
+      join("src", "align", "__fixtures__", "way-of-kings", "audio"),
+      join("src", "align", "__fixtures__", "way-of-kings", "transcriptions"),
+    )
+  })
+
+  void itLocally("should align The Recitatif", async (context) => {
+    await testAlignBook(
+      context,
+      "sentence",
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "recitatif",
+        "text",
+        "Recitatif.epub",
+      ),
+      join("src", "align", "__fixtures__", "recitatif", "audio"),
+      join("src", "align", "__fixtures__", "recitatif", "transcriptions"),
+    )
+  })
+
+  void itLocally("should align The Raven Scholar", async (context) => {
+    await testAlignBook(
+      context,
+      "sentence",
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "raven-scholar",
+        "text",
+        "The Raven Scholar.epub",
+      ),
+      join("src", "align", "__fixtures__", "raven-scholar", "audio"),
+      join("src", "align", "__fixtures__", "raven-scholar", "transcriptions"),
+    )
+  })
+
+  void itLocally("should align Night", async (context) => {
+    await testAlignBook(
+      context,
+      "sentence",
+      join("src", "align", "__fixtures__", "night", "text", "Night.epub"),
+      join("src", "align", "__fixtures__", "night", "audio"),
+      join("src", "align", "__fixtures__", "night", "transcriptions"),
     )
   })
 })

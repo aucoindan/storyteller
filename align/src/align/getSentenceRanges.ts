@@ -1,4 +1,5 @@
 import { type SegmentationResult } from "@echogarden/text-segmentation"
+import { distance } from "fastest-levenshtein"
 import { enumerate } from "itertools"
 import { runes } from "runes2"
 
@@ -80,6 +81,9 @@ function getAlignmentsForSentence(sentence: string, alignments: Alignment[]) {
       (alignment.opType === "INSERT" && sentenceIndex > 0)
     ) {
       score -= (alignment.ref ?? alignment.hyp)!.length + 1
+    }
+    if (alignment.opType === "SUBSTITUTE") {
+      score -= distance(alignment.ref!, alignment.hyp!)
     }
     result.push(alignment)
   }
@@ -272,6 +276,8 @@ export async function getSentenceRanges(
 
     let alignmentIndex = 0
     let currentTranscriptWindowIndex = 0
+    let lastGoodSentenceIndex = slice[0] - 1
+    let lastGoodTranscriptWindowIndex = -1
     for (const [j, slugifiedSentence] of enumerate(
       slugifiedChapterSentenceWindowList,
     )) {
@@ -289,6 +295,7 @@ export async function getSentenceRanges(
         .join("-").length
 
       if (score > 0) {
+        lastGoodSentenceIndex = j + slice[0]
         const start = findStartTimestamp(
           chapterOffset +
             slugifiedChapterTranscriptWindowStartIndex +
@@ -393,10 +400,22 @@ export async function getSentenceRanges(
       ) {
         currentTranscriptWindowIndex++
       }
+      if (score > 0) {
+        lastGoodTranscriptWindowIndex = currentTranscriptWindowIndex
+      }
     }
 
-    chapterSentenceIndex = i
-    slugifiedChapterTranscriptWindowStartIndex += currentTranscriptWindowIndex
+    if (lastGoodSentenceIndex === -1) {
+      return {
+        sentenceRanges,
+        wordRanges,
+        transcriptionOffset: chapterTranscriptEndIndex,
+        firstFoundSentence,
+        lastFoundSentence: chapterSentenceIndex - 1,
+      }
+    }
+    chapterSentenceIndex += lastGoodSentenceIndex + 1
+    slugifiedChapterTranscriptWindowStartIndex += lastGoodTranscriptWindowIndex
     if (
       slugifiedChapterTranscript[slugifiedChapterTranscriptWindowStartIndex] ===
       "-"
