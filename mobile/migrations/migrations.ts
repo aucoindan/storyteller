@@ -25,6 +25,10 @@ import {
   down as addLastListBooksResponseToServerDown,
   up as addLastListBooksResponseToServerUp,
 } from "./1770771063246_add_last_list_books_response_to_server"
+import {
+  down as ratingAsRealsDown,
+  up as ratingAsRealsUp,
+} from "./1774713471283_rating_as_reals"
 
 export const migrations = {
   "1757893743063_init": {
@@ -56,5 +60,9 @@ export const migrations = {
   "1770771063246_add_last_list_books_response_to_server": {
     up: addLastListBooksResponseToServerUp,
     down: addLastListBooksResponseToServerDown,
+  },
+  "1774713471283_rating_as_reals": {
+    up: ratingAsRealsUp,
+    down: ratingAsRealsDown,
   },
 }
