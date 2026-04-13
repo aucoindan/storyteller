@@ -109,11 +109,6 @@ export default function BookDetailsScreen() {
     )
   }
 
-  let numberOfVersions = 0
-  if (book.readaloud) numberOfVersions++
-  if (book.ebook) numberOfVersions++
-  if (book.audiobook) numberOfVersions++
-
   const numberOfTagsToShow = 6
   const tagsMoreNeeded = book.tags.length > numberOfTagsToShow
   const tagsToShow = showTagsMore
@@ -259,7 +254,7 @@ export default function BookDetailsScreen() {
               )}
               <Stack className="gap-1">
                 <Group className="self-end rounded-md px-2 py-[0.05rem]">
-                  {numberOfVersions > 1 ? (
+                  {availableFormats.length > 1 ? (
                     <>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

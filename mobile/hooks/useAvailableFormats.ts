@@ -13,7 +13,10 @@ export function useAvailableFormats(
       | undefined
     )[] = [book?.ebook, book?.audiobook]
 
-    if (book?.readaloud?.status === "ALIGNED") {
+    if (
+      book?.readaloud?.status === "ALIGNED" ||
+      book?.readaloud?.downloadStatus !== "NONE"
+    ) {
       possibleFormats.push(book?.readaloud)
     }
     return book

@@ -215,7 +215,8 @@ export function BookThumbnailImage({
           }}
         />
       )}
-      {book.readaloud?.status === "ALIGNED" && (
+      {(book.readaloud?.status === "ALIGNED" ||
+        downloadedFormats.includes("readaloud")) && (
         <>
           <Icon
             className="text-primary absolute z-50"
