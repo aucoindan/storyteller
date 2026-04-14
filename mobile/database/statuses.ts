@@ -29,7 +29,7 @@ export function getStatuses() {
 export function getDirtyStatuses() {
   return db
     .selectFrom("status")
-    .selectAll()
+    .selectAll("status")
     .innerJoin("bookToStatus", "bookToStatus.statusUuid", "status.uuid")
     .select(["bookToStatus.bookUuid", "bookToStatus.dirty"])
     .where("bookToStatus.dirty", "=", "true")

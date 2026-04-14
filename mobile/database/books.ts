@@ -196,7 +196,7 @@ export async function createBook(
   return await getBook(book.uuid)
 }
 
-export function bookQuery() {
+export function bookQuery(options?: { withManifests?: boolean }) {
   return db
     .selectFrom("book")
     .select([
@@ -340,10 +340,10 @@ export function bookQuery() {
             "ebook.uuid",
             "ebook.downloadStatus",
             "ebook.downloadProgress",
-            "ebook.manifest",
             sql.lit<"ebook">("ebook").as("format"),
             "ebook.createdAt",
           ])
+          .$if(!!options?.withManifests, (eb) => eb.select(["ebook.manifest"]))
           .whereRef("ebook.bookUuid", "=", "book.uuid"),
       ).as("ebook"),
       jsonObjectFrom(
@@ -351,12 +351,15 @@ export function bookQuery() {
           .selectFrom("audiobook")
           .select([
             "audiobook.uuid",
-            "audiobook.manifest",
+
             "audiobook.downloadStatus",
             "audiobook.downloadProgress",
             sql.lit<"audiobook">("audiobook").as("format"),
             "audiobook.createdAt",
           ])
+          .$if(!!options?.withManifests, (eb) =>
+            eb.select(["audiobook.manifest"]),
+          )
           .whereRef("audiobook.bookUuid", "=", "book.uuid"),
       ).as("audiobook"),
       jsonObjectFrom(
@@ -366,12 +369,13 @@ export function bookQuery() {
             "readaloud.uuid",
             "readaloud.downloadStatus",
             "readaloud.downloadProgress",
-            "readaloud.epubManifest",
-            "readaloud.audioManifest",
             "readaloud.status",
             sql.lit<"readaloud">("readaloud").as("format"),
             "readaloud.createdAt",
           ])
+          .$if(!!options?.withManifests, (eb) =>
+            eb.select(["readaloud.epubManifest", "readaloud.audioManifest"]),
+          )
           .whereRef("readaloud.bookUuid", "=", "book.uuid"),
       ).as("readaloud"),
     ])
@@ -402,7 +406,9 @@ export async function getBooksWithAnnotations() {
 
 export async function getBook(uuid: UUID) {
   return (
-    (await bookQuery().where("book.uuid", "=", uuid).executeTakeFirst()) ?? null
+    (await bookQuery({ withManifests: true })
+      .where("book.uuid", "=", uuid)
+      .executeTakeFirst()) ?? null
   )
 }
 

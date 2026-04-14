@@ -38,7 +38,7 @@ export async function getPositions() {
 export async function getDownloadedPositions() {
   return await db
     .selectFrom("position")
-    .selectAll()
+    .selectAll("position")
     .innerJoin("book", "book.uuid", "position.bookUuid")
     .select(["book.serverUuid"])
     .leftJoin("ebook", "book.uuid", "ebook.bookUuid")
