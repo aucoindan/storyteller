@@ -2,7 +2,7 @@ import { range } from "itertools"
 import memoize from "memoize"
 
 import { BacktraceGraph, type Index } from "./backtraceGraph.ts"
-import { computeErrorAlignDistanceMatrix } from "./editDistance.ts"
+import { computeErrorAlignDistanceMatrix } from "./native.ts"
 import { END_DELIMITER, START_DELIMITER, categorizeChar } from "./utils.ts"
 
 export type TokenWithSpan = [string, [number, number]]

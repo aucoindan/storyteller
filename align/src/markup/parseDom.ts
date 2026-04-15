@@ -91,7 +91,7 @@ export function findFootnotePairs(root: Root | Node) {
 
   descendants(root, (node, pos) => {
     if (node instanceof NoterefNode) {
-      const id = node.attrs["href"]?.slice(1)
+      const id = node.attrs["href"]?.split("#")[1]
       if (id) {
         noterefs.set(id, pos)
       }

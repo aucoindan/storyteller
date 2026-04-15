@@ -268,4 +268,21 @@ void describe("align", () => {
       join("src", "align", "__fixtures__", "night", "transcriptions"),
     )
   })
+
+  void itLocally("should align An Immense World", async (context) => {
+    await testAlignBook(
+      context,
+      "sentence",
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "immense-world",
+        "text",
+        "An Immense World.epub",
+      ),
+      join("src", "align", "__fixtures__", "immense-world", "audio"),
+      join("src", "align", "__fixtures__", "immense-world", "transcriptions"),
+    )
+  })
 })

@@ -411,7 +411,10 @@ export async function getSentenceRanges(
         wordRanges,
         transcriptionOffset: chapterTranscriptEndIndex,
         firstFoundSentence,
-        lastFoundSentence: chapterSentenceIndex - 1,
+        lastFoundSentence: Math.max(
+          firstFoundSentence,
+          chapterSentenceIndex - 1,
+        ),
       }
     }
     chapterSentenceIndex += lastGoodSentenceIndex + 1
