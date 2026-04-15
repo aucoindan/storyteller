@@ -19,8 +19,8 @@
     "readme:toc": "markdown-toc --maxdepth=5 --append='\n- [API Docs](#api-docs)' --bullets='-' -i readme-stub.md",
     "readme:api": "typedoc",
     "readme": "yarn readme:api && yarn readme:toc && cat readme-stub.md > README.md && tail -n +2 gen/README.md >> README.md",
-    "test": "tsx -C @storyteller --test index.test.ts",
-    "test:watch": "tsx -C @storyteller --test --watch index.test.ts",
+    "test": "tsx -C @storyteller --test *.test.ts",
+    "test:watch": "tsx -C @storyteller --test --watch *.test.ts",
     "prepack": "yarn build"
   },
   "devDependencies": {
@@ -31,6 +31,7 @@
     "@types/node": "^24.0.0",
     "@types/yauzl-promise": "^4",
     "@types/yazl": "^3",
+    "epubchecker": "^5.2.1",
     "eslint": "^8.0.0",
     "markdown-toc": "^1.2.0",
     "remark-toc": "^9.0.0",

@@ -59,6 +59,8 @@ test-epub:
       changes:
         - epub/**/*
   script:
+    # install java
+    - apt update && apt install -y --no-install-recommends openjdk-17-jdk
     - yarn
     - yarn test:epub
 

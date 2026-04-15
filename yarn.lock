@@ -14822,6 +14822,7 @@ __metadata:
     "@types/yazl": "npm:^3"
     "@zip.js/zip.js": "npm:^2.0.0"
     async-mutex: "npm:^0.5.0"
+    epubchecker: "npm:^5.2.1"
     eslint: "npm:^8.0.0"
     fast-xml-parser: "npm:^4.0.1"
     markdown-toc: "npm:^1.2.0"
@@ -18704,6 +18705,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"adm-zip@npm:^0.5.0":
+  version: 0.5.17
+  resolution: "adm-zip@npm:0.5.17"
+  checksum: 10c0/29b8f2a1070fc540ad9a45b13d0ceffd141d78e5a4501f102e978f0256f8290326009ccd3411213e90f3a810c830b39453548638879b3295ddc3814c20a8307b
+  languageName: node
+  linkType: hard
+
 "ag-auth@npm:^2.1.0":
   version: 2.1.0
   resolution: "ag-auth@npm:2.1.0"
@@ -21200,6 +21208,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"colors@npm:^1.4.0":
+  version: 1.4.0
+  resolution: "colors@npm:1.4.0"
+  checksum: 10c0/9af357c019da3c5a098a301cf64e3799d27549d8f185d86f79af23069e4f4303110d115da98483519331f6fb71c8568d5688fa1c6523600044fd4a54e97c4efb
+  languageName: node
+  linkType: hard
+
 "combine-errors@npm:^3.0.3":
   version: 3.0.3
   resolution: "combine-errors@npm:3.0.3"
@@ -23503,6 +23518,21 @@ __metadata:
   version: 2.2.1
   resolution: "env-paths@npm:2.2.1"
   checksum: 10c0/285325677bf00e30845e330eec32894f5105529db97496ee3f598478e50f008c5352a41a30e5e72ec9de8a542b5a570b85699cd63bd2bc646dbcb9f311d83bc4
+  languageName: node
+  linkType: hard
+
+"epubchecker@npm:^5.2.1":
+  version: 5.2.1
+  resolution: "epubchecker@npm:5.2.1"
+  dependencies:
+    adm-zip: "npm:^0.5.0"
+    colors: "npm:^1.4.0"
+    commander: "npm:^10.0.0"
+    node-fetch: "npm:^2.0.0"
+    tempfile: "npm:^3.0.0"
+  bin:
+    epubchecker: bin/epubchecker.js
+  checksum: 10c0/9965f4816d9fc4f49178507c54b5315720ffadf7d67e3ef48a4f4319295627b92792b2af06351345935f04bf1920e50c7b656a8d792a8d7487106c4d6e63e9b6
   languageName: node
   linkType: hard
 
@@ -33546,7 +33576,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:^2.6.7, node-fetch@npm:^2.7.0":
+"node-fetch@npm:^2.0.0, node-fetch@npm:^2.6.7, node-fetch@npm:^2.7.0":
   version: 2.7.0
   resolution: "node-fetch@npm:2.7.0"
   dependencies:
@@ -40985,10 +41015,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"temp-dir@npm:~2.0.0":
+"temp-dir@npm:^2.0.0, temp-dir@npm:~2.0.0":
   version: 2.0.0
   resolution: "temp-dir@npm:2.0.0"
   checksum: 10c0/b1df969e3f3f7903f3426861887ed76ba3b495f63f6d0c8e1ce22588679d9384d336df6064210fda14e640ed422e2a17d5c40d901f60e161c99482d723f4d309
+  languageName: node
+  linkType: hard
+
+"tempfile@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "tempfile@npm:3.0.0"
+  dependencies:
+    temp-dir: "npm:^2.0.0"
+    uuid: "npm:^3.3.2"
+  checksum: 10c0/1547e7b5c199868f9b8bf0e321f4cbdc3c57c05c03ff0b1a93deae94edc529ac1499ec7b6d7ebf4e79f469194262c4606785b47ec77d979eaece42c46db72932
   languageName: node
   linkType: hard
 
@@ -42729,6 +42769,15 @@ __metadata:
   bin:
     uuid: dist/esm/bin/uuid
   checksum: 10c0/34aa51b9874ae398c2b799c88a127701408cd581ee89ec3baa53509dd8728cbb25826f2a038f9465f8b7be446f0fbf11558862965b18d21c993684297628d4d3
+  languageName: node
+  linkType: hard
+
+"uuid@npm:^3.3.2":
+  version: 3.4.0
+  resolution: "uuid@npm:3.4.0"
+  bin:
+    uuid: ./bin/uuid
+  checksum: 10c0/1c13950df865c4f506ebfe0a24023571fa80edf2e62364297a537c80af09c618299797bbf2dbac6b1f8ae5ad182ba474b89db61e0e85839683991f7e08795347
   languageName: node
   linkType: hard
 

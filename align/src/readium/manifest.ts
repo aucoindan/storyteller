@@ -162,93 +162,97 @@ export async function generateManifest(epub: Epub) {
   const spine = await epub.getSpineItems()
   const epubManifest = await epub.getManifest()
 
-  const readingOrder = spine.map((item) => {
-    const link = new Link({
-      href: item.href,
-      ...(item.mediaType && { type: item.mediaType }),
-    })
-    const manifestItem = epubManifest[item.id]
-    if (!manifestItem) return link
-    if (!manifestItem.mediaOverlay) return link
+  const readingOrder = await Promise.all(
+    spine.map(async (item) => {
+      const link = new Link({
+        href: await epub.resolveHref(item.href, undefined, { toRoot: true }),
+        ...(item.mediaType && { type: item.mediaType }),
+      })
+      const manifestItem = epubManifest[item.id]
+      if (!manifestItem) return link
+      if (!manifestItem.mediaOverlay) return link
 
-    const mediaOverlayItem = epubManifest[manifestItem.mediaOverlay]
-    if (!mediaOverlayItem) return link
+      const mediaOverlayItem = epubManifest[manifestItem.mediaOverlay]
+      if (!mediaOverlayItem) return link
 
-    return new Link({
-      href: link.href,
-      type: link.mediaType.string,
-      alternates: new Links([
-        new Link({
-          href: `GND/${mediaOverlayItem.id}.json`,
-          type: "application/guided-navigation+json",
-        }),
-      ]),
-    })
-  })
+      return new Link({
+        href: link.href,
+        type: link.mediaType.string,
+        alternates: new Links([
+          new Link({
+            href: `GND/${mediaOverlayItem.id}.json`,
+            type: "application/guided-navigation+json",
+          }),
+        ]),
+      })
+    }),
+  )
 
   const coverItem = await epub.getCoverImageItem()
 
-  const resources = Object.values(epubManifest).map((item) => {
-    const rels = new Set<string>()
+  const resources = await Promise.all(
+    Object.values(epubManifest).map(async (item) => {
+      const rels = new Set<string>()
 
-    if (item.id === coverItem?.id) {
-      rels.add("cover")
-    }
+      if (item.id === coverItem?.id) {
+        rels.add("cover")
+      }
 
-    if (item.mediaType === "application/xhtml+xml") {
-      rels.add("content")
-    }
+      if (item.mediaType === "application/xhtml+xml") {
+        rels.add("content")
+      }
 
-    const otherMetadata = epubMetadata
-      .filter((meta) => meta.properties["refines"] === `#${item.id}`)
-      .filter(
-        (meta) => (meta.properties["property"]?.split(":")[0] ?? "") in vocab,
-      )
-      .map((meta) => {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const prefix = meta.properties["property"]!.split(":")[0]!
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const scheme = vocab[prefix]!
-        return [scheme, meta.value] as const
+      const otherMetadata = epubMetadata
+        .filter((meta) => meta.properties["refines"] === `#${item.id}`)
+        .filter(
+          (meta) => (meta.properties["property"]?.split(":")[0] ?? "") in vocab,
+        )
+        .map((meta) => {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          const prefix = meta.properties["property"]!.split(":")[0]!
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          const scheme = vocab[prefix]!
+          return [scheme, meta.value] as const
+        })
+
+      const link = new Link({
+        href: await epub.resolveHref(item.href, undefined, { toRoot: true }),
+        ...(item.mediaType && { type: item.mediaType }),
+        rels,
+        properties: new Properties(Object.fromEntries(otherMetadata)),
       })
 
-    const link = new Link({
-      href: item.href,
-      ...(item.mediaType && { type: item.mediaType }),
-      rels,
-      properties: new Properties(Object.fromEntries(otherMetadata)),
-    })
+      if (!item.mediaOverlay) return link
 
-    if (!item.mediaOverlay) return link
+      const mediaOverlayItem = epubManifest[item.id]
+      if (!mediaOverlayItem) return link
 
-    const mediaOverlayItem = epubManifest[item.id]
-    if (!mediaOverlayItem) return link
+      const refinedBy = epubMetadata.find(
+        ({ properties }) =>
+          properties["property"] === "media:duration" &&
+          properties["refines"] === `#${mediaOverlayItem.id}`,
+      )
 
-    const refinedBy = epubMetadata.find(
-      ({ properties }) =>
-        properties["property"] === "media:duration" &&
-        properties["refines"] === `#${mediaOverlayItem.id}`,
-    )
+      if (!refinedBy?.value) return link
 
-    if (!refinedBy?.value) return link
+      const duration = clockvalue(refinedBy.value)
 
-    const duration = clockvalue(refinedBy.value)
+      return new Link({
+        href: link.href,
+        type: link.mediaType.string,
+        ...(link.properties && { properties: link.properties }),
+        duration,
+      })
+    }),
+  )
 
-    return new Link({
-      href: link.href,
-      type: link.mediaType.string,
-      ...(link.properties && { properties: link.properties }),
-      duration,
-    })
-  })
-
-  const epubToc = await epub.getTableOfContents()
+  const epubToc = await epub.getTableOfContents({ resolveToRoot: true })
   const toc = epubToc && createLinkTree(epubToc.children)
 
-  const epubLandmarks = await epub.getLandmarks()
+  const epubLandmarks = await epub.getLandmarks({ resolveToRoot: true })
   const landmarks = epubLandmarks && createLinkTree(epubLandmarks.children)
 
-  const epubPageList = await epub.getPageList()
+  const epubPageList = await epub.getPageList({ resolveToRoot: true })
   const pageList = epubPageList && createLinkTree(epubPageList.children)
 
   const subcollections = new Map<string, PublicationCollection[]>()

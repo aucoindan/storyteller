@@ -208,8 +208,12 @@ async function parseGuidedNavigationObjects(
         continue
       }
 
-      const textref = await epub.resolveHref(textSrc, overlayHref)
-      const audioref = await epub.resolveHref(audioSrc, overlayHref)
+      const textref = await epub.resolveHref(textSrc, overlayHref, {
+        toRoot: true,
+      })
+      const audioref = await epub.resolveHref(audioSrc, overlayHref, {
+        toRoot: true,
+      })
 
       const clipBeginSeconds = clockvalue(clipBegin) / 1000
       const clipEndSeconds = clockvalue(clipEnd) / 1000
@@ -241,7 +245,9 @@ async function parseGuidedNavigationObjects(
 
       guidedNavObjects.push(
         new GuidedNavigationObject({
-          textref: await epub.resolveHref(textref, overlayHref),
+          textref: await epub.resolveHref(textref, overlayHref, {
+            toRoot: true,
+          }),
           ...(role && { role: new Set([role]) }),
           children,
         }),

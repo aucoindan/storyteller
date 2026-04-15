@@ -14,6 +14,8 @@ import { ZipFile } from "yazl"
 
 import { dirname, join, resolve } from "@storyteller-platform/path"
 
+import * as Upgrade from "./upgrade.ts"
+
 /*
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/getTextInfo
  * Node.js and Deno both have a non-standard implementation of
@@ -148,6 +150,12 @@ export interface Navigation {
   children: NavigationList
 }
 
+interface GuideItem {
+  href: string
+  title: string
+  type: string
+}
+
 export type PackageElement = XmlElement<"package">
 
 const MP3_FILE_EXTENSIONS = [".mp3"] as const
@@ -188,6 +196,8 @@ const AUDIO_FILE_EXTENSIONS = [
 function isAudioFile(filenameOrExt: string): boolean {
   return AUDIO_FILE_EXTENSIONS.some((ext) => filenameOrExt.endsWith(ext))
 }
+
+export class EpubVersionError extends Error {}
 
 /**
  * A single EPUB instance.
@@ -570,8 +580,24 @@ export class Epub {
    *        path to an EPUB file on disk, or a Uint8Array representing
    *        the data of the EPUB publication.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
   static async from(pathOrData: string | Uint8Array): Promise<Epub> {
+    const epub = await this.open(pathOrData)
+
+    const version = await epub.getVersion()
+    if (!version.startsWith("3.")) {
+      epub.discardAndClose()
+      throw new EpubVersionError(
+        "This is not a valid EPUB 3 publication. This library only supports EPUB 3, not EPUB 2. Use Epub.upgrade(path) to convert.",
+      )
+    }
+
+    return epub
+  }
+
+  /**
+   * Open an EPUB publication and return an Epub instance.
+   */
+  private static async open(pathOrData: string | Uint8Array): Promise<Epub> {
     const extractPath = join(
       tmpdir(),
       `storyteller-platform-epub-${randomUUID()}.epub`,
@@ -616,14 +642,7 @@ export class Epub {
       epub.discardAndClose()
       console.error(e)
       throw new Error(
-        "This is not a valid EPUB 3 publication. This library only support EPUB 3, not EPUB 2. Try using an automatic conversion tool to convert this publication to EPUB 3.",
-      )
-    }
-
-    const packageEl = await epub.getPackageElement()
-    if (!packageEl[":@"]?.["@_version"]?.startsWith("3.")) {
-      throw new Error(
-        "This is not a valid EPUB 3 publication. This library only support EPUB 3, not EPUB 2. Try using an automatic conversion tool to convert this publication to EPUB 3.",
+        "This is not a valid EPUB publication. Could not read the package document.",
       )
     }
 
@@ -2127,7 +2146,11 @@ export class Epub {
     this.spine = null
   }
 
-  private getNavigationChildren(ol: XmlElement<"ol">): NavigationList {
+  private async getNavigationChildren(
+    ol: XmlElement<"ol">,
+    navHref: string,
+    { resolveToRoot }: { resolveToRoot?: boolean | undefined } = {},
+  ): Promise<NavigationList> {
     const children: NavigationList = []
     const childrenElements = Epub.getXmlChildren(ol).filter(
       (node): node is XmlElement<"li"> =>
@@ -2155,11 +2178,17 @@ export class Epub {
         title: Epub.getXhtmlTextContent(Epub.getXmlChildren(firstChild)),
         ...(Epub.getXmlElementName(firstChild) === "a" &&
           firstChild[":@"]?.["@_href"] && {
-            href: firstChild[":@"]["@_href"],
+            href: await this.resolveHref(
+              firstChild[":@"]["@_href"],
+              undefined,
+              { toRoot: resolveToRoot },
+            ),
           }),
         ...(secondChild &&
           Epub.getXmlElementName(secondChild) === "ol" && {
-            children: this.getNavigationChildren(secondChild),
+            children: await this.getNavigationChildren(secondChild, navHref, {
+              resolveToRoot,
+            }),
           }),
       })
     }
@@ -2169,6 +2198,7 @@ export class Epub {
 
   private async getNavigation(
     role: "toc" | "landmarks" | "page-list",
+    { resolveToRoot }: { resolveToRoot?: boolean | undefined } = {},
   ): Promise<Navigation | null> {
     const manifest = await this.getManifest()
     const navItem = Object.values(manifest).find((item) =>
@@ -2207,7 +2237,9 @@ export class Epub {
           : null
     if (!list) return null
 
-    const children = this.getNavigationChildren(list)
+    const children = await this.getNavigationChildren(list, navItem.href, {
+      resolveToRoot,
+    })
 
     return {
       ...(title && { title }),
@@ -2221,8 +2253,15 @@ export class Epub {
    *
    * @link https://www.w3.org/TR/epub-33/#sec-nav-toc
    */
-  async getTableOfContents(): Promise<Navigation | null> {
-    return this.getNavigation("toc")
+  async getTableOfContents({
+    resolveToRoot,
+  }: { resolveToRoot?: boolean } = {}): Promise<Navigation | null> {
+    const navigationToc = await this.getNavigation("toc", { resolveToRoot })
+    if (navigationToc) return navigationToc
+    const ncxToc = await this.getNcxTableOfContents()
+    return {
+      children: ncxToc,
+    }
   }
 
   /**
@@ -2231,8 +2270,10 @@ export class Epub {
    *
    * @link https://www.w3.org/TR/epub-33/#sec-nav-landmarks
    */
-  async getLandmarks(): Promise<Navigation | null> {
-    return this.getNavigation("landmarks")
+  async getLandmarks({
+    resolveToRoot,
+  }: { resolveToRoot?: boolean } = {}): Promise<Navigation | null> {
+    return this.getNavigation("landmarks", { resolveToRoot })
   }
 
   /**
@@ -2241,8 +2282,10 @@ export class Epub {
    *
    * @link https://www.w3.org/TR/epub-33/#sec-nav-landmarks
    */
-  async getPageList(): Promise<Navigation | null> {
-    return this.getNavigation("page-list")
+  async getPageList({
+    resolveToRoot,
+  }: { resolveToRoot?: boolean } = {}): Promise<Navigation | null> {
+    return this.getNavigation("page-list", { resolveToRoot })
   }
 
   /**
@@ -2261,13 +2304,19 @@ export class Epub {
    * @param [relativeTo] Optional - The href to resolve this href relative to.
        Use if resolving a relative href from a file other than the package document.
    */
-  async resolveHref(href: string, relativeTo?: string): Promise<string> {
+  async resolveHref(
+    href: string,
+    relativeTo?: string,
+    { toRoot }: { toRoot?: boolean | undefined } = {},
+  ): Promise<string> {
     const rootfile = await this.getRootfile()
     const from = relativeTo
       ? this.resolveInternalHref(rootfile, relativeTo)
       : rootfile
     const path = this.resolveInternalHref(from, href)
-    return path.replace(this.extractPath, "").slice(1)
+    return path
+      .replace(toRoot ? this.extractPath : dirname(rootfile), "")
+      .slice(1)
   }
 
   /**
@@ -2749,6 +2798,140 @@ export class Epub {
     })
   }
 
+  /**
+   * Returns the EPUB version declared on the package element.
+   */
+  async getVersion(): Promise<string> {
+    const packageElement = await this.getPackageElement()
+    return packageElement[":@"]?.["@_version"] ?? "2.0"
+  }
+
+  /**
+   * Parse the NCX table of contents, if one exists, and return
+   * a tree of TocEntry nodes.
+   *
+   * Useful for both EPUB 2 publications (where the NCX is the
+   * primary navigation) and EPUB 3 publications that retain an
+   * NCX for backwards compatibility.
+   */
+  async getNcxTableOfContents(): Promise<NavigationList> {
+    const [manifest, packageElement] = await Promise.all([
+      this.getManifest(),
+      this.getPackageElement(),
+    ])
+
+    const spine = Epub.findXmlChildByName(
+      "spine",
+      Epub.getXmlChildren(packageElement),
+    )
+
+    const spineTocId = spine?.[":@"]?.["@_toc"]
+
+    const ncxItem = spineTocId
+      ? manifest[spineTocId]
+      : Object.values(manifest).find(
+          (item) =>
+            item.mediaType?.toLowerCase() === "application/x-dtbncx+xml",
+        )
+
+    if (!ncxItem) return []
+
+    const ncxContent = await this.readItemContents(ncxItem.id, "utf-8")
+    const ncxXml = Epub.xmlParser.parse(ncxContent) as ParsedXml
+
+    const ncxElement = Epub.findXmlChildByName("ncx", ncxXml)
+    if (!ncxElement) return []
+
+    const ncxChildren = Epub.getXmlChildren(ncxElement)
+
+    const navMap =
+      Epub.findXmlChildByName("navMap", ncxChildren) ??
+      Epub.findXmlChildByName("navmap", ncxChildren)
+
+    if (!navMap) return []
+
+    return this.parseNavPoints(Epub.getXmlChildren(navMap), ncxItem.href)
+  }
+
+  private async parseNavPoints(
+    nodes: ParsedXml,
+    ncxHref: string,
+  ): Promise<NavigationList> {
+    const entries: NavigationList = []
+
+    for (const node of nodes) {
+      if (Epub.isXmlTextNode(node)) continue
+
+      const name = Epub.getXmlElementName(node)
+
+      const isNavPoint = name === "navPoint" || name === "navpoint"
+
+      if (!isNavPoint) continue
+
+      const children = Epub.getXmlChildren(node)
+
+      const navLabel =
+        Epub.findXmlChildByName("navLabel", children) ??
+        Epub.findXmlChildByName("navlabel", children)
+
+      let title: string | null = null
+      if (navLabel) {
+        const textEl = Epub.findXmlChildByName(
+          "text",
+          Epub.getXmlChildren(navLabel),
+        )
+
+        if (textEl) {
+          title =
+            Epub.getXhtmlTextContent(Epub.getXmlChildren(textEl)).trim() || null
+        }
+      }
+
+      const contentEl = Epub.findXmlChildByName("content", children)
+      const src = contentEl?.[":@"]?.["@_src"]
+      const href = src ? await this.resolveHref(src, ncxHref) : null
+
+      const childEntries = await this.parseNavPoints(children, ncxHref)
+
+      entries.push({
+        title: title ?? `${entries.length}`,
+        ...(href && { href }),
+        children: childEntries,
+      })
+    }
+
+    return entries
+  }
+
+  /**
+   * Retrieve the guide entries from the package document.
+   *
+   * The guide element is deprecated in EPUB 3 in favor of
+   * the landmarks nav, but many publications still include it.
+   */
+  async getGuideEntries(): Promise<GuideItem[]> {
+    const packageElement = await this.getPackageElement()
+
+    const guide = Epub.findXmlChildByName(
+      "guide",
+      Epub.getXmlChildren(packageElement),
+    )
+
+    if (!guide) return []
+
+    return Epub.getXmlChildren(guide)
+      .filter(
+        (node): node is XmlElement =>
+          !Epub.isXmlTextNode(node) && "reference" in node,
+      )
+      .map((ref) => ({
+        href: ref[":@"]?.["@_href"] ?? "",
+        title: ref[":@"]?.["@_title"] ?? "",
+        type: (ref[":@"]?.["@_type"] ?? "").toLowerCase(),
+      }))
+      .filter((entry) => entry.href)
+  }
+
   discardAndClose() {
     this.rootfile = null
     this.manifest = null
@@ -2824,7 +3007,97 @@ export class Epub {
     await cp(tmpArchivePath, this.inputPath)
   }
 
+  /**
+   * Upgrade an EPUB 2 publication to EPUB 3 in place, returning a new, valid Epub 3 instance.
+   *
+   * Performs the following transformations:
+   *  - upgrades OPF metadata to EPUB 3 conventions
+   *  - scans XHTML documents and adds manifest item properties
+   *  - parses the NCX into a TOC tree and generates a nav.xhtml
+   *  - removes the NCX file and the guide element (configurable)
+   *  - fixes common font MIME types
+   *  - bumps the package version to 3.0
+   *  - goes over each xhtml item and rewrites it using XMLParser to make sure the output is valid XHTML
+   */
+  static async upgrade(
+    path: string,
+    options: Upgrade.Epub2UpgradeOptions = {},
+  ): Promise<Epub> {
+    const { removeNcx = false, outputPath } = options
+
+    if (outputPath) {
+      await mkdir(dirname(outputPath), { recursive: true })
+      await cp(path, outputPath, { force: true })
+    }
+
+    const epub = await Epub.open(outputPath ?? path)
+
+    const version = await epub.getVersion()
+    if (version.startsWith("3.")) {
+      return epub
+    }
+
+    const tocEntries = await epub.getNcxTableOfContents()
+
+    let landmarks: Upgrade.Landmark[] = []
+
+    await epub.withPackage((pkg) => {
+      landmarks = Upgrade.extractGuideLandmarks(pkg)
+
+      Upgrade.upgradePackageMetadata(pkg)
+      Upgrade.fixFontMimeTypes(pkg)
+      Upgrade.removeGuide(pkg)
+
+      if (removeNcx) {
+        Upgrade.removeSpineTocRef(pkg)
+      }
+
+      Upgrade.setPackageVersion(pkg, "3.0")
+    })
+
+    // scan xhtml items for svg/script/mathml/switch properties
+    await Upgrade.collectManifestProperties(epub)
+
+    // maybe remove ncx
+    if (removeNcx) {
+      await Upgrade.removeNcx(epub)
+    }
+
+    const navHref = await Upgrade.chooseNavHref(epub)
+    const navContent = await Upgrade.buildNavDocument(
+      epub,
+      tocEntries,
+      landmarks,
+    )
+
+    await epub.addManifestItem(
+      {
+        id: "nav",
+        href: navHref,
+        mediaType: "application/xhtml+xml",
+        properties: ["nav"],
+      },
+      navContent,
+      "utf-8",
+    )
+
+    // go over each xhtml item and replace the outdated
+    // <!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.1//EN' 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd'>
+    // with <!DOCTYPE html>
+    const manifest = await epub.getManifest()
+    for (const item of Object.values(manifest)) {
+      if (item.mediaType?.toLowerCase() !== "application/xhtml+xml") continue
+
+      const contents = await epub.readXhtmlItemContents(item.id)
+      await epub.writeXhtmlItemContents(item.id, contents)
+    }
+
+    return epub
+  }
+
   [Symbol.dispose]() {
     this.discardAndClose()
   }
 }
+
+export type { Epub2UpgradeOptions, Landmark } from "./upgrade.ts"
