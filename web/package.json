@@ -37,7 +37,7 @@
     "@mantine/hooks": "^8.3.0",
     "@readium/navigator": "2.1.1",
     "@readium/navigator-html-injectables": "2.1.1",
-    "@readium/shared": "^2.1.1",
+    "@readium/shared": "patch:@readium/shared@npm%3A2.1.5#~/.yarn/patches/@readium-shared-npm-2.1.5-8d6f9d2432.patch",
     "@reduxjs/toolkit": "^2.11.2",
     "@remix-run/node": "^2.17.0",
     "@scalar/nextjs-openapi": "^0.1.17",

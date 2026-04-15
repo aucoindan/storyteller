@@ -135,6 +135,19 @@ export interface Collection {
   position?: string
 }
 
+export interface NavigationItem {
+  title: string
+  href?: string
+  children?: NavigationList
+}
+
+export type NavigationList = NavigationItem[]
+
+export interface Navigation {
+  title?: string
+  children: NavigationList
+}
+
 export type PackageElement = XmlElement<"package">
 
 const MP3_FILE_EXTENSIONS = [".mp3"] as const
@@ -405,10 +418,37 @@ export class Epub {
   static findXmlChildByName<Name extends ElementName>(
     name: Name,
     xml: ParsedXml,
-    filter?: (node: XmlNode) => boolean,
+    filter?: (node: XmlElement<Name>) => boolean,
   ): XmlElement<Name> | undefined {
-    const element = xml.find((e) => name in e && (filter ? filter(e) : true))
+    const element = xml.find(
+      (e) => name in e && (filter ? filter(e as XmlElement<Name>) : true),
+    )
     return element as XmlElement<Name> | undefined
+  }
+
+  /**
+   * Given an XML structure, find the first descendant matching
+   * the provided name and optional filter.
+   *
+   * Will perform a breadth first search for the element, returning
+   * the highest element in the tree matching the name and filter.
+   */
+  static findXmlDescendantByName<Name extends ElementName>(
+    name: Name,
+    xml: ParsedXml,
+    filter?: (node: XmlElement<Name>) => boolean,
+  ): XmlElement<Name> | undefined {
+    const found = Epub.findXmlChildByName(name, xml, filter)
+    if (found) return found
+
+    for (const node of xml) {
+      if (Epub.isXmlTextNode(node)) continue
+      const children = Epub.getXmlChildren(node)
+      const found = this.findXmlDescendantByName(name, children, filter)
+      if (found) return found
+    }
+
+    return undefined
   }
 
   /**
@@ -609,7 +649,7 @@ export class Epub {
   private async removeEntry(href: string) {
     const rootfile = await this.getRootfile()
 
-    const filename = this.resolveHref(rootfile, href)
+    const filename = this.resolveInternalHref(rootfile, href)
 
     await rm(filename)
   }
@@ -1073,6 +1113,59 @@ export class Epub {
       properties: {},
       value: date.toISOString(),
     })
+  }
+
+  /**
+   * Retrieve the modified date from the dcterms:modified metadata
+   * in the EPUB metadata as a Date object.
+   *
+   * If there is no meta element with dcterms:modified, returns null.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-metadata-last-modified
+   */
+  async getModifiedDate() {
+    const metadata = await this.getMetadata()
+    const entry = metadata.find(
+      ({ properties }) => properties["property"] === "dcterms:modified",
+    )
+    if (!entry?.value) return null
+    return new Date(entry.value)
+  }
+
+  /**
+   * Retrieve the layout from the rendition:layout meta element
+   * in the EPUB metadata.
+   *
+   * If there is no meta element, returns 'reflowable'.
+   *
+   * @link https://www.w3.org/TR/epub-33/#layout
+   */
+  async getLayout(): Promise<"reflowable" | "pre-paginated"> {
+    const metadata = await this.getMetadata()
+    const entry = metadata.find(
+      ({ properties }) => properties["property"] === "rendition:layout",
+    )
+    if (entry?.value !== "reflowable" && entry?.value !== "pre-paginated") {
+      return "reflowable"
+    }
+    return entry.value
+  }
+
+  /**
+   * Retrieve the base direction from the package element.
+   *
+   * If there is no `dir` attribute on the package element,
+   * returns 'auto'.
+   *
+   * @link https://www.w3.org/TR/epub-33/#attrdef-dir
+   */
+  async getBaseDirection(): Promise<"ltr" | "rtl" | "auto"> {
+    const packageEl = await this.getPackageElement()
+    const dir = packageEl[":@"]?.["@_dir"]
+    if (dir !== "ltr" && dir !== "rtl" && dir !== "auto") {
+      return "auto"
+    }
+    return dir
   }
 
   /**
@@ -2034,12 +2127,147 @@ export class Epub {
     this.spine = null
   }
 
+  private getNavigationChildren(ol: XmlElement<"ol">): NavigationList {
+    const children: NavigationList = []
+    const childrenElements = Epub.getXmlChildren(ol).filter(
+      (node): node is XmlElement<"li"> =>
+        !Epub.isXmlTextNode(node) && Epub.getXmlElementName(node) === "li",
+    )
+
+    for (const childEl of childrenElements) {
+      const [firstChild, secondChild] = Epub.getXmlChildren(childEl).filter(
+        (node): node is XmlElement<"a" | "span" | "ol"> =>
+          !Epub.isXmlTextNode(node) &&
+          ["a", "span", "ol"].includes(Epub.getXmlElementName(node)),
+      )
+      if (!firstChild) continue
+      if (!["a", "span"].includes(Epub.getXmlElementName(firstChild))) {
+        continue
+      }
+      if (
+        Epub.getXmlElementName(firstChild) === "span" &&
+        (!secondChild || Epub.getXmlElementName(secondChild) !== "ol")
+      ) {
+        continue
+      }
+
+      children.push({
+        title: Epub.getXhtmlTextContent(Epub.getXmlChildren(firstChild)),
+        ...(Epub.getXmlElementName(firstChild) === "a" &&
+          firstChild[":@"]?.["@_href"] && {
+            href: firstChild[":@"]["@_href"],
+          }),
+        ...(secondChild &&
+          Epub.getXmlElementName(secondChild) === "ol" && {
+            children: this.getNavigationChildren(secondChild),
+          }),
+      })
+    }
+
+    return children
+  }
+
+  private async getNavigation(
+    role: "toc" | "landmarks" | "page-list",
+  ): Promise<Navigation | null> {
+    const manifest = await this.getManifest()
+    const navItem = Object.values(manifest).find((item) =>
+      item.properties?.includes("nav"),
+    )
+    if (!navItem) return null
+
+    const navContents = await this.readXhtmlItemContents(navItem.id)
+    const navEl = Epub.findXmlDescendantByName(
+      "nav",
+      navContents,
+      (node) => Epub.getXmlAttributes(node)["epub:type"] === role,
+    )
+
+    if (!navEl) return null
+
+    const [firstChild, secondChild] = Epub.getXmlChildren(navEl).filter(
+      (node): node is XmlElement<`h${1 | 2 | 3 | 4 | 5 | 6}` | "ol"> =>
+        !!(
+          !Epub.isXmlTextNode(node) &&
+          Epub.getXmlElementName(node).match(/(?:h[1-6]|ol)/)
+        ),
+    )
+
+    if (!firstChild) return null
+
+    const title = Epub.getXmlElementName(firstChild).match(/h[1-6]/)
+      ? Epub.getXhtmlTextContent(Epub.getXmlChildren(firstChild))
+      : null
+
+    const list: XmlElement<"ol"> | null =
+      Epub.getXmlElementName(firstChild) === "ol"
+        ? firstChild
+        : secondChild && Epub.getXmlElementName(secondChild) === "ol"
+          ? secondChild
+          : null
+    if (!list) return null
+
+    const children = this.getNavigationChildren(list)
+
+    return {
+      ...(title && { title }),
+      children,
+    }
+  }
+
+  /**
+   * Returns the structured table of contents navigation document
+   * as a Navigation object.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-nav-toc
+   */
+  async getTableOfContents(): Promise<Navigation | null> {
+    return this.getNavigation("toc")
+  }
+
+  /**
+   * Returns the structured landmarks navigation document
+   * as a Navigation object
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-nav-landmarks
+   */
+  async getLandmarks(): Promise<Navigation | null> {
+    return this.getNavigation("landmarks")
+  }
+
+  /**
+   * Returns the structured page list navigation document
+   * as a Navigation object
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-nav-landmarks
+   */
+  async getPageList(): Promise<Navigation | null> {
+    return this.getNavigation("page-list")
+  }
+
   /**
    * Returns a Zip Entry path for an HREF
    */
-  private resolveHref(from: string, href: string) {
+  private resolveInternalHref(from: string, href: string) {
     const startPath = dirname(from)
     return resolve(this.extractPath, startPath, href)
+  }
+
+  /**
+   * Returns a path-relative-scheme-less URL, relative to the
+   * container root.
+   *
+   * @param href The href to resolve
+   * @param [relativeTo] Optional - The href to resolve this href relative to.
+       Use if resolving a relative href from a file other than the package document.
+   */
+  async resolveHref(href: string, relativeTo?: string): Promise<string> {
+    const rootfile = await this.getRootfile()
+    const from = relativeTo
+      ? this.resolveInternalHref(rootfile, relativeTo)
+      : rootfile
+    const path = this.resolveInternalHref(from, href)
+    return path.replace(this.extractPath, "").slice(1)
   }
 
   /**
@@ -2067,8 +2295,10 @@ export class Epub {
     encoding?: "utf-8",
   ): Promise<string | Uint8Array> {
     const rootfile = await this.getRootfile()
-    const from = relativeTo ? this.resolveHref(rootfile, relativeTo) : rootfile
-    const path = this.resolveHref(from, href)
+    const from = relativeTo
+      ? this.resolveInternalHref(rootfile, relativeTo)
+      : rootfile
+    const path = this.resolveInternalHref(from, href)
 
     const itemEntry = encoding
       ? await this.getFileData(path, encoding)
@@ -2099,7 +2329,7 @@ export class Epub {
     if (!manifestItem)
       throw new Error(`Could not find item with id "${id}" in manifest`)
 
-    const path = this.resolveHref(rootfile, manifestItem.href)
+    const path = this.resolveInternalHref(rootfile, manifestItem.href)
     const itemEntry = encoding
       ? await this.getFileData(path, encoding)
       : await this.getFileData(path)
@@ -2217,7 +2447,7 @@ export class Epub {
     // readXhtmlItemContents is already explicitly bound in the constructor
     // eslint-disable-next-line @typescript-eslint/unbound-method
     memoize.clear(this.readXhtmlItemContents)
-    const href = this.resolveHref(rootfile, manifestItem.href)
+    const href = this.resolveInternalHref(rootfile, manifestItem.href)
     if (encoding === "utf-8") {
       await this.writeEntryContents(href, contents as string, encoding)
     } else {
@@ -2336,7 +2566,7 @@ export class Epub {
 
     const rootfile = await this.getRootfile()
 
-    const filename = this.resolveHref(rootfile, item.href)
+    const filename = this.resolveInternalHref(rootfile, item.href)
 
     const data =
       encoding === "utf-8" || encoding === "xml"

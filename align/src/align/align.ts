@@ -1,11 +1,24 @@
-import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
-import { dirname as autoDirname, join as autoJoin } from "node:path"
+import { randomUUID } from "node:crypto"
+import { createWriteStream } from "node:fs"
+import {
+  copyFile,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { dirname as autoDirname, extname, join as autoJoin } from "node:path"
 import { basename, dirname, parse, relative } from "node:path/posix"
 
 import { type SegmentationResult } from "@echogarden/text-segmentation"
+import { LocalizedString } from "@readium/shared"
 import { enumerate, max } from "itertools"
 import memoize from "memoize"
 import { type Logger } from "pino"
+import { ZipFile } from "yazl"
 
 import { isAudioFile, lookupAudioMime } from "@storyteller-platform/audiobook"
 import {
@@ -23,6 +36,10 @@ import { getTrackDuration } from "../common/ffmpeg.ts"
 import { parseDom } from "../markup/parseDom.ts"
 import { segmentChapter } from "../markup/segmentation.ts"
 import { inlineFootnotes, liftText } from "../markup/transform.ts"
+import {
+  generateGuidedNavigationDocuments,
+  generateGuidedNavigationManifest,
+} from "../readium/guidedNavigation.ts"
 
 import {
   type MappedTimeline,
@@ -92,6 +109,7 @@ export interface AlignOptions {
   reportsPath?: string | null | undefined
   granularity?: "sentence" | "word" | null | undefined
   textRef?: "id-fragment" | "text-fragment" | null | undefined
+  outFormat?: "epub" | "gnp" | null | undefined
   primaryLocale?: Intl.Locale | null | undefined
   logger?: Logger | null | undefined
   onProgress?: ((progress: number) => void) | null | undefined
@@ -104,8 +122,11 @@ export async function align(
   audiobookDir: string,
   options: AlignOptions,
 ) {
-  await mkdir(dirname(output), { recursive: true })
-  await copyFile(input, output)
+  const outFormat = options.outFormat ?? "epub"
+  if (outFormat === "epub") {
+    await mkdir(dirname(output), { recursive: true })
+    await copyFile(input, output)
+  }
 
   const audiobookFiles = await readdir(audiobookDir).then((filenames) =>
     filenames
@@ -113,7 +134,7 @@ export async function align(
       .map((f) => autoJoin(audiobookDir, f)),
   )
 
-  using epub = await Epub.from(output)
+  using epub = await Epub.from(outFormat === "epub" ? output : input)
 
   const transcriptions = await readdir(transcriptionsDir)
     .then((filenames) =>
@@ -160,7 +181,63 @@ export async function align(
 
   const timing = await aligner.alignBook(options.onProgress)
 
-  await epub.saveAndClose()
+  if (outFormat === "epub") {
+    await epub.saveAndClose()
+  } else {
+    const guidedNavigationDocuments =
+      await generateGuidedNavigationDocuments(epub)
+
+    const manifest = generateGuidedNavigationManifest(
+      new LocalizedString(
+        (await epub.getTitle()) ?? basename(input, extname(input)),
+      ),
+      guidedNavigationDocuments,
+    )
+
+    const tmpArchivePath = autoJoin(
+      tmpdir(),
+      `storyteller-platform-epub-${randomUUID()}`,
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+    const { promise, resolve } = Promise.withResolvers<void>()
+    const zipfile = new ZipFile()
+
+    const writeStream = createWriteStream(tmpArchivePath)
+
+    writeStream.on("close", () => {
+      resolve()
+    })
+
+    await using stack = new AsyncDisposableStack()
+    stack.defer(async () => {
+      writeStream.close()
+      await rm(tmpArchivePath, { force: true })
+    })
+
+    zipfile.outputStream.pipe(writeStream)
+
+    zipfile.addBuffer(
+      Buffer.from(JSON.stringify(manifest.serialize())),
+      "manifest.json",
+    )
+
+    for (const doc of guidedNavigationDocuments) {
+      const selfLink = doc.links?.findWithRel("self")
+      if (!selfLink) continue
+      zipfile.addBuffer(
+        Buffer.from(JSON.stringify(doc.serialize())),
+        selfLink.href,
+      )
+    }
+
+    zipfile.end()
+    await promise
+
+    await cp(tmpArchivePath, output)
+
+    epub.discardAndClose()
+  }
 
   if (options.reportsPath) {
     await mkdir(autoDirname(options.reportsPath), { recursive: true })
@@ -279,10 +356,9 @@ export class Aligner {
         )
 
         if (this.granularity === "word") {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const wordRanges = wordRangeMap.get(range.id)!
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const toFragment = wordIdToFragment.get(range.id)!
+          const wordRanges = wordRangeMap.get(range.id)
+          const toFragment = wordIdToFragment.get(range.id)
+          if (!wordRanges || !toFragment) continue
 
           const words = sentence.words.entries.filter((w) => w.text.match(/\S/))
           const wordTrie = new TextFragmentTrie(

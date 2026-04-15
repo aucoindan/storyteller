@@ -5948,6 +5948,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@edrlab/thorium-locales@github:edrlab/thorium-locales":
+  version: 1.0.0
+  resolution: "@edrlab/thorium-locales@https://github.com/edrlab/thorium-locales.git#commit=e175badc67ac33dcda6911dd5ebcf7a1570bee8c"
+  checksum: 10c0/4fd92aeab920dfeb3ad6a6c985ae418ed5af6a82ff15c800c3f5318804ee295d1d805d4bf838870fb267fd62755a1620dd54ed75465ed1c538c85e3ee5d68c1b
+  languageName: node
+  linkType: hard
+
 "@egjs/hammerjs@npm:^2.0.17":
   version: 2.0.17
   resolution: "@egjs/hammerjs@npm:2.0.17"
@@ -12412,10 +12419,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@readium/shared@npm:^2.1.1":
-  version: 2.1.1
-  resolution: "@readium/shared@npm:2.1.1"
-  checksum: 10c0/9ab71da77b9ca8943fc5272ab186764ee93882a1590ed736858ee35d3028b5cfaceff752299a7f6c25b12b11908544ca87cce4d2a77a7d5ba3ec5f94de0f782d
+"@readium/shared@npm:2.1.5":
+  version: 2.1.5
+  resolution: "@readium/shared@npm:2.1.5"
+  dependencies:
+    "@edrlab/thorium-locales": "github:edrlab/thorium-locales"
+  checksum: 10c0/a7b7b9974a2f6c626885baef5b879ed22f8ad65a10fd4d293f1326b1e6f4deda7af2d4ab6f051a15de1d01b1f0fc1d22156b94f179ca9ea9432fbccd611e24dd
+  languageName: node
+  linkType: hard
+
+"@readium/shared@patch:@readium/shared@npm%3A2.1.5#~/.yarn/patches/@readium-shared-npm-2.1.5-8d6f9d2432.patch":
+  version: 2.1.5
+  resolution: "@readium/shared@patch:@readium/shared@npm%3A2.1.5#~/.yarn/patches/@readium-shared-npm-2.1.5-8d6f9d2432.patch::version=2.1.5&hash=937c63"
+  dependencies:
+    "@edrlab/thorium-locales": "github:edrlab/thorium-locales"
+  checksum: 10c0/cbd6cabb776f8491bfa2d44c2db2b126804ff09a23e8f522ff57d1cbd859514161bc3cbfea13c22936015be996c74d067f08578f8036d47511d9d742eb138c85
   languageName: node
   linkType: hard
 
@@ -14690,6 +14708,7 @@ __metadata:
     "@esfx/async-semaphore": "npm:^1.0.0"
     "@optique/core": "npm:^0.10.7"
     "@optique/run": "npm:^0.10.7"
+    "@readium/shared": "patch:@readium/shared@npm%3A2.1.5#~/.yarn/patches/@readium-shared-npm-2.1.5-8d6f9d2432.patch"
     "@storyteller-platform/audiobook": "workspace:^"
     "@storyteller-platform/epub": "workspace:^"
     "@storyteller-platform/eslint": "workspace:*"
@@ -14699,7 +14718,9 @@ __metadata:
     "@tsconfig/strictest": "npm:^2.0.5"
     "@types/cli-progress": "npm:^3"
     "@types/node": "npm:^24.0.0"
+    "@types/yazl": "npm:^3"
     chalk: "npm:^5.4.1"
+    change-case: "npm:^5.4.4"
     cli-progress: "npm:^3.12.0"
     esbuild: "npm:^0.27.3"
     eslint: "npm:^8.0.0"
@@ -14714,10 +14735,12 @@ __metadata:
     pino-pretty: "npm:^13.1.3"
     prebuildify: "npm:^6.0.1"
     runes2: "npm:^1.1.4"
+    smil-clockvalue: "npm:^0.0.1"
     to-words: "npm:^5.3.0"
     tsup: "npm:^8.5.0"
     tsx: "npm:^4.19.2"
     typescript: "npm:~5.8.3"
+    yazl: "npm:^3.3.1"
     zod: "catalog:"
   bin:
     align: ./dist/cli/bin.js
@@ -15073,7 +15096,7 @@ __metadata:
     "@mantine/hooks": "npm:^8.3.0"
     "@readium/navigator": "npm:2.1.1"
     "@readium/navigator-html-injectables": "npm:2.1.1"
-    "@readium/shared": "npm:^2.1.1"
+    "@readium/shared": "patch:@readium/shared@npm%3A2.1.5#~/.yarn/patches/@readium-shared-npm-2.1.5-8d6f9d2432.patch"
     "@reduxjs/toolkit": "npm:^2.11.2"
     "@remix-run/node": "npm:^2.17.0"
     "@scalar/nextjs-openapi": "npm:^0.1.17"
@@ -20660,6 +20683,13 @@ __metadata:
   version: 5.6.2
   resolution: "chalk@npm:5.6.2"
   checksum: 10c0/99a4b0f0e7991796b1e7e3f52dceb9137cae2a9dfc8fc0784a550dc4c558e15ab32ed70b14b21b52beb2679b4892b41a0aa44249bcb996f01e125d58477c6976
+  languageName: node
+  linkType: hard
+
+"change-case@npm:^5.4.4":
+  version: 5.4.4
+  resolution: "change-case@npm:5.4.4"
+  checksum: 10c0/2a9c2b9c9ad6ab2491105aaf506db1a9acaf543a18967798dcce20926c6a173aa63266cb6189f3086e3c14bf7ae1f8ea4f96ecc466fcd582310efa00372f3734
   languageName: node
   linkType: hard
 
@@ -39719,6 +39749,13 @@ __metadata:
   version: 4.2.0
   resolution: "smart-buffer@npm:4.2.0"
   checksum: 10c0/a16775323e1404dd43fabafe7460be13a471e021637bc7889468eb45ce6a6b207261f454e4e530a19500cc962c4cc5348583520843b363f4193cee5c00e1e539
+  languageName: node
+  linkType: hard
+
+"smil-clockvalue@npm:^0.0.1":
+  version: 0.0.1
+  resolution: "smil-clockvalue@npm:0.0.1"
+  checksum: 10c0/ed24e06181d377de8de0c0d0531353e9d5e8292726952d4d82cb190975a3904df2ae82c55aea9b99978e15ee6be0f389e254f2d3d8662131da99ae313d500dca
   languageName: node
   linkType: hard
 

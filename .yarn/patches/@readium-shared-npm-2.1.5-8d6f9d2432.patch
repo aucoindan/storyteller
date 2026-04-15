@@ -1,0 +1,3000 @@
+diff --git a/types/src/fetcher/Resource.d.ts b/types/src/fetcher/Resource.d.ts
+index e0c891c0b2943619cb9a903678c34ea21c95efcf..1c01e8d6580cc3f515ee7500539f6e951ebaaef9 100644
+--- a/types/src/fetcher/Resource.d.ts
++++ b/types/src/fetcher/Resource.d.ts
+@@ -1,15 +1,15 @@
+-import { Link } from '../publication/Link';
++import { Link } from "../publication/Link.ts";
+ export declare class NumberRange {
+-    readonly start: number;
+-    readonly endInclusive: number;
+-    constructor(start: number, endInclusive: number);
++  readonly start: number;
++  readonly endInclusive: number;
++  constructor(start: number, endInclusive: number);
+ }
+ export declare abstract class Resource {
+-    abstract link(): Promise<Link>;
+-    abstract length(): Promise<number | undefined>;
+-    abstract read(range?: NumberRange): Promise<Uint8Array | undefined>;
+-    readAsString(): Promise<string | undefined>;
+-    readAsJSON(): Promise<unknown | undefined>;
+-    readAsXML(): Promise<XMLDocument | undefined>;
+-    abstract close(): void;
++  abstract link(): Promise<Link>;
++  abstract length(): Promise<number | undefined>;
++  abstract read(range?: NumberRange): Promise<Uint8Array | undefined>;
++  readAsString(): Promise<string | undefined>;
++  readAsJSON(): Promise<unknown | undefined>;
++  readAsXML(): Promise<XMLDocument | undefined>;
++  abstract close(): void;
+ }
+diff --git a/types/src/index.d.ts b/types/src/index.d.ts
+index 3b1d5360214eae83a066a1e0b917a5f2acfa3d5f..6f0cc1afae7f1792f7317120b960bf2cc31f252f 100644
+--- a/types/src/index.d.ts
++++ b/types/src/index.d.ts
+@@ -1,4 +1,4 @@
+-export * from './fetcher';
+-export * from './publication';
+-export * from './opds';
+-export * from './util';
++export * from "./fetcher";
++export * from "./publication/index.ts";
++export * from "./opds";
++export * from "./util";
+diff --git a/types/src/opds/index.d.ts b/types/src/opds/index.d.ts
+index 12630239f7c4d0dc517a4a4f52cb4bb018b2c6ae..2cfb6af8a89fed8b653fbcfb3fed6a9a89612665 100644
+--- a/types/src/opds/index.d.ts
++++ b/types/src/opds/index.d.ts
+@@ -1,5 +1,5 @@
+-export * from './Price';
+-export * from './Acquisition';
+-export * from './Holds';
+-export * from './Copies';
+-export * from './Availability';
++export * from "./Price.ts";
++export * from "./Acquisition.ts";
++export * from "./Holds.ts";
++export * from "./Copies.ts";
++export * from "./Availability.ts";
+diff --git a/types/src/publication/BelongsTo.d.ts b/types/src/publication/BelongsTo.d.ts
+index a6cc9c76959fd10102f7c1c26e4e371a3396f58f..e87e84545d8b74a4445ca2c0d26d293bc5a965bf 100644
+--- a/types/src/publication/BelongsTo.d.ts
++++ b/types/src/publication/BelongsTo.d.ts
+@@ -1,23 +1,21 @@
+-import { Contributors as Collection } from './Contributor';
++import { Contributors as Collection } from "./Contributor.ts";
+ /**
+  * BelongsTo Object for the Readium Web Publication Manifest.
+  * https://readium.org/webpub-manifest/schema/contributor-object.schema.json
+  */
+ export declare class BelongsTo {
+-    /**
+-     * Map of [BelongsTo] items.
+-     */
+-    readonly items: Map<string, Collection>;
+-    /** Creates an Array of [Subject]. */
+-    constructor(values?: {
+-        items?: Map<string, Collection>;
+-    });
+-    /**
+-     * Parses a [BelongsTo] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): BelongsTo | undefined;
+-    /**
+-     * Serializes a [BelongsTo] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  /**
++   * Map of [BelongsTo] items.
++   */
++  readonly items: Map<string, Collection>;
++  /** Creates an Array of [Subject]. */
++  constructor(values?: { items?: Map<string, Collection> });
++  /**
++   * Parses a [BelongsTo] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): BelongsTo | undefined;
++  /**
++   * Serializes a [BelongsTo] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+diff --git a/types/src/publication/Contributor.d.ts b/types/src/publication/Contributor.d.ts
+index 5b4702f6923cbabd218d6467554944f1eb39f1b1..16500a0ea70e878afa67cb2dfbb885245ba1aac0 100644
+--- a/types/src/publication/Contributor.d.ts
++++ b/types/src/publication/Contributor.d.ts
+@@ -1,64 +1,64 @@
+-import { Links } from './Link';
+-import { LocalizedString } from './LocalizedString';
+-import { AltIdentifier } from './AltIdentifier';
++import { Links } from "./Link.ts";
++import { LocalizedString } from "./LocalizedString.ts";
++import { AltIdentifier } from "./AltIdentifier.ts";
+ /**
+  * Contributor Object for the Readium Web Publication Manifest.
+  * https://readium.org/webpub-manifest/schema/contributor-object.schema.json
+  */
+ export declare class Contributor {
+-    /** The name of the contributor. */
+-    readonly name: LocalizedString;
+-    /** The string used to sort the name of the contributor. */
+-    readonly sortAs?: LocalizedString;
+-    /** An unambiguous reference to this contributor. */
+-    readonly identifier?: string;
+-    /** Alternate identifiers for this contributor. */
+-    readonly altIdentifiers?: Set<AltIdentifier>;
+-    /** The role of the contributor in the publication making. */
+-    readonly roles?: Set<string>;
+-    /** Used to retrieve similar publications for the given contributor. */
+-    readonly links?: Links;
+-    /** The position of the publication in this collection/series, when the contributor represents a collection. */
+-    readonly position?: number;
+-    /**
+-     * Creates a [Contributor] object.
+-     */
+-    constructor(values: {
+-        name: LocalizedString;
+-        sortAs?: LocalizedString;
+-        identifier?: string;
+-        altIdentifiers?: Set<AltIdentifier>;
+-        roles?: Set<string>;
+-        links?: Links;
+-        position?: number;
+-    });
+-    /**
+-     * Parses a [Contributor] from its RWPM JSON representation.
+-     *
+-     * A contributor can be parsed from a single string, or a full-fledged object.
+-     */
+-    static deserialize(json: any): Contributor | undefined;
+-    /**
+-     * Serializes a [Contributor] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  /** The name of the contributor. */
++  readonly name: LocalizedString;
++  /** The string used to sort the name of the contributor. */
++  readonly sortAs?: LocalizedString;
++  /** An unambiguous reference to this contributor. */
++  readonly identifier?: string;
++  /** Alternate identifiers for this contributor. */
++  readonly altIdentifiers?: Set<AltIdentifier>;
++  /** The role of the contributor in the publication making. */
++  readonly roles?: Set<string>;
++  /** Used to retrieve similar publications for the given contributor. */
++  readonly links?: Links;
++  /** The position of the publication in this collection/series, when the contributor represents a collection. */
++  readonly position?: number;
++  /**
++   * Creates a [Contributor] object.
++   */
++  constructor(values: {
++    name: LocalizedString;
++    sortAs?: LocalizedString;
++    identifier?: string;
++    altIdentifiers?: Set<AltIdentifier>;
++    roles?: Set<string>;
++    links?: Links;
++    position?: number;
++  });
++  /**
++   * Parses a [Contributor] from its RWPM JSON representation.
++   *
++   * A contributor can be parsed from a single string, or a full-fledged object.
++   */
++  static deserialize(json: any): Contributor | undefined;
++  /**
++   * Serializes a [Contributor] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+ export declare class Contributors {
+-    /**
+-     * Array of [Contributor] .
+-     */
+-    readonly items: Array<Contributor>;
+-    /**
+-     * Creates a [Contributors] object.
+-     */
+-    constructor(items: Array<Contributor>);
+-    /**
+-     * Parses a [Contributors] from its RWPM JSON representation.
+-     *
+-     */
+-    static deserialize(json: any): Contributors | undefined;
+-    /**
+-     * Serializes a [Contributors] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  /**
++   * Array of [Contributor] .
++   */
++  readonly items: Array<Contributor>;
++  /**
++   * Creates a [Contributors] object.
++   */
++  constructor(items: Array<Contributor>);
++  /**
++   * Parses a [Contributors] from its RWPM JSON representation.
++   *
++   */
++  static deserialize(json: any): Contributors | undefined;
++  /**
++   * Serializes a [Contributors] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+diff --git a/types/src/publication/GuidedNavigation.d.ts b/types/src/publication/GuidedNavigation.d.ts
+index bbd84d43265618ec9cbdb80970c9808a9cb1753c..3c00b840c8c318769f1d753b5ade0306358c3bc6 100644
+--- a/types/src/publication/GuidedNavigation.d.ts
++++ b/types/src/publication/GuidedNavigation.d.ts
+@@ -1,123 +1,116 @@
+-import { Links } from "./Link";
++import { Links } from "./Link.ts";
+ export interface Clip {
+-    audioResource: string;
+-    fragmentId?: string;
+-    start?: number;
+-    end?: number;
++  audioResource: string;
++  fragmentId?: string;
++  start?: number;
++  end?: number;
+ }
+ /**
+  * Guided Navigation Document
+  * https://readium.org/guided-navigation/schema/document.schema.json
+  */
+ export declare class GuidedNavigationDocument {
+-    readonly links?: Links;
+-    readonly guided?: GuidedNavigationObject[];
+-    constructor(values: {
+-        links?: Links;
+-        guided?: GuidedNavigationObject[];
+-    });
+-    static deserialize(json: any): GuidedNavigationDocument | undefined;
+-    serialize(): any;
++  readonly links?: Links;
++  readonly guided?: GuidedNavigationObject[];
++  constructor(values: { links?: Links; guided?: GuidedNavigationObject[] });
++  static deserialize(json: any): GuidedNavigationDocument | undefined;
++  serialize(): any;
+ }
+ /**
+  * Represents a text value containing plain text, SSML, and language information.
+  */
+ export declare class GuidedNavigationText {
+-    /** Plain text content */
+-    readonly plain?: string;
+-    /** SSML (Speech Synthesis Markup Language) content */
+-    readonly ssml?: string;
+-    /**
+-     * BCP 47 language tag
+-     * @pattern ^((?<grandfathered>(en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)|(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang))|((?<language>([A-Za-z]{2,3}(-(?<extlang>[A-Za-z]{3}(-[A-Za-z]{3}){0,2}))?)|[A-Za-z]{4}|[A-Za-z]{5,8})(-(?<script>[A-Za-z]{4}))?(-(?<region>[A-Za-z]{2}|[0-9]{3}))?(-(?<variant>[A-Za-z0-9]{5,8}|[0-9][A-Za-z0-9]{3}))*(-(?<extension>[0-9A-WY-Za-wy-z](-[A-Za-z0-9]{2,8})+))*(-(?<privateUse>x(-[A-Za-z0-9]{1,8})+))?)|(?<privateUse2>x(-[A-Za-z0-9]{1,8})+))$
+-     */
+-    readonly language?: string;
+-    constructor(values: {
+-        plain?: string;
+-        ssml?: string;
+-        language?: string;
+-    });
+-    /**
+-     * Deserializes a GuidedNavigationText from JSON
+-     */
+-    static deserialize(json: any): GuidedNavigationText | undefined;
+-    /**
+-     * Serializes the text to a plain object
+-     */
+-    serialize(): any;
++  /** Plain text content */
++  readonly plain?: string;
++  /** SSML (Speech Synthesis Markup Language) content */
++  readonly ssml?: string;
++  /**
++   * BCP 47 language tag
++   * @pattern ^((?<grandfathered>(en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)|(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang))|((?<language>([A-Za-z]{2,3}(-(?<extlang>[A-Za-z]{3}(-[A-Za-z]{3}){0,2}))?)|[A-Za-z]{4}|[A-Za-z]{5,8})(-(?<script>[A-Za-z]{4}))?(-(?<region>[A-Za-z]{2}|[0-9]{3}))?(-(?<variant>[A-Za-z0-9]{5,8}|[0-9][A-Za-z0-9]{3}))*(-(?<extension>[0-9A-WY-Za-wy-z](-[A-Za-z0-9]{2,8})+))*(-(?<privateUse>x(-[A-Za-z0-9]{1,8})+))?)|(?<privateUse2>x(-[A-Za-z0-9]{1,8})+))$
++   */
++  readonly language?: string;
++  constructor(values: { plain?: string; ssml?: string; language?: string });
++  /**
++   * Deserializes a GuidedNavigationText from JSON
++   */
++  static deserialize(json: any): GuidedNavigationText | undefined;
++  /**
++   * Serializes the text to a plain object
++   */
++  serialize(): any;
+ }
+ /**
+  * Guided Navigation Object
+  * https://github.com/readium/guided-navigation/blob/main/schema/object.schema.json
+  */
+ export declare class GuidedNavigationObject {
+-    /** References an audio resource or a fragment of it. */
+-    readonly audioref?: string;
+-    /** Items that are children of the containing Guided Navigation Object. */
+-    readonly children?: GuidedNavigationObject[];
+-    /** References an image or a fragment of it. */
+-    readonly imgref?: string;
+-    /** Convey the structural semantics of a publication. */
+-    readonly role?: Set<string>;
+-    /**
+-     * Indicates the heading level (1-6) for the navigation object.
+-     * @minimum 1
+-     * @maximum 6
+-     */
+-    readonly level?: number;
+-    /**
+-     * Textual equivalent of the resources or fragment of the resources referenced by the current Guided Navigation Object.
+-     */
+-    readonly text?: GuidedNavigationText;
+-    /** References a textual resource or a fragment of it. */
+-    readonly textref?: string;
+-    /**
+-     * Describes the image referenced by the current Guided Navigation Object.
+-     * This is a GuidedNavigationObject that should not contain 'level' or 'children' properties.
+-     */
+-    readonly description?: Omit<GuidedNavigationObject, 'level' | 'children'>;
+-    /**
+-     * Creates a [GuidedNavigation] object.
+-    */
+-    constructor(values: {
+-        audioref?: string;
+-        children?: GuidedNavigationObject[];
+-        imgref?: string;
+-        role?: Set<string>;
+-        level?: number;
+-        text?: GuidedNavigationText;
+-        textref?: string;
+-        description?: Omit<GuidedNavigationObject, 'level' | 'children'>;
+-    });
+-    /**
+-     * Gets the plain text content.
+-     * Returns undefined if no text is available.
+-     */
+-    get plainText(): string | undefined;
+-    /**
+-     * Gets the SSML content if available.
+-     */
+-    get ssmlText(): string | undefined;
+-    /**
+-     * Gets the language of the text if available.
+-     */
+-    get textLanguage(): string | undefined;
+-    /**
+-     * Deserializes a GuidedNavigationObject from JSON
+-     */
+-    static deserialize(json: any): GuidedNavigationObject | undefined;
+-    /**
+-     * Parses a [GuidedNavigationObject] array from its RWPM JSON representation.
+-     */
+-    static deserializeArray(json: any): GuidedNavigationObject[] | undefined;
+-    /**
+-     * Serializes a [GuidedNavigationObject] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
+-    get audioFile(): string | undefined;
+-    get audioTime(): string | undefined;
+-    get textFile(): string | undefined;
+-    get fragmentId(): string | undefined;
+-    get clip(): Clip | undefined;
+-    private parseTimer;
++  /** References an audio resource or a fragment of it. */
++  readonly audioref?: string;
++  /** Items that are children of the containing Guided Navigation Object. */
++  readonly children?: GuidedNavigationObject[];
++  /** References an image or a fragment of it. */
++  readonly imgref?: string;
++  /** Convey the structural semantics of a publication. */
++  readonly role?: Set<string>;
++  /**
++   * Indicates the heading level (1-6) for the navigation object.
++   * @minimum 1
++   * @maximum 6
++   */
++  readonly level?: number;
++  /**
++   * Textual equivalent of the resources or fragment of the resources referenced by the current Guided Navigation Object.
++   */
++  readonly text?: GuidedNavigationText;
++  /** References a textual resource or a fragment of it. */
++  readonly textref?: string;
++  /**
++   * Describes the image referenced by the current Guided Navigation Object.
++   * This is a GuidedNavigationObject that should not contain 'level' or 'children' properties.
++   */
++  readonly description?: Omit<GuidedNavigationObject, "level" | "children">;
++  /**
++   * Creates a [GuidedNavigation] object.
++   */
++  constructor(values: {
++    audioref?: string;
++    children?: GuidedNavigationObject[];
++    imgref?: string;
++    role?: Set<string>;
++    level?: number;
++    text?: GuidedNavigationText;
++    textref?: string;
++    description?: Omit<GuidedNavigationObject, "level" | "children">;
++  });
++  /**
++   * Gets the plain text content.
++   * Returns undefined if no text is available.
++   */
++  get plainText(): string | undefined;
++  /**
++   * Gets the SSML content if available.
++   */
++  get ssmlText(): string | undefined;
++  /**
++   * Gets the language of the text if available.
++   */
++  get textLanguage(): string | undefined;
++  /**
++   * Deserializes a GuidedNavigationObject from JSON
++   */
++  static deserialize(json: any): GuidedNavigationObject | undefined;
++  /**
++   * Parses a [GuidedNavigationObject] array from its RWPM JSON representation.
++   */
++  static deserializeArray(json: any): GuidedNavigationObject[] | undefined;
++  /**
++   * Serializes a [GuidedNavigationObject] to its RWPM JSON representation.
++   */
++  serialize(): any;
++  get audioFile(): string | undefined;
++  get audioTime(): string | undefined;
++  get textFile(): string | undefined;
++  get fragmentId(): string | undefined;
++  get clip(): Clip | undefined;
++  private parseTimer;
+ }
+diff --git a/types/src/publication/Link.d.ts b/types/src/publication/Link.d.ts
+index 37ea17c70e26a6eb88a50116182f149bbd99c7a4..3226ef29d1526ea48cb71218ee93c9fbb7d8ff5f 100644
+--- a/types/src/publication/Link.d.ts
++++ b/types/src/publication/Link.d.ts
+@@ -1,131 +1,127 @@
+-import { MediaType } from '../util/mediatype/MediaType';
+-import { Properties } from './Properties';
+-import { Locator } from './Locator';
++import { MediaType } from "../util/mediatype/MediaType.ts";
++import { Properties } from "./Properties.ts";
++import { Locator } from "./Locator.ts";
+ /**
+  * Link Object for the Readium Web Publication Manifest.
+  * https://readium.org/webpub-manifest/schema/link.schema.json
+  */
+ export declare class Link {
+-    /** URI or URI template of the linked resource. */
+-    readonly href: string;
+-    /** Indicates that a URI template is used in href. */
+-    readonly templated?: boolean;
+-    /** MIME type of the linked resource. */
+-    readonly type?: string;
+-    /** Title of the linked resource. */
+-    readonly title?: string;
+-    /** Relation between the linked resource and its containing collection. */
+-    readonly rels?: Set<string>;
+-    /** Properties associated to the linked resource. */
++  /** URI or URI template of the linked resource. */
++  readonly href: string;
++  /** Indicates that a URI template is used in href. */
++  readonly templated?: boolean;
++  /** MIME type of the linked resource. */
++  readonly type?: string;
++  /** Title of the linked resource. */
++  readonly title?: string;
++  /** Relation between the linked resource and its containing collection. */
++  readonly rels?: Set<string>;
++  /** Properties associated to the linked resource. */
++  properties?: Properties;
++  /** Height of the linked resource in pixels. */
++  readonly height?: number;
++  /** Width of the linked resource in pixels. */
++  readonly width?: number;
++  /** Size of the linked resource in bytes. */
++  readonly size?: number;
++  /** Length of the linked resource in seconds. */
++  readonly duration?: number;
++  /** Bitrate of the linked resource in kbps. */
++  readonly bitrate?: number;
++  /** Expected language of the linked resource. */
++  readonly languages?: Array<string>;
++  /** Alternate resources for the linked resource. */
++  readonly alternates?: Links;
++  /** Resources that are children of the linked resource, in the context of a given collection role. */
++  readonly children?: Links;
++  /**
++   * Creates a [Link].
++   */
++  constructor(values: {
++    href: string;
++    templated?: boolean;
++    type?: string;
++    title?: string;
++    rels?: Set<string>;
+     properties?: Properties;
+-    /** Height of the linked resource in pixels. */
+-    readonly height?: number;
+-    /** Width of the linked resource in pixels. */
+-    readonly width?: number;
+-    /** Size of the linked resource in bytes. */
+-    readonly size?: number;
+-    /** Length of the linked resource in seconds. */
+-    readonly duration?: number;
+-    /** Bitrate of the linked resource in kbps. */
+-    readonly bitrate?: number;
+-    /** Expected language of the linked resource. */
+-    readonly languages?: Array<string>;
+-    /** Alternate resources for the linked resource. */
+-    readonly alternates?: Links;
+-    /** Resources that are children of the linked resource, in the context of a given collection role. */
+-    readonly children?: Links;
+-    /**
+-     * Creates a [Link].
+-     */
+-    constructor(values: {
+-        href: string;
+-        templated?: boolean;
+-        type?: string;
+-        title?: string;
+-        rels?: Set<string>;
+-        properties?: Properties;
+-        height?: number;
+-        width?: number;
+-        size?: number;
+-        duration?: number;
+-        bitrate?: number;
+-        languages?: Array<string>;
+-        alternates?: Links;
+-        children?: Links;
+-    });
+-    /**
+-     * Parses a [Link] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): Link | undefined;
+-    /**
+-     * Serializes a [Link] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
+-    /** MediaType of the linked resource. */
+-    get mediaType(): MediaType;
+-    /** Computes an absolute URL to the link, relative to the given `baseURL`.
+-     *  If the link's `href` is already absolute, the `baseURL` is ignored.
+-     */
+-    toURL(baseUrl?: string): string | undefined;
+-    /** List of URI template parameter keys, if the `Link` is templated. */
+-    get templateParameters(): Set<string>;
+-    /** Expands the `Link`'s HREF by replacing URI template variables by the given parameters.
+-     *  See RFC 6570 on URI template: https://tools.ietf.org/html/rfc6570
+-     */
+-    expandTemplate(parameters: {
+-        [param: string]: string;
+-    }): Link;
+-    /**
+-     * Makes a copy of this [Link] after merging in the given additional other [properties].
+-     */
+-    addProperties(properties: {
+-        [key: string]: any;
+-    }): Link;
+-    /**
+-     * Creates a [Locator] from a reading order [Link].
+-     */
+-    get locator(): Locator;
++    height?: number;
++    width?: number;
++    size?: number;
++    duration?: number;
++    bitrate?: number;
++    languages?: Array<string>;
++    alternates?: Links;
++    children?: Links;
++  });
++  /**
++   * Parses a [Link] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): Link | undefined;
++  /**
++   * Serializes a [Link] to its RWPM JSON representation.
++   */
++  serialize(): any;
++  /** MediaType of the linked resource. */
++  get mediaType(): MediaType;
++  /** Computes an absolute URL to the link, relative to the given `baseURL`.
++   *  If the link's `href` is already absolute, the `baseURL` is ignored.
++   */
++  toURL(baseUrl?: string): string | undefined;
++  /** List of URI template parameter keys, if the `Link` is templated. */
++  get templateParameters(): Set<string>;
++  /** Expands the `Link`'s HREF by replacing URI template variables by the given parameters.
++   *  See RFC 6570 on URI template: https://tools.ietf.org/html/rfc6570
++   */
++  expandTemplate(parameters: { [param: string]: string }): Link;
++  /**
++   * Makes a copy of this [Link] after merging in the given additional other [properties].
++   */
++  addProperties(properties: { [key: string]: any }): Link;
++  /**
++   * Creates a [Locator] from a reading order [Link].
++   */
++  get locator(): Locator;
+ }
+ /**
+  * Parses multiple JSON links into an array of Link.
+  */
+ export declare class Links {
+-    items: Array<Link>;
+-    /**
+-     * Creates a [Links].
+-     */
+-    constructor(items: Array<Link>);
+-    /**
+-     * Creates a list of [Link] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): Links | undefined;
+-    /**
+-     * Serializes an array of [Link] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
+-    /** Finds the first link with the given relation. */
+-    findWithRel(rel: string): Link | undefined;
+-    /** Finds all the links with the given relation. */
+-    filterByRel(rel: string): Array<Link>;
+-    /** Finds the first link matching the given HREF. */
+-    findWithHref(href: string): Link | undefined;
+-    /** Finds the index of the first link matching the given HREF. */
+-    findIndexWithHref(href: string): number;
+-    /** Finds the first link matching the given media type. */
+-    findWithMediaType(mediaType: string): Link | undefined;
+-    /** Finds all the links matching the given media type. */
+-    filterByMediaType(mediaType: string): Array<Link>;
+-    /** Finds all the links matching any of the given media types. */
+-    filterByMediaTypes(mediaTypes: Array<string>): Array<Link>;
+-    /** Returns whether all the resources in the collection are audio clips. */
+-    everyIsAudio(): boolean;
+-    /** Returns whether all the resources in the collection are bitmaps. */
+-    everyIsBitmap(): boolean;
+-    /** Returns whether all the resources in the collection are HTML documents. */
+-    everyIsHTML(): boolean;
+-    /** Returns whether all the resources in the collection are video clips. */
+-    everyIsVideo(): boolean;
+-    /** Returns whether all the resources in the collection are matching any of the given media types. */
+-    everyMatchesMediaType(mediaTypes: string | Array<string>): boolean;
+-    filterLinksHasType(): Array<Link>;
++  items: Array<Link>;
++  /**
++   * Creates a [Links].
++   */
++  constructor(items: Array<Link>);
++  /**
++   * Creates a list of [Link] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): Links | undefined;
++  /**
++   * Serializes an array of [Link] to its RWPM JSON representation.
++   */
++  serialize(): any;
++  /** Finds the first link with the given relation. */
++  findWithRel(rel: string): Link | undefined;
++  /** Finds all the links with the given relation. */
++  filterByRel(rel: string): Array<Link>;
++  /** Finds the first link matching the given HREF. */
++  findWithHref(href: string): Link | undefined;
++  /** Finds the index of the first link matching the given HREF. */
++  findIndexWithHref(href: string): number;
++  /** Finds the first link matching the given media type. */
++  findWithMediaType(mediaType: string): Link | undefined;
++  /** Finds all the links matching the given media type. */
++  filterByMediaType(mediaType: string): Array<Link>;
++  /** Finds all the links matching any of the given media types. */
++  filterByMediaTypes(mediaTypes: Array<string>): Array<Link>;
++  /** Returns whether all the resources in the collection are audio clips. */
++  everyIsAudio(): boolean;
++  /** Returns whether all the resources in the collection are bitmaps. */
++  everyIsBitmap(): boolean;
++  /** Returns whether all the resources in the collection are HTML documents. */
++  everyIsHTML(): boolean;
++  /** Returns whether all the resources in the collection are video clips. */
++  everyIsVideo(): boolean;
++  /** Returns whether all the resources in the collection are matching any of the given media types. */
++  everyMatchesMediaType(mediaTypes: string | Array<string>): boolean;
++  filterLinksHasType(): Array<Link>;
+ }
+diff --git a/types/src/publication/LocatorCollection.d.ts b/types/src/publication/LocatorCollection.d.ts
+index e7534a3c9a00afb8743029d710afbc87b4e041ba..18d212503809e91c64f9ee424d9858beac29b012 100644
+--- a/types/src/publication/LocatorCollection.d.ts
++++ b/types/src/publication/LocatorCollection.d.ts
+@@ -1,30 +1,30 @@
+-import { Links } from './Link';
+-import { LocalizedString } from './LocalizedString';
+-import { Locator } from './Locator';
++import { Links } from "./Link.ts";
++import { LocalizedString } from "./LocalizedString.ts";
++import { Locator } from "./Locator.ts";
+ /**
+  * Holds the metadata of a `LocatorCollection`.
+  */
+ export declare class LocatorCollectionMetadata {
++  title?: LocalizedString;
++  /** numberOfItems Indicates the total number of locators in the collection. */
++  numberOfItems?: number;
++  otherMetadata?: Map<string, any>;
++  /**
++   * Creates a [LocatorMetadata].
++   */
++  constructor(values: {
+     title?: LocalizedString;
+-    /** numberOfItems Indicates the total number of locators in the collection. */
+     numberOfItems?: number;
+     otherMetadata?: Map<string, any>;
+-    /**
+-     * Creates a [LocatorMetadata].
+-     */
+-    constructor(values: {
+-        title?: LocalizedString;
+-        numberOfItems?: number;
+-        otherMetadata?: Map<string, any>;
+-    });
+-    /**
+-     * Parses a [LocatorMetadata] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): LocatorCollectionMetadata | undefined;
+-    /**
+-     * Serializes a [LocatorMetadata] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  });
++  /**
++   * Parses a [LocatorMetadata] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): LocatorCollectionMetadata | undefined;
++  /**
++   * Serializes a [LocatorMetadata] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+ /**
+  * Represents a sequential list of `Locator` objects.
+@@ -32,23 +32,23 @@ export declare class LocatorCollectionMetadata {
+  * For example, a search result or a list of positions.
+  */
+ export declare class LocatorCollection {
+-    metadata: LocatorCollectionMetadata;
+-    links: Links;
+-    locators: Array<Locator>;
+-    /**
+-     * Creates a [LocatorCollection].
+-     */
+-    constructor(values: {
+-        metadata?: LocatorCollectionMetadata;
+-        links?: Links;
+-        locators?: Array<Locator>;
+-    });
+-    /**
+-     * Parses a [LocatorCollection] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): LocatorCollection | undefined;
+-    /**
+-     * Serializes a [LocatorCollection] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  metadata: LocatorCollectionMetadata;
++  links: Links;
++  locators: Array<Locator>;
++  /**
++   * Creates a [LocatorCollection].
++   */
++  constructor(values: {
++    metadata?: LocatorCollectionMetadata;
++    links?: Links;
++    locators?: Array<Locator>;
++  });
++  /**
++   * Parses a [LocatorCollection] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): LocatorCollection | undefined;
++  /**
++   * Serializes a [LocatorCollection] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+diff --git a/types/src/publication/Manifest.d.ts b/types/src/publication/Manifest.d.ts
+index 17e4d60e11abe9f28d1ad658512e86432f0f4ece..b374826bb19596fe623ef02a02bcf8c3bee6c95d 100644
+--- a/types/src/publication/Manifest.d.ts
++++ b/types/src/publication/Manifest.d.ts
+@@ -1,59 +1,59 @@
+-import { Metadata } from './Metadata';
+-import { Link, Links } from './Link';
+-import { PublicationCollection } from './PublicationCollection';
+-import { Locator } from "./Locator";
++import { Metadata } from "./Metadata.ts";
++import { Link, Links } from "./Link.ts";
++import { PublicationCollection } from "./PublicationCollection.ts";
++import { Locator } from "./Locator.ts";
+ /** Holds the metadata of a Readium publication, as described in
+  *  the Readium Web Publication Manifest.
+  *  See. https://readium.org/webpub-manifest/
+  */
+ export declare class Manifest {
+-    readonly context?: Array<string>;
+-    readonly metadata: Metadata;
+-    readonly links: Links;
+-    /** Identifies a list of resources in reading order for the publication. */
+-    readonly readingOrder: Links;
+-    /** Identifies resources that are necessary for rendering the publication. */
+-    readonly resources?: Links;
+-    /** Identifies the collection that contains a table of contents. */
+-    readonly toc?: Links;
+-    readonly subcollections?: Map<string, Array<PublicationCollection>>;
+-    constructor(values: {
+-        context?: Array<string>;
+-        metadata: Metadata;
+-        links: Links;
+-        readingOrder: Links;
+-        resources?: Links;
+-        toc?: Links;
+-        subcollections?: Map<string, Array<PublicationCollection>>;
+-    });
+-    /**
+-     * Parses a [Publication] from its RWPM JSON representation.
+-     *
+-     * https://readium.org/webpub-manifest/
+-     * https://readium.org/webpub-manifest/schema/publication.schema.json
+-     */
+-    static deserialize(json: any): Manifest | undefined;
+-    /**
+-     * Serializes a [Publication] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
+-    /** Finds the first link with the given relation in the manifest's links. */
+-    linkWithRel(rel: string): Link | undefined;
+-    /** Finds all the links with the given relation in the manifest's links. */
+-    linksWithRel(rel: string): Array<Link>;
+-    /**
+-     * Creates a new [Locator] object from a [Link] to a resource of this manifest.
+-     * Returns null if the resource is not found in this manifest.
+-     */
+-    locatorFromLink(link: Link): Locator | undefined;
+-    /** Finds the first Link having the given `href` in the publication's links. */
+-    linkWithHref(href: string): Link | undefined;
+-    /** The URL where this publication is served, computed from the `Link` with `self` relation.
+-     *  e.g. https://provider.com/pub1293/manifest.json gives https://provider.com/pub1293/
+-     */
+-    get baseURL(): string | undefined;
+-    /**
+-     * Sets the URL where this [Publication]'s RWPM manifest is served.
+-     */
+-    setSelfLink(href: string): void;
++  readonly context?: Array<string>;
++  readonly metadata: Metadata;
++  readonly links: Links;
++  /** Identifies a list of resources in reading order for the publication. */
++  readonly readingOrder: Links;
++  /** Identifies resources that are necessary for rendering the publication. */
++  readonly resources?: Links;
++  /** Identifies the collection that contains a table of contents. */
++  readonly toc?: Links;
++  readonly subcollections?: Map<string, Array<PublicationCollection>>;
++  constructor(values: {
++    context?: Array<string>;
++    metadata: Metadata;
++    links: Links;
++    readingOrder: Links;
++    resources?: Links;
++    toc?: Links;
++    subcollections?: Map<string, Array<PublicationCollection>>;
++  });
++  /**
++   * Parses a [Publication] from its RWPM JSON representation.
++   *
++   * https://readium.org/webpub-manifest/
++   * https://readium.org/webpub-manifest/schema/publication.schema.json
++   */
++  static deserialize(json: any): Manifest | undefined;
++  /**
++   * Serializes a [Publication] to its RWPM JSON representation.
++   */
++  serialize(): any;
++  /** Finds the first link with the given relation in the manifest's links. */
++  linkWithRel(rel: string): Link | undefined;
++  /** Finds all the links with the given relation in the manifest's links. */
++  linksWithRel(rel: string): Array<Link>;
++  /**
++   * Creates a new [Locator] object from a [Link] to a resource of this manifest.
++   * Returns null if the resource is not found in this manifest.
++   */
++  locatorFromLink(link: Link): Locator | undefined;
++  /** Finds the first Link having the given `href` in the publication's links. */
++  linkWithHref(href: string): Link | undefined;
++  /** The URL where this publication is served, computed from the `Link` with `self` relation.
++   *  e.g. https://provider.com/pub1293/manifest.json gives https://provider.com/pub1293/
++   */
++  get baseURL(): string | undefined;
++  /**
++   * Sets the URL where this [Publication]'s RWPM manifest is served.
++   */
++  setSelfLink(href: string): void;
+ }
+diff --git a/types/src/publication/Metadata.d.ts b/types/src/publication/Metadata.d.ts
+index 426e94fbfd7a0c52dd5432956c48dd6a9f1ae026..40967dc86e0c9f94fa1aa0fa52460fddf6e4b931 100644
+--- a/types/src/publication/Metadata.d.ts
++++ b/types/src/publication/Metadata.d.ts
+@@ -1,13 +1,13 @@
+-import { AltIdentifier } from './AltIdentifier';
+-import { BelongsTo } from './BelongsTo';
+-import { Contributors } from './Contributor';
+-import { Layout } from './Layout';
+-import { LocalizedString } from './LocalizedString';
+-import { Profile } from './Profiles';
+-import { ReadingProgression } from './ReadingProgression';
+-import { Subjects } from './Subject';
+-import { Accessibility } from './accessibility/Accessibility';
+-import { TDM } from './TDM';
++import { AltIdentifier } from "./AltIdentifier.ts";
++import { BelongsTo } from "./BelongsTo.ts";
++import { Contributors } from "./Contributor.ts";
++import { Layout } from "./Layout.ts";
++import { LocalizedString } from "./LocalizedString.ts";
++import { Profile } from "./Profiles.ts";
++import { ReadingProgression } from "./ReadingProgression.ts";
++import { Subjects } from "./Subject.ts";
++import { Accessibility } from "./accessibility/Accessibility.ts";
++import { TDM } from "./TDM.ts";
+ /**
+  * https://readium.org/webpub-manifest/schema/metadata.schema.json
+  *
+@@ -17,6 +17,47 @@ import { TDM } from './TDM';
+  * otherMetadata Additional metadata for extensions, as a JSON dictionary.
+  */
+ export declare class Metadata {
++  title: LocalizedString;
++  typeUri?: string;
++  conformsTo?: Array<Profile>;
++  identifier?: string;
++  altIdentifier?: AltIdentifier;
++  subtitle?: LocalizedString;
++  sortAs?: LocalizedString;
++  artists?: Contributors;
++  authors?: Contributors;
++  colorists?: Contributors;
++  contributors?: Contributors;
++  editors?: Contributors;
++  illustrators?: Contributors;
++  inkers?: Contributors;
++  letterers?: Contributors;
++  narrators?: Contributors;
++  pencilers?: Contributors;
++  translators?: Contributors;
++  languages?: Array<string>;
++  description?: string;
++  publishers?: Contributors;
++  imprints?: Contributors;
++  published?: Date;
++  modified?: Date;
++  subjects?: Subjects;
++  belongsTo?: BelongsTo;
++  belongsToCollections?: Contributors;
++  belongsToSeries?: Contributors;
++  layout?: Layout;
++  readingProgression?: ReadingProgression;
++  duration?: number;
++  numberOfPages?: number;
++  accessibility?: Accessibility;
++  tdm?: TDM;
++  otherMetadata?: {
++    [key: string]: any;
++  };
++  /**All metadata not in otherMetadata */
++  private static readonly mappedProperties;
++  /** Creates [Metadata] object */
++  constructor(values: {
+     title: LocalizedString;
+     typeUri?: string;
+     conformsTo?: Array<Profile>;
+@@ -52,76 +93,35 @@ export declare class Metadata {
+     accessibility?: Accessibility;
+     tdm?: TDM;
+     otherMetadata?: {
+-        [key: string]: any;
++      [key: string]: any;
+     };
+-    /**All metadata not in otherMetadata */
+-    private static readonly mappedProperties;
+-    /** Creates [Metadata] object */
+-    constructor(values: {
+-        title: LocalizedString;
+-        typeUri?: string;
+-        conformsTo?: Array<Profile>;
+-        identifier?: string;
+-        altIdentifier?: AltIdentifier;
+-        subtitle?: LocalizedString;
+-        sortAs?: LocalizedString;
+-        artists?: Contributors;
+-        authors?: Contributors;
+-        colorists?: Contributors;
+-        contributors?: Contributors;
+-        editors?: Contributors;
+-        illustrators?: Contributors;
+-        inkers?: Contributors;
+-        letterers?: Contributors;
+-        narrators?: Contributors;
+-        pencilers?: Contributors;
+-        translators?: Contributors;
+-        languages?: Array<string>;
+-        description?: string;
+-        publishers?: Contributors;
+-        imprints?: Contributors;
+-        published?: Date;
+-        modified?: Date;
+-        subjects?: Subjects;
+-        belongsTo?: BelongsTo;
+-        belongsToCollections?: Contributors;
+-        belongsToSeries?: Contributors;
+-        layout?: Layout;
+-        readingProgression?: ReadingProgression;
+-        duration?: number;
+-        numberOfPages?: number;
+-        accessibility?: Accessibility;
+-        tdm?: TDM;
+-        otherMetadata?: {
+-            [key: string]: any;
+-        };
+-    });
+-    /**
+-     * Parses a [Metadata] from its RWPM JSON representation.
+-     *
+-     * If the metadata can't be parsed, a warning will be logged with [warnings].
+-     */
+-    static deserialize(json: any): Metadata | undefined;
+-    /**
+-     * Serializes a [Metadata] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
+-    /**
+-     * Computes a [Layout] using the [conformsTo] profile and layout property.
+-     *
+-     * Special cases:
+-     * - EPUB profile defaults to reflowable if layout is not present
+-     * - Divina profile defaults to fixed if layout is not present
+-     * - Layout is ignored for audiobook and PDF profiles
+-     * - Layout is ignored if set to reflowable on a Divina profile
+-     *
+-     * Note: Stops at the first matching profile.
+-     */
+-    get effectiveLayout(): Layout | null;
+-    /**
+-     * Computes a [ReadingProgression] when the value of [readingProgression] is undefined, using the publication language.
+-     *
+-     * See this issue for more details: https://github.com/readium/architecture/issues/113
+-     */
+-    get effectiveReadingProgression(): ReadingProgression;
++  });
++  /**
++   * Parses a [Metadata] from its RWPM JSON representation.
++   *
++   * If the metadata can't be parsed, a warning will be logged with [warnings].
++   */
++  static deserialize(json: any): Metadata | undefined;
++  /**
++   * Serializes a [Metadata] to its RWPM JSON representation.
++   */
++  serialize(): any;
++  /**
++   * Computes a [Layout] using the [conformsTo] profile and layout property.
++   *
++   * Special cases:
++   * - EPUB profile defaults to reflowable if layout is not present
++   * - Divina profile defaults to fixed if layout is not present
++   * - Layout is ignored for audiobook and PDF profiles
++   * - Layout is ignored if set to reflowable on a Divina profile
++   *
++   * Note: Stops at the first matching profile.
++   */
++  get effectiveLayout(): Layout | null;
++  /**
++   * Computes a [ReadingProgression] when the value of [readingProgression] is undefined, using the publication language.
++   *
++   * See this issue for more details: https://github.com/readium/architecture/issues/113
++   */
++  get effectiveReadingProgression(): ReadingProgression;
+ }
+diff --git a/types/src/publication/Publication.d.ts b/types/src/publication/Publication.d.ts
+index 847717b195634af7abc74b25b34325f1d56fee4d..f9607c55b91164571e1f9f57d7bd3a505b2cf976 100644
+--- a/types/src/publication/Publication.d.ts
++++ b/types/src/publication/Publication.d.ts
+@@ -1,53 +1,50 @@
+-import { Link, Links } from './Link';
+-import { Locator } from './Locator';
+-import { Manifest } from './Manifest';
+-import { Metadata } from './Metadata';
+-import { Fetcher } from '../fetcher/Fetcher';
+-import { PublicationCollection } from './PublicationCollection';
+-import { Resource } from '../fetcher/Resource';
+-import { GuidedNavigationDocument } from "./GuidedNavigation";
++import { Link, Links } from "./Link.ts";
++import { Locator } from "./Locator.ts";
++import { Manifest } from "./Manifest.ts";
++import { Metadata } from "./Metadata.ts";
++import { Fetcher } from "../fetcher/Fetcher.ts";
++import { PublicationCollection } from "./PublicationCollection.ts";
++import { Resource } from "../fetcher/Resource.ts";
++import { GuidedNavigationDocument } from "./GuidedNavigation.ts";
+ export type ServiceFactory = () => null;
+ /** Shared model for a Readium Publication. */
+ export declare class Publication {
+-    /** The manifest holding the publication metadata extracted from the publication file */
+-    manifest: Manifest;
+-    private readonly fetcher;
+-    readonly context?: Array<string>;
+-    readonly metadata: Metadata;
+-    readonly links: Links;
+-    /** Identifies a list of resources in reading order for the publication. */
+-    readonly readingOrder: Links;
+-    /** Identifies resources that are necessary for rendering the publication. */
+-    readonly resources?: Links;
+-    /** Identifies the collection that contains a table of contents. */
+-    readonly toc?: Links;
+-    /** Identifies the collection that contains sub collections. */
+-    readonly subcollections?: Map<string, Array<PublicationCollection>>;
+-    constructor(values: {
+-        manifest: Manifest;
+-        fetcher?: Fetcher;
+-    });
+-    /** The URL where this publication is served, computed from the `Link` with `self` relation.
+-     *  e.g. https://provider.com/pub1293/manifest.json gives https://provider.com/pub1293/
+-     */
+-    get baseURL(): string | undefined;
+-    /** Finds the first Link having the given `href` in the publication's links. */
+-    linkWithHref(href: string): Link | undefined;
+-    /**
+-     * Returns the [links] of the first child [PublicationCollection] with the given role, or an
+-     * empty list.
+-     */
+-    linksWithRole(role: string): Links | undefined;
+-    /** Finds all the links with the given relation in the publication's links. */
+-    linksWithRel(rel: string): Array<Link>;
+-    /**
+-     * Finds the first [Link] having the given [rel] in the publications's links.
+-     */
+-    linkWithRel(rel: string): Link | undefined;
+-    positionsFromManifest(): Promise<Locator[]>;
+-    guideForLink(link: Link): Promise<GuidedNavigationDocument | undefined>;
+-    /**
+-     * Returns the resource targeted by the given non-templated [link].
+-     */
+-    get(link: Link): Resource;
++  /** The manifest holding the publication metadata extracted from the publication file */
++  manifest: Manifest;
++  private readonly fetcher;
++  readonly context?: Array<string>;
++  readonly metadata: Metadata;
++  readonly links: Links;
++  /** Identifies a list of resources in reading order for the publication. */
++  readonly readingOrder: Links;
++  /** Identifies resources that are necessary for rendering the publication. */
++  readonly resources?: Links;
++  /** Identifies the collection that contains a table of contents. */
++  readonly toc?: Links;
++  /** Identifies the collection that contains sub collections. */
++  readonly subcollections?: Map<string, Array<PublicationCollection>>;
++  constructor(values: { manifest: Manifest; fetcher?: Fetcher });
++  /** The URL where this publication is served, computed from the `Link` with `self` relation.
++   *  e.g. https://provider.com/pub1293/manifest.json gives https://provider.com/pub1293/
++   */
++  get baseURL(): string | undefined;
++  /** Finds the first Link having the given `href` in the publication's links. */
++  linkWithHref(href: string): Link | undefined;
++  /**
++   * Returns the [links] of the first child [PublicationCollection] with the given role, or an
++   * empty list.
++   */
++  linksWithRole(role: string): Links | undefined;
++  /** Finds all the links with the given relation in the publication's links. */
++  linksWithRel(rel: string): Array<Link>;
++  /**
++   * Finds the first [Link] having the given [rel] in the publications's links.
++   */
++  linkWithRel(rel: string): Link | undefined;
++  positionsFromManifest(): Promise<Locator[]>;
++  guideForLink(link: Link): Promise<GuidedNavigationDocument | undefined>;
++  /**
++   * Returns the resource targeted by the given non-templated [link].
++   */
++  get(link: Link): Resource;
+ }
+diff --git a/types/src/publication/PublicationCollection.d.ts b/types/src/publication/PublicationCollection.d.ts
+index 91682a1f7f025aaf291c5a7b763748c369b5063e..860f725c7c51bbf44c24f4e7e091d3d667eb97b2 100644
+--- a/types/src/publication/PublicationCollection.d.ts
++++ b/types/src/publication/PublicationCollection.d.ts
+@@ -1,4 +1,4 @@
+-import { Links } from './Link';
++import { Links } from "./Link.ts";
+ /**
+  * Core Collection Model
+  *
+@@ -6,29 +6,34 @@ import { Links } from './Link';
+  * Can be used as extension point in the Readium Web Publication Manifest.
+  */
+ export declare class PublicationCollection {
++  metadata?: Map<string, any>;
++  links: Links;
++  subcollections?: Map<string, Array<PublicationCollection>>;
++  /**
++   * Creates a [PublicationCollection].
++   */
++  constructor(values: {
+     metadata?: Map<string, any>;
+     links: Links;
+     subcollections?: Map<string, Array<PublicationCollection>>;
+-    /**
+-     * Creates a [PublicationCollection].
+-     */
+-    constructor(values: {
+-        metadata?: Map<string, any>;
+-        links: Links;
+-        subcollections?: Map<string, Array<PublicationCollection>>;
+-    });
+-    /**
+-     * Parses a [PublicationCollection] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): PublicationCollection | undefined;
+-    /**
+-     * Parses a map of [PublicationCollection] indexed by their roles from its RWPM JSON representation.
+-     *
+-     */
+-    static deserializeCollections(json: any): Map<string, Array<PublicationCollection>> | undefined;
+-    /**
+-     * Serializes a [PublicationCollection] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
+-    static serializeCollection(json: any, subcollections?: Map<string, Array<PublicationCollection>>): void;
++  });
++  /**
++   * Parses a [PublicationCollection] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): PublicationCollection | undefined;
++  /**
++   * Parses a map of [PublicationCollection] indexed by their roles from its RWPM JSON representation.
++   *
++   */
++  static deserializeCollections(
++    json: any,
++  ): Map<string, Array<PublicationCollection>> | undefined;
++  /**
++   * Serializes a [PublicationCollection] to its RWPM JSON representation.
++   */
++  serialize(): any;
++  static serializeCollection(
++    json: any,
++    subcollections?: Map<string, Array<PublicationCollection>>,
++  ): void;
+ }
+diff --git a/types/src/publication/ReadingProgression.d.ts b/types/src/publication/ReadingProgression.d.ts
+index 0b92a5136d3f6ed66431571ef19fc578d58e1a9e..f682635e393f7bde8ff1e95005c889d30588a57a 100644
+--- a/types/src/publication/ReadingProgression.d.ts
++++ b/types/src/publication/ReadingProgression.d.ts
+@@ -1,6 +1,8 @@
+-import { Page } from "./Properties";
++import { Page } from "./Properties.ts";
+ export declare enum ReadingProgression {
+-    ltr = "ltr",
+-    rtl = "rtl"
++  ltr = "ltr",
++  rtl = "rtl",
+ }
+-export declare function leadingPage(readingProgression: ReadingProgression): Page;
++export declare function leadingPage(
++  readingProgression: ReadingProgression,
++): Page;
+diff --git a/types/src/publication/Subject.d.ts b/types/src/publication/Subject.d.ts
+index 4157d20994b17bbe998718253d4f589da060e917..ce0ca1ae076fe7de066e447582f04e6aa4b53d18 100644
+--- a/types/src/publication/Subject.d.ts
++++ b/types/src/publication/Subject.d.ts
+@@ -1,37 +1,37 @@
+-import { Links } from './Link';
+-import { LocalizedString } from './LocalizedString';
++import { Links } from "./Link.ts";
++import { LocalizedString } from "./LocalizedString.ts";
+ /**
+  * https://github.com/readium/webpub-manifest/tree/master/contexts/default#subjects
+  */
+ export declare class Subject {
+-    /** Subject name. */
+-    readonly name: LocalizedString;
+-    /** Provides a string that a machine can sort. */
+-    readonly sortAs?: LocalizedString;
+-    /** EPUB 3.1 opf:term. */
+-    readonly code?: string;
+-    /** EPUB 3.1 opf:authority. */
+-    readonly scheme?: string;
+-    /** PUsed to retrieve similar publications for the given subjects. */
+-    readonly links?: Links;
+-    /** Creates a [Subject]. */
+-    constructor(values: {
+-        name: LocalizedString;
+-        sortAs?: LocalizedString;
+-        code?: string;
+-        scheme?: string;
+-        links?: Links;
+-    });
+-    /**
+-     * Parses a [Subject] from its RWPM JSON representation.
+-     *
+-     * A [Subject] can be parsed from a single string, or a full-fledged object.
+-     */
+-    static deserialize(json: any): Subject | undefined;
+-    /**
+-     * Serializes a [Subject] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  /** Subject name. */
++  readonly name: LocalizedString;
++  /** Provides a string that a machine can sort. */
++  readonly sortAs?: LocalizedString;
++  /** EPUB 3.1 opf:term. */
++  readonly code?: string;
++  /** EPUB 3.1 opf:authority. */
++  readonly scheme?: string;
++  /** PUsed to retrieve similar publications for the given subjects. */
++  readonly links?: Links;
++  /** Creates a [Subject]. */
++  constructor(values: {
++    name: LocalizedString;
++    sortAs?: LocalizedString;
++    code?: string;
++    scheme?: string;
++    links?: Links;
++  });
++  /**
++   * Parses a [Subject] from its RWPM JSON representation.
++   *
++   * A [Subject] can be parsed from a single string, or a full-fledged object.
++   */
++  static deserialize(json: any): Subject | undefined;
++  /**
++   * Serializes a [Subject] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+ /**
+  * https://github.com/readium/webpub-manifest/blob/master/schema/subject.schema.json
+@@ -39,18 +39,18 @@ export declare class Subject {
+  * Collection of [Subject]
+  */
+ export declare class Subjects {
+-    /**
+-     * Array of [Subject] items.
+-     */
+-    readonly items: Array<Subject>;
+-    /** Creates an Array of [Subject]. */
+-    constructor(items: Array<Subject>);
+-    /**
+-     * Parses a [Subjects] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): Subjects | undefined;
+-    /**
+-     * Serializes a [Subjects] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  /**
++   * Array of [Subject] items.
++   */
++  readonly items: Array<Subject>;
++  /** Creates an Array of [Subject]. */
++  constructor(items: Array<Subject>);
++  /**
++   * Parses a [Subjects] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): Subjects | undefined;
++  /**
++   * Serializes a [Subjects] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+diff --git a/types/src/publication/accessibility/AccessibilityMetadataDisplayGuide.d.ts b/types/src/publication/accessibility/AccessibilityMetadataDisplayGuide.d.ts
+index 8eb9ea76403fe679f874e70fc1faaa226e28b9d9..6c931c92d82c84673ad161c31b74b7795ca68136 100644
+--- a/types/src/publication/accessibility/AccessibilityMetadataDisplayGuide.d.ts
++++ b/types/src/publication/accessibility/AccessibilityMetadataDisplayGuide.d.ts
+@@ -1,48 +1,48 @@
+-import { Publication } from '../Publication';
+-import { AccessibilityProfile } from './Accessibility';
++import { Publication } from "../Publication.ts";
++import { AccessibilityProfile } from "./Accessibility.ts";
+ /**
+  * Represents a single accessibility claim
+  */
+ export interface AccessibilityDisplayStatement {
+-    id: string;
+-    compactString?: string;
+-    descriptiveString?: string;
++  id: string;
++  compactString?: string;
++  descriptiveString?: string;
+ }
+ /**
+-* Represents a collection of related accessibility claims which should be
+-* displayed together in a section
+-*/
++ * Represents a collection of related accessibility claims which should be
++ * displayed together in a section
++ */
+ export interface AccessibilityDisplayField {
+-    id: string;
+-    title: string;
+-    statements: AccessibilityDisplayStatement[];
+-    shouldDisplay: boolean;
++  id: string;
++  title: string;
++  statements: AccessibilityDisplayStatement[];
++  shouldDisplay: boolean;
+ }
+ /**
+  * Represents the different ways visual adjustments can be made
+  */
+ export declare enum VisualAdjustments {
+-    Unknown = "unknown",
+-    Modifiable = "modifiable",
+-    Unmodifiable = "unmodifiable"
++  Unknown = "unknown",
++  Modifiable = "modifiable",
++  Unmodifiable = "unmodifiable",
+ }
+ /**
+  * Represents the different types of non-visual reading
+  */
+ export declare enum NonvisualReading {
+-    NoMetadata = "noMetadata",
+-    Readable = "readable",
+-    NotFully = "notFully",
+-    Unreadable = "unreadable"
++  NoMetadata = "noMetadata",
++  Readable = "readable",
++  NotFully = "notFully",
++  Unreadable = "unreadable",
+ }
+ /**
+  * Represents the different types of prerecorded audio
+  */
+ export declare enum PrerecordedAudio {
+-    NoMetadata = "noMetadata",
+-    Synchronized = "synchronized",
+-    AudioOnly = "audioOnly",
+-    AudioComplementary = "audioComplementary"
++  NoMetadata = "noMetadata",
++  Synchronized = "synchronized",
++  AudioOnly = "audioOnly",
++  AudioComplementary = "audioComplementary",
+ }
+ /**
+  * The ways of reading display field is a banner heading that groups
+@@ -50,162 +50,164 @@ export declare enum PrerecordedAudio {
+  * access.
+  */
+ export declare class WaysOfReading implements AccessibilityDisplayField {
+-    readonly id = "ways-of-reading.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly visualAdjustments: VisualAdjustments;
+-    readonly nonvisualReading: NonvisualReading;
+-    readonly nonvisualReadingAltText: boolean;
+-    readonly prerecordedAudio: PrerecordedAudio;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): WaysOfReading;
++  readonly id = "ways-of-reading.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly visualAdjustments: VisualAdjustments;
++  readonly nonvisualReading: NonvisualReading;
++  readonly nonvisualReadingAltText: boolean;
++  readonly prerecordedAudio: PrerecordedAudio;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): WaysOfReading;
+ }
+ /**
+  * Navigation features of the content
+  */
+ export declare class Navigation implements AccessibilityDisplayField {
+-    readonly id = "navigation.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly noMetadata: boolean;
+-    readonly tableOfContents: boolean;
+-    readonly index: boolean;
+-    readonly headings: boolean;
+-    readonly page: boolean;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): Navigation;
++  readonly id = "navigation.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly noMetadata: boolean;
++  readonly tableOfContents: boolean;
++  readonly index: boolean;
++  readonly headings: boolean;
++  readonly page: boolean;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): Navigation;
+ }
+ /**
+  * Represents the different types of rich content
+  */
+ export declare enum RichContentType {
+-    Math = "math",
+-    Chemistry = "chemistry",
+-    Music = "music",
+-    Diagram = "diagram",
+-    Chart = "chart",
+-    Graph = "graph",
+-    Table = "table",
+-    Image = "image"
++  Math = "math",
++  Chemistry = "chemistry",
++  Music = "music",
++  Diagram = "diagram",
++  Chart = "chart",
++  Graph = "graph",
++  Table = "table",
++  Image = "image",
+ }
+ /**
+  * Rich content features of the content
+  */
+ export declare class RichContent implements AccessibilityDisplayField {
+-    readonly id = "rich-content.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly noMetadata: boolean;
+-    readonly extendedAltTextDescriptions: boolean;
+-    readonly mathFormula: boolean;
+-    readonly mathFormulaAsMathML: boolean;
+-    readonly mathFormulaAsLaTeX: boolean;
+-    readonly chemicalFormulaAsMathML: boolean;
+-    readonly chemicalFormulaAsLaTeX: boolean;
+-    readonly closedCaptions: boolean;
+-    readonly openCaptions: boolean;
+-    readonly transcript: boolean;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): RichContent;
++  readonly id = "rich-content.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly noMetadata: boolean;
++  readonly extendedAltTextDescriptions: boolean;
++  readonly mathFormula: boolean;
++  readonly mathFormulaAsMathML: boolean;
++  readonly mathFormulaAsLaTeX: boolean;
++  readonly chemicalFormulaAsMathML: boolean;
++  readonly chemicalFormulaAsLaTeX: boolean;
++  readonly closedCaptions: boolean;
++  readonly openCaptions: boolean;
++  readonly transcript: boolean;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): RichContent;
+ }
+ /**
+  * Represents additional accessibility information
+  */
+-export declare class AdditionalInformation implements AccessibilityDisplayField {
+-    readonly id = "additional-accessibility-information.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly noMetadata: boolean;
+-    readonly pageBreakMarkers: boolean;
+-    readonly aria: boolean;
+-    readonly audioDescriptions: boolean;
+-    readonly braille: boolean;
+-    readonly rubyAnnotations: boolean;
+-    readonly fullRubyAnnotations: boolean;
+-    readonly highAudioContrast: boolean;
+-    readonly highDisplayContrast: boolean;
+-    readonly largePrint: boolean;
+-    readonly signLanguage: boolean;
+-    readonly tactileGraphics: boolean;
+-    readonly tactileObjects: boolean;
+-    readonly textToSpeechHinting: boolean;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): AdditionalInformation;
++export declare class AdditionalInformation
++  implements AccessibilityDisplayField
++{
++  readonly id = "additional-accessibility-information.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly noMetadata: boolean;
++  readonly pageBreakMarkers: boolean;
++  readonly aria: boolean;
++  readonly audioDescriptions: boolean;
++  readonly braille: boolean;
++  readonly rubyAnnotations: boolean;
++  readonly fullRubyAnnotations: boolean;
++  readonly highAudioContrast: boolean;
++  readonly highDisplayContrast: boolean;
++  readonly largePrint: boolean;
++  readonly signLanguage: boolean;
++  readonly tactileGraphics: boolean;
++  readonly tactileObjects: boolean;
++  readonly textToSpeechHinting: boolean;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): AdditionalInformation;
+ }
+ export declare enum HazardType {
+-    yes = "yes",
+-    no = "no",
+-    unknown = "unknown",
+-    noMetadata = "noMetadata"
++  yes = "yes",
++  no = "no",
++  unknown = "unknown",
++  noMetadata = "noMetadata",
+ }
+ /**
+  * Represents potential hazards in the content
+  */
+ export declare class Hazards implements AccessibilityDisplayField {
+-    readonly id = "hazards.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly noMetadata: boolean;
+-    readonly noHazards: boolean;
+-    readonly unknown: boolean;
+-    readonly flashing: HazardType;
+-    readonly motion: HazardType;
+-    readonly sound: HazardType;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): Hazards;
++  readonly id = "hazards.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly noMetadata: boolean;
++  readonly noHazards: boolean;
++  readonly unknown: boolean;
++  readonly flashing: HazardType;
++  readonly motion: HazardType;
++  readonly sound: HazardType;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): Hazards;
+ }
+ /**
+-* Represents conformance to accessibility standards
+-*/
++ * Represents conformance to accessibility standards
++ */
+ export declare class Conformance implements AccessibilityDisplayField {
+-    readonly id = "conformance.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly profiles: AccessibilityProfile[];
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): Conformance;
++  readonly id = "conformance.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly profiles: AccessibilityProfile[];
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): Conformance;
+ }
+ /**
+  * Represents legal exemptions
+  */
+ export declare class Legal implements AccessibilityDisplayField {
+-    readonly id = "legal-considerations.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly exemption: boolean;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): Legal;
++  readonly id = "legal-considerations.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly exemption: boolean;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): Legal;
+ }
+ /**
+-* Represents the accessibility summary
+-*/
++ * Represents the accessibility summary
++ */
+ export declare class AccessibilitySummary implements AccessibilityDisplayField {
+-    readonly id = "accessibility-summary.title";
+-    readonly title: string;
+-    readonly shouldDisplay: boolean;
+-    readonly statements: AccessibilityDisplayStatement[];
+-    private constructor();
+-    static fromPublication(publication: Publication): AccessibilitySummary;
++  readonly id = "accessibility-summary.title";
++  readonly title: string;
++  readonly shouldDisplay: boolean;
++  readonly statements: AccessibilityDisplayStatement[];
++  private constructor();
++  static fromPublication(publication: Publication): AccessibilitySummary;
+ }
+ /**
+  * Main accessibility metadata display guide
+  */
+ export declare class AccessibilityMetadataDisplayGuide {
+-    readonly waysOfReading: WaysOfReading;
+-    readonly navigation: Navigation;
+-    readonly richContent: RichContent;
+-    readonly additionalInformation: AdditionalInformation;
+-    readonly hazards: Hazards;
+-    readonly conformance: Conformance;
+-    readonly legal: Legal;
+-    readonly accessibilitySummary: AccessibilitySummary;
+-    readonly fields: AccessibilityDisplayField[];
+-    constructor(publication: Publication);
++  readonly waysOfReading: WaysOfReading;
++  readonly navigation: Navigation;
++  readonly richContent: RichContent;
++  readonly additionalInformation: AdditionalInformation;
++  readonly hazards: Hazards;
++  readonly conformance: Conformance;
++  readonly legal: Legal;
++  readonly accessibilitySummary: AccessibilitySummary;
++  readonly fields: AccessibilityDisplayField[];
++  constructor(publication: Publication);
+ }
+diff --git a/types/src/publication/accessibility/index.d.ts b/types/src/publication/accessibility/index.d.ts
+index bc594bdcc0808609cfb97fe7c41346b31bda77d8..35fa545771cbd03ed8d52058db307c157ea4fb66 100644
+--- a/types/src/publication/accessibility/index.d.ts
++++ b/types/src/publication/accessibility/index.d.ts
+@@ -1,3 +1,3 @@
+-export * from './Accessibility';
+-export * from './AccessibilityMetadataDisplayGuide';
+-export * from './Localization';
++export * from "./Accessibility.ts";
++export * from "./AccessibilityMetadataDisplayGuide.ts";
++export * from "./Localization.ts";
+diff --git a/types/src/publication/encryption/Properties.d.ts b/types/src/publication/encryption/Properties.d.ts
+index 60835c35ee4af9eae8a8975cff5e13aa077d3585..5a7c226df8d870b7d94b44be694e65cd9468fdf4 100644
+--- a/types/src/publication/encryption/Properties.d.ts
++++ b/types/src/publication/encryption/Properties.d.ts
+@@ -1,10 +1,10 @@
+-import { Encryption } from './Encryption';
+-declare module '../Properties' {
+-    interface Properties {
+-        /**
+-         * Indicates that a resource is encrypted/obfuscated and provides relevant information for
+-         * decryption.
+-         */
+-        encryption: Encryption | undefined;
+-    }
++import { Encryption } from "./Encryption.ts";
++declare module "../Properties" {
++  interface Properties {
++    /**
++     * Indicates that a resource is encrypted/obfuscated and provides relevant information for
++     * decryption.
++     */
++    encryption: Encryption | undefined;
++  }
+ }
+diff --git a/types/src/publication/encryption/index.d.ts b/types/src/publication/encryption/index.d.ts
+index 07eb635c581a946cc91312dc74a843134a4fa601..86f534d1055e52eb57d8fc03052af2fe602abc56 100644
+--- a/types/src/publication/encryption/index.d.ts
++++ b/types/src/publication/encryption/index.d.ts
+@@ -1,2 +1,2 @@
+-export * from './Encryption';
+-export * from './Properties';
++export * from "./Encryption.ts";
++export * from "./Properties.ts";
+diff --git a/types/src/publication/epub/Metadata.d.ts b/types/src/publication/epub/Metadata.d.ts
+index e84389568f20d8e8730ddcf55d36338cc698886f..293d288eee0ca3c09a8b53599813994bf04d5010 100644
+--- a/types/src/publication/epub/Metadata.d.ts
++++ b/types/src/publication/epub/Metadata.d.ts
+@@ -1,6 +1,6 @@
+-import { MediaOverlay } from "./MediaOverlay";
+-declare module '../Metadata' {
+-    interface Metadata {
+-        getMediaOverlay(): MediaOverlay | undefined;
+-    }
++import { MediaOverlay } from "./MediaOverlay.ts";
++declare module "../Metadata" {
++  interface Metadata {
++    getMediaOverlay(): MediaOverlay | undefined;
++  }
+ }
+diff --git a/types/src/publication/epub/Publication.d.ts b/types/src/publication/epub/Publication.d.ts
+index bad832dbd77a3a6b3288b7de64cc8e32721f3052..d1a11cce00aea75daf00e48e8a0fc08acc07070d 100644
+--- a/types/src/publication/epub/Publication.d.ts
++++ b/types/src/publication/epub/Publication.d.ts
+@@ -1,19 +1,19 @@
+-import { Links } from '../Link';
+-declare module '../Publication' {
+-    interface Publication {
+-        /**
+-         * Provides navigation to positions in the Publication content that correspond to the locations of
+-         * page boundaries present in a print source being represented by this EPUB Publication.
+-         */
+-        getPageList(): Links | undefined;
+-        /**
+-         * Identifies fundamental structural components of the publication in order to enable Reading
+-         * Systems to provide the User efficient access to them.
+-         */
+-        getLandmarks(): Links | undefined;
+-        getListOfAudioClips(): Links | undefined;
+-        getListOfIllustrations(): Links | undefined;
+-        getListOfTables(): Links | undefined;
+-        getListOfVideoClips(): Links | undefined;
+-    }
++import { Links } from "../Link.ts";
++declare module "../Publication" {
++  interface Publication {
++    /**
++     * Provides navigation to positions in the Publication content that correspond to the locations of
++     * page boundaries present in a print source being represented by this EPUB Publication.
++     */
++    getPageList(): Links | undefined;
++    /**
++     * Identifies fundamental structural components of the publication in order to enable Reading
++     * Systems to provide the User efficient access to them.
++     */
++    getLandmarks(): Links | undefined;
++    getListOfAudioClips(): Links | undefined;
++    getListOfIllustrations(): Links | undefined;
++    getListOfTables(): Links | undefined;
++    getListOfVideoClips(): Links | undefined;
++  }
+ }
+diff --git a/types/src/publication/epub/index.d.ts b/types/src/publication/epub/index.d.ts
+index f86c69ebed12b4f1afa203275607e1a40039e196..6cf57562153757b6a7bc2c15901184625f71f686 100644
+--- a/types/src/publication/epub/index.d.ts
++++ b/types/src/publication/epub/index.d.ts
+@@ -1,4 +1,4 @@
+-export * from './MediaOverlay';
+-export * from './Metadata';
+-export * from './Properties';
+-export * from './Publication';
++export * from "./MediaOverlay.ts";
++export * from "./Metadata.ts";
++export * from "./Properties.ts";
++export * from "./Publication.ts";
+diff --git a/types/src/publication/html/DomRange.d.ts b/types/src/publication/html/DomRange.d.ts
+index 2981a3422d9e592d2d7073ede74a05a15f8962ef..b8ba175ada12cd07c0cd3bf4bf0777030e5cf946 100644
+--- a/types/src/publication/html/DomRange.d.ts
++++ b/types/src/publication/html/DomRange.d.ts
+@@ -1,4 +1,4 @@
+-import { DomRangePoint } from './DomRangePoint';
++import { DomRangePoint } from "./DomRangePoint.ts";
+ /**
+  * This construct enables a serializable representation of a DOM Range.
+  *
+@@ -18,23 +18,20 @@ import { DomRangePoint } from './DomRangePoint';
+  *
+  */
+ export declare class DomRange {
+-    /** A serializable representation of the "start" boundary point of the DOM Range. */
+-    start: DomRangePoint;
+-    /** A serializable representation of the "end" boundary point of the DOM Range. */
+-    end?: DomRangePoint;
+-    /**
+-     * Creates a [DomRange].
+-     */
+-    constructor(values: {
+-        start: DomRangePoint;
+-        end?: DomRangePoint;
+-    });
+-    /**
+-     * Parses a [DomRange] from its RWPM JSON representation.
+-     */
+-    static deserialize(json: any): DomRange | undefined;
+-    /**
+-     * Serializes a [DomRange] to its RWPM JSON representation.
+-     */
+-    serialize(): any;
++  /** A serializable representation of the "start" boundary point of the DOM Range. */
++  start: DomRangePoint;
++  /** A serializable representation of the "end" boundary point of the DOM Range. */
++  end?: DomRangePoint;
++  /**
++   * Creates a [DomRange].
++   */
++  constructor(values: { start: DomRangePoint; end?: DomRangePoint });
++  /**
++   * Parses a [DomRange] from its RWPM JSON representation.
++   */
++  static deserialize(json: any): DomRange | undefined;
++  /**
++   * Serializes a [DomRange] to its RWPM JSON representation.
++   */
++  serialize(): any;
+ }
+diff --git a/types/src/publication/html/Locations.d.ts b/types/src/publication/html/Locations.d.ts
+index 4e7ba344e8be69e2599c80129b96d50407aa45a8..035034c363273b18a6ec6a9d327c57911cab33b0 100644
+--- a/types/src/publication/html/Locations.d.ts
++++ b/types/src/publication/html/Locations.d.ts
+@@ -1,45 +1,45 @@
+-import { DomRange } from './DomRange';
+-declare module '../Locator' {
+-    interface LocatorLocations {
+-        /**
+-         * A CSS Selector.
+-         */
+-        getCssSelector(): string | undefined;
+-        /**
+-         * [partialCfi] is an expression conforming to the "right-hand" side of the EPUB CFI syntax, that is
+-         * to say: without the EPUB-specific OPF spine item reference that precedes the first ! exclamation
+-         * mark (which denotes the "step indirection" into a publication document). Note that the wrapping
+-         * epubcfi(***) syntax is not used for the [partialCfi] string, i.e. the "fragment" part of the CFI
+-         * grammar is ignored.
+-         */
+-        getPartialCfi(): string | undefined;
+-        /**
+-         * An HTML DOM range.
+-         */
+-        getDomRange(): DomRange | undefined;
+-        /**
+-         * All named parameters found in the fragments, such as `p=5`.
+-         */
+-        fragmentParameters(): Map<string, string>;
+-        /**
+-         * HTML ID fragment identifier.
+-         */
+-        htmlId(): string | undefined;
+-        /**
+-         * Page fragment identifier, used for example in PDF.
+-         */
+-        page(): number | undefined;
+-        /**
+-         * Temporal Dimension media fragment, used for example in audiobooks.
+-         *
+-         * https://www.w3.org/TR/media-frags/
+-         */
+-        time(): number | undefined;
+-        /**
+-         * Spatial Dimension media fragment, used for example in audiobooks.
+-         *
+-         * https://www.w3.org/TR/media-frags/
+-         */
+-        space(): [number, number, number, number] | undefined;
+-    }
++import { DomRange } from "./DomRange.ts";
++declare module "../Locator" {
++  interface LocatorLocations {
++    /**
++     * A CSS Selector.
++     */
++    getCssSelector(): string | undefined;
++    /**
++     * [partialCfi] is an expression conforming to the "right-hand" side of the EPUB CFI syntax, that is
++     * to say: without the EPUB-specific OPF spine item reference that precedes the first ! exclamation
++     * mark (which denotes the "step indirection" into a publication document). Note that the wrapping
++     * epubcfi(***) syntax is not used for the [partialCfi] string, i.e. the "fragment" part of the CFI
++     * grammar is ignored.
++     */
++    getPartialCfi(): string | undefined;
++    /**
++     * An HTML DOM range.
++     */
++    getDomRange(): DomRange | undefined;
++    /**
++     * All named parameters found in the fragments, such as `p=5`.
++     */
++    fragmentParameters(): Map<string, string>;
++    /**
++     * HTML ID fragment identifier.
++     */
++    htmlId(): string | undefined;
++    /**
++     * Page fragment identifier, used for example in PDF.
++     */
++    page(): number | undefined;
++    /**
++     * Temporal Dimension media fragment, used for example in audiobooks.
++     *
++     * https://www.w3.org/TR/media-frags/
++     */
++    time(): number | undefined;
++    /**
++     * Spatial Dimension media fragment, used for example in audiobooks.
++     *
++     * https://www.w3.org/TR/media-frags/
++     */
++    space(): [number, number, number, number] | undefined;
++  }
+ }
+diff --git a/types/src/publication/html/index.d.ts b/types/src/publication/html/index.d.ts
+index ad0e198291e08ecc94264f9ef3cee86bd7b81853..6c799956a28161ab259828006f5b1c6dfc8f80bf 100644
+--- a/types/src/publication/html/index.d.ts
++++ b/types/src/publication/html/index.d.ts
+@@ -1,3 +1,3 @@
+-export * from './DomRange';
+-export * from './DomRangePoint';
+-export * from './Locations';
++export * from "./DomRange.ts";
++export * from "./DomRangePoint.ts";
++export * from "./Locations.ts";
+diff --git a/types/src/publication/index.d.ts b/types/src/publication/index.d.ts
+index 3379e62ba554994843c8381fa5b36bfacc90c167..edad98ca7b1945c321e7bc9d30459bb481bfe191 100644
+--- a/types/src/publication/index.d.ts
++++ b/types/src/publication/index.d.ts
+@@ -1,24 +1,24 @@
+-export * from './accessibility';
+-export * from './encryption';
+-export * from './epub';
+-export * from './html';
+-export * from './opds';
+-export * from './services';
+-export * from './AltIdentifier';
+-export * from './BelongsTo';
+-export * from './Contributor';
+-export * from './Link';
+-export * from './LocalizedString';
+-export * from './Locator';
+-export * from './LocatorCollection';
+-export * from './Manifest';
+-export * from './Metadata';
+-export * from './Profiles';
+-export * from './Properties';
+-export * from './Publication';
+-export * from './PublicationCollection';
+-export * from './Layout';
+-export * from './ReadingProgression';
+-export * from './Subject';
+-export * from './TDM';
+-export * from './GuidedNavigation';
++export * from "./accessibility/index.ts";
++export * from "./encryption/index.ts";
++export * from "./epub/index.ts";
++export * from "./html/index.ts";
++export * from "./opds/index.ts";
++export * from "./services/index.ts";
++export * from "./AltIdentifier.ts";
++export * from "./BelongsTo.ts";
++export * from "./Contributor.ts";
++export * from "./Link.ts";
++export * from "./LocalizedString.ts";
++export * from "./Locator.ts";
++export * from "./LocatorCollection.ts";
++export * from "./Manifest.ts";
++export * from "./Metadata.ts";
++export * from "./Profiles.ts";
++export * from "./Properties.ts";
++export * from "./Publication.ts";
++export * from "./PublicationCollection.ts";
++export * from "./Layout.ts";
++export * from "./ReadingProgression.ts";
++export * from "./Subject.ts";
++export * from "./TDM.ts";
++export * from "./GuidedNavigation.ts";
+diff --git a/types/src/publication/opds/Properties.d.ts b/types/src/publication/opds/Properties.d.ts
+index 50cbcd02216896453b53ffe2a9407910ad5095ba..68b28166a123ee269f35307b2eefbadd29ddc242 100644
+--- a/types/src/publication/opds/Properties.d.ts
++++ b/types/src/publication/opds/Properties.d.ts
+@@ -1,38 +1,44 @@
+-import { Copies, Acquisition, Holds, Price, Availability } from '../../opds';
+-import { Link } from '../Link';
+-declare module '../Properties' {
+-    interface Properties {
+-        /**
+-         * Provides a hint about the expected number of items returned.
+-         */
+-        getNumberOfItems(): number | undefined;
+-        /**
+-         * The price of a publication is tied to its acquisition link.
+-         */
+-        getPrice(): Price | undefined;
+-        /**
+-         * Indirect acquisition provides a hint for the expected media type that will be acquired after
+-         * additional steps.
+-         */
+-        getIndirectAcquisitions(): Array<Acquisition> | undefined;
+-        /**
+-         * Library-specific features when a specific book is unavailable but provides a hold list.
+-         */
+-        getHolds(): Holds | undefined;
+-        /**
+-         * Library-specific feature that contains information about the copies that a library has acquired.
+-         */
+-        getCopies(): Copies | undefined;
+-        /**
+-         * Indicated the availability of a given resource.
+-         */
+-        getAvailability(): Availability | undefined;
+-        /**
+-         * Indicates that the linked resource supports authentication with the associated Authentication
+-         * Document.
+-         *
+-         * See https://drafts.opds.io/authentication-for-opds-1.0.html
+-         */
+-        getAuthenticate(): Link | undefined;
+-    }
++import {
++  Copies,
++  Acquisition,
++  Holds,
++  Price,
++  Availability,
++} from "../../opds/index.ts";
++import { Link } from "../Link.ts";
++declare module "../Properties" {
++  interface Properties {
++    /**
++     * Provides a hint about the expected number of items returned.
++     */
++    getNumberOfItems(): number | undefined;
++    /**
++     * The price of a publication is tied to its acquisition link.
++     */
++    getPrice(): Price | undefined;
++    /**
++     * Indirect acquisition provides a hint for the expected media type that will be acquired after
++     * additional steps.
++     */
++    getIndirectAcquisitions(): Array<Acquisition> | undefined;
++    /**
++     * Library-specific features when a specific book is unavailable but provides a hold list.
++     */
++    getHolds(): Holds | undefined;
++    /**
++     * Library-specific feature that contains information about the copies that a library has acquired.
++     */
++    getCopies(): Copies | undefined;
++    /**
++     * Indicated the availability of a given resource.
++     */
++    getAvailability(): Availability | undefined;
++    /**
++     * Indicates that the linked resource supports authentication with the associated Authentication
++     * Document.
++     *
++     * See https://drafts.opds.io/authentication-for-opds-1.0.html
++     */
++    getAuthenticate(): Link | undefined;
++  }
+ }
+diff --git a/types/src/publication/opds/Publication.d.ts b/types/src/publication/opds/Publication.d.ts
+index ae02c94ad95e819fab80c4e205fbb68ee829b371..54b082b530ebf68d74875cebda176123b18e6d1f 100644
+--- a/types/src/publication/opds/Publication.d.ts
++++ b/types/src/publication/opds/Publication.d.ts
+@@ -1,6 +1,6 @@
+-import { Links } from '../Link';
+-declare module '../Publication' {
+-    interface Publication {
+-        getImages(): Links | undefined;
+-    }
++import { Links } from "../Link.ts";
++declare module "../Publication" {
++  interface Publication {
++    getImages(): Links | undefined;
++  }
+ }
+diff --git a/types/src/publication/opds/index.d.ts b/types/src/publication/opds/index.d.ts
+index bb81ddc07d5b6107ae8c1746fce74bad1fb8cfcd..be5950a1256f8ce55d4cfadf073beeeee52ef932 100644
+--- a/types/src/publication/opds/index.d.ts
++++ b/types/src/publication/opds/index.d.ts
+@@ -1,2 +1,2 @@
+-export * from './Properties';
+-export * from './Publication';
++export * from "./Properties.ts";
++export * from "./Publication.ts";
+diff --git a/types/src/publication/services/content/Content.d.ts b/types/src/publication/services/content/Content.d.ts
+index 40c33f48b6536136fad924a0ee051b9356f77fbd..6d1bb0ba1ba0052a59635489f0b6e4be766dd957 100644
+--- a/types/src/publication/services/content/Content.d.ts
++++ b/types/src/publication/services/content/Content.d.ts
+@@ -1,20 +1,20 @@
+-import { Iterator } from "./Iterator";
+-import { ContentElement } from "./element";
++import { Iterator } from "./Iterator.ts";
++import { ContentElement } from "./element/index.ts";
+ /**
+  * Provides an iterable list of content [Element]s.
+  */
+ export declare abstract class Content {
+-    /**
+-     * Extracts the full raw text, or returns null if no text content can be found.
+-     * @param separator Separator to use between individual elements. Defaults to newline.
+-     */
+-    text(separator?: string): string | null;
+-    /**
+-     * Creates a new iterator for this content.
+-     */
+-    abstract iterator(): Iterator;
+-    /**
+-     * Returns all the elements as a list.
+-     */
+-    elements(): ContentElement[];
++  /**
++   * Extracts the full raw text, or returns null if no text content can be found.
++   * @param separator Separator to use between individual elements. Defaults to newline.
++   */
++  text(separator?: string): string | null;
++  /**
++   * Creates a new iterator for this content.
++   */
++  abstract iterator(): Iterator;
++  /**
++   * Returns all the elements as a list.
++   */
++  elements(): ContentElement[];
+ }
+diff --git a/types/src/publication/services/content/ContentTokenizer.d.ts b/types/src/publication/services/content/ContentTokenizer.d.ts
+index b7361e02b5644d090d169af122d0fe2814336984..f6d4af0fa8a025e7c23ef6aa46076ee78f0ee357 100644
+--- a/types/src/publication/services/content/ContentTokenizer.d.ts
++++ b/types/src/publication/services/content/ContentTokenizer.d.ts
+@@ -1,19 +1,24 @@
+-import { TextTokenizer, TextUnit, Tokenizer } from "../../../util";
++import { TextTokenizer, TextUnit, Tokenizer } from "../../../util/index.ts";
+ import { ContentElement } from "./element";
+ export type ContentTokenizer = Tokenizer<ContentElement, ContentElement>;
+ export declare class TextContentTokenizer implements ContentTokenizer {
+-    private readonly defaultLanguage;
+-    private readonly contextSnippetLength;
+-    private readonly textTokenizerFactory;
+-    /**
+-     *
+-     * @param defaultLanguage The default assumed language
+-     * @param unit The unit of the produced [Locator]s.
+-     * @param contextSnippetLength Length of `before` and `after` snippets in the produced [Locator]s.
+-     * @param textTokenizerFactory Factory to create a [TextTokenizer] from, using the specified language and unit.
+-     */
+-    constructor(defaultLanguage: string | null, unit: TextUnit, contextSnippetLength?: number, textTokenizerFactory?: (language: string | null) => TextTokenizer);
+-    tokenize(data: ContentElement): ContentElement[];
+-    private tokenizeSegment;
+-    private extractTextContextIn;
++  private readonly defaultLanguage;
++  private readonly contextSnippetLength;
++  private readonly textTokenizerFactory;
++  /**
++   *
++   * @param defaultLanguage The default assumed language
++   * @param unit The unit of the produced [Locator]s.
++   * @param contextSnippetLength Length of `before` and `after` snippets in the produced [Locator]s.
++   * @param textTokenizerFactory Factory to create a [TextTokenizer] from, using the specified language and unit.
++   */
++  constructor(
++    defaultLanguage: string | null,
++    unit: TextUnit,
++    contextSnippetLength?: number,
++    textTokenizerFactory?: (language: string | null) => TextTokenizer,
++  );
++  tokenize(data: ContentElement): ContentElement[];
++  private tokenizeSegment;
++  private extractTextContextIn;
+ }
+diff --git a/types/src/publication/services/content/Iterator.d.ts b/types/src/publication/services/content/Iterator.d.ts
+index f2740749dbda82462b9f067d3db683fa580b3909..710f2301e1a9c326527b1888889530541e225dd4 100644
+--- a/types/src/publication/services/content/Iterator.d.ts
++++ b/types/src/publication/services/content/Iterator.d.ts
+@@ -1,38 +1,38 @@
+-import { ContentElement } from "./element";
++import { ContentElement } from "./element/index.ts";
+ export declare class IllegalStateError extends Error {
+-    constructor(message: string);
++  constructor(message: string);
+ }
+ /**
+  * Iterates through a list of [Element] items asynchronously.
+  * [hasNext] and [hasPrevious] refer to the last element computed by a previous call to any of both methods.
+  */
+ export declare abstract class Iterator {
+-    /**
+-     * Returns true if the iterator has a next element, suspending the caller while processing it.
+-     */
+-    abstract hasNext(): Promise<boolean>;
+-    /**
+-     * Retrieves the element computed by a preceding call to [hasNext], or throws an
+-     * [IllegalStateError] if [hasNext] was not invoked. This method should only be used in
+-     * pair with [hasNext].
+-     */
+-    abstract next(): ContentElement;
+-    /**
+-     * Advances to the next item and returns it, or null if we reached the end.
+-     */
+-    nextOrNull(): Promise<ContentElement | null>;
+-    /**
+-     * Returns true if the iterator has a previous element, suspending the caller while processing it.
+-     */
+-    abstract hasPrevious(): Promise<boolean>;
+-    /**
+-     * Retrieves the element computed by a preceding call to [hasPrevious], or throws an
+-     * [IllegalStateError] if [hasPrevious] was not invoked. This method should only be used in
+-     * pair with [hasPrevious].
+-     */
+-    abstract previous(): ContentElement;
+-    /**
+-     * Advances to the previous item and returns it, or null if we reached the beginning.
+-     */
+-    previousOrNull(): Promise<ContentElement | null>;
++  /**
++   * Returns true if the iterator has a next element, suspending the caller while processing it.
++   */
++  abstract hasNext(): Promise<boolean>;
++  /**
++   * Retrieves the element computed by a preceding call to [hasNext], or throws an
++   * [IllegalStateError] if [hasNext] was not invoked. This method should only be used in
++   * pair with [hasNext].
++   */
++  abstract next(): ContentElement;
++  /**
++   * Advances to the next item and returns it, or null if we reached the end.
++   */
++  nextOrNull(): Promise<ContentElement | null>;
++  /**
++   * Returns true if the iterator has a previous element, suspending the caller while processing it.
++   */
++  abstract hasPrevious(): Promise<boolean>;
++  /**
++   * Retrieves the element computed by a preceding call to [hasPrevious], or throws an
++   * [IllegalStateError] if [hasPrevious] was not invoked. This method should only be used in
++   * pair with [hasPrevious].
++   */
++  abstract previous(): ContentElement;
++  /**
++   * Advances to the previous item and returns it, or null if we reached the beginning.
++   */
++  previousOrNull(): Promise<ContentElement | null>;
+ }
+diff --git a/types/src/publication/services/content/element/attributes.d.ts b/types/src/publication/services/content/element/attributes.d.ts
+index 6c1303290ea9cd9b1f83dffacbebcab548700663..0708e5775a454dcbafba5032d1b4edf3ee37b7f5 100644
+--- a/types/src/publication/services/content/element/attributes.d.ts
++++ b/types/src/publication/services/content/element/attributes.d.ts
+@@ -1,31 +1,32 @@
+-import { Language } from "../../../../util/Language";
++import { Language } from "../../../../util/Language.ts";
+ export declare class Attribute<V> {
+-    key: AttributeKeys | string;
+-    value: V;
+-    constructor(key: AttributeKeys | string, value: V);
++  key: AttributeKeys | string;
++  value: V;
++  constructor(key: AttributeKeys | string, value: V);
+ }
+ export declare enum AttributeKeys {
+-    ACCESSIBILITY_LABEL = "accessibilityLabel",
+-    LANGUAGE = "language"
++  ACCESSIBILITY_LABEL = "accessibilityLabel",
++  LANGUAGE = "language",
+ }
+ export declare abstract class AttributesHolder {
++  /**
++   * Associated list of attributes.
++   */
++  readonly _attributes: Attribute<any>[];
++  constructor(
+     /**
+      * Associated list of attributes.
+      */
+-    readonly _attributes: Attribute<any>[];
+-    constructor(
+-    /**
+-     * Associated list of attributes.
+-     */
+-    _attributes?: Attribute<any>[]);
+-    get language(): Language | undefined;
+-    get accessibilityLabel(): string | undefined;
+-    /**
+-     * Gets the first attribute with the given [key].
+-     */
+-    attribute<V>(key: AttributeKeys | string): V | undefined;
+-    /**
+-     * Gets all the attributes with the given [key].
+-     */
+-    attributes<V>(key: AttributeKeys | string): V[];
++    _attributes?: Attribute<any>[],
++  );
++  get language(): Language | undefined;
++  get accessibilityLabel(): string | undefined;
++  /**
++   * Gets the first attribute with the given [key].
++   */
++  attribute<V>(key: AttributeKeys | string): V | undefined;
++  /**
++   * Gets all the attributes with the given [key].
++   */
++  attributes<V>(key: AttributeKeys | string): V[];
+ }
+diff --git a/types/src/publication/services/content/element/element.d.ts b/types/src/publication/services/content/element/element.d.ts
+index c79c45802a9dff02869d23d0653ff15fc049b5e0..813c7f67d092b1b016c37a8b50d98d2cbe28a860 100644
+--- a/types/src/publication/services/content/element/element.d.ts
++++ b/types/src/publication/services/content/element/element.d.ts
+@@ -1,107 +1,132 @@
+-import { Link } from "../../../Link";
+-import { Locator } from "../../../Locator";
+-import { AttributesHolder, Attribute } from "./attributes";
+-import { TextRole } from "./text_role";
++import { Link } from "../../../Link.ts";
++import { Locator } from "../../../Locator.ts";
++import { AttributesHolder, Attribute } from "./attributes.ts";
++import { TextRole } from "./text_role.ts";
+ /**
+  * Represents a single semantic content element part of a publication.
+  * NOTE: This is named "Element" in other toolkits. This conflicts with the JavaScript `Element` type so it's been renamed.
+  */
+ export declare abstract class ContentElement extends AttributesHolder {
+-    readonly locator: Locator;
+-    constructor(locator: Locator, attributes?: Attribute<any>[]);
++  readonly locator: Locator;
++  constructor(locator: Locator, attributes?: Attribute<any>[]);
+ }
+ /**
+  * An element which can be represented as human-readable text.
+  * The default implementation returns the first accessibility label associated to the element.
+  */
+ export declare class TextualElement extends ContentElement {
+-    /**
+-     * Human-readable text representation for this element.
+-     */
+-    get text(): string | undefined;
++  /**
++   * Human-readable text representation for this element.
++   */
++  get text(): string | undefined;
+ }
+ /**
+  *  An element referencing an embedded external resource.
+  */
+ export interface EmbeddedElement extends ContentElement {
+-    /**
+-     * Referenced resource in the publication.
+-     */
+-    readonly embeddedLink: Link;
++  /**
++   * Referenced resource in the publication.
++   */
++  readonly embeddedLink: Link;
+ }
+ /**
+  * An audio clip.
+  */
+-export declare class AudioElement extends TextualElement implements EmbeddedElement {
+-    readonly embeddedLink: Link;
+-    constructor(locator: Locator, embeddedLink: Link, attributes?: Attribute<any>[]);
++export declare class AudioElement
++  extends TextualElement
++  implements EmbeddedElement
++{
++  readonly embeddedLink: Link;
++  constructor(
++    locator: Locator,
++    embeddedLink: Link,
++    attributes?: Attribute<any>[],
++  );
+ }
+ /**
+  * A video clip.
+  */
+-export declare class VideoElement extends TextualElement implements EmbeddedElement {
+-    readonly embeddedLink: Link;
+-    constructor(locator: Locator, embeddedLink: Link, attributes?: Attribute<any>[]);
++export declare class VideoElement
++  extends TextualElement
++  implements EmbeddedElement
++{
++  readonly embeddedLink: Link;
++  constructor(
++    locator: Locator,
++    embeddedLink: Link,
++    attributes?: Attribute<any>[],
++  );
+ }
+ /**
+  * A bitmap image.
+  */
+-export declare class ImageElement extends TextualElement implements EmbeddedElement {
+-    readonly embeddedLink: Link;
+-    /**
+-     * Short piece of text associated with the image.
+-     */
+-    readonly caption?: string | undefined;
+-    constructor(locator: Locator, embeddedLink: Link,
++export declare class ImageElement
++  extends TextualElement
++  implements EmbeddedElement
++{
++  readonly embeddedLink: Link;
++  /**
++   * Short piece of text associated with the image.
++   */
++  readonly caption?: string | undefined;
++  constructor(
++    locator: Locator,
++    embeddedLink: Link,
+     /**
+      * Short piece of text associated with the image.
+      */
+-    caption?: string | undefined, attributes?: Attribute<any>[]);
+-    get text(): string | undefined;
++    caption?: string | undefined,
++    attributes?: Attribute<any>[],
++  );
++  get text(): string | undefined;
+ }
+ export declare class TextSegment extends AttributesHolder {
++  /**
++   * Locator to the segment of text.
++   */
++  readonly locator: Locator;
++  /**
++   * Text in the segment.
++   */
++  readonly text: string;
++  constructor(
+     /**
+      * Locator to the segment of text.
+      */
+-    readonly locator: Locator;
++    locator: Locator,
+     /**
+      * Text in the segment.
+      */
+-    readonly text: string;
+-    constructor(
+-    /**
+-     * Locator to the segment of text.
+-     */
+-    locator: Locator,
+-    /**
+-     * Text in the segment.
+-     */
+-    text: string,
++    text: string,
+     /**
+      * Attributes associated with this segment, e.g. language.
+      */
+-    attributes?: Attribute<any>[]);
++    attributes?: Attribute<any>[],
++  );
+ }
+ /**
+  * A text element.
+  */
+ export declare class TextElement extends TextualElement {
++  /**
++   * Purpose of this element in the broader context of the document.
++   */
++  readonly role: TextRole;
++  /**
++   * Ranged portions of text with associated attributes.
++   */
++  readonly segments: TextSegment[];
++  constructor(
++    locator: Locator,
+     /**
+      * Purpose of this element in the broader context of the document.
+      */
+-    readonly role: TextRole;
+-    /**
+-     * Ranged portions of text with associated attributes.
+-     */
+-    readonly segments: TextSegment[];
+-    constructor(locator: Locator,
+-    /**
+-     * Purpose of this element in the broader context of the document.
+-     */
+-    role: TextRole,
++    role: TextRole,
+     /**
+      * Ranged portions of text with associated attributes.
+      */
+-    segments: TextSegment[], attributes?: Attribute<any>[]);
+-    get text(): string | undefined;
++    segments: TextSegment[],
++    attributes?: Attribute<any>[],
++  );
++  get text(): string | undefined;
+ }
+diff --git a/types/src/publication/services/content/element/index.d.ts b/types/src/publication/services/content/element/index.d.ts
+index de3841cbdee4a634879874be46d39535ee6963ce..9b8db88dbcb38d1590ae2e52824bf8f8320097b3 100644
+--- a/types/src/publication/services/content/element/index.d.ts
++++ b/types/src/publication/services/content/element/index.d.ts
+@@ -1,3 +1,3 @@
+-export * from './element';
+-export * from './attributes';
+-export * from './text_role';
++export * from "./element.ts";
++export * from "./attributes.ts";
++export * from "./text_role.ts";
+diff --git a/types/src/publication/services/content/index.d.ts b/types/src/publication/services/content/index.d.ts
+index efab587978ba23056a498a987e80cb0635fd4e75..54996185632e3ab086e4d85c8671857a1f98a205 100644
+--- a/types/src/publication/services/content/index.d.ts
++++ b/types/src/publication/services/content/index.d.ts
+@@ -1,5 +1,5 @@
+-export * from './Content';
+-export * from './ContentTokenizer';
+-export * from './Iterator';
+-export * from './element';
+-export * from './iterators';
++export * from "./Content.ts";
++export * from "./ContentTokenizer.ts";
++export * from "./Iterator.ts";
++export * from "./element/index.ts";
++export * from "./iterators/index.ts";
+diff --git a/types/src/publication/services/content/iterators/HTMLResourceContentIterator.d.ts b/types/src/publication/services/content/iterators/HTMLResourceContentIterator.d.ts
+index fc614defc4dc911a02817c5ab0edf1518695241a..671c127b1952d60ea020444c13c146822d910864 100644
+--- a/types/src/publication/services/content/iterators/HTMLResourceContentIterator.d.ts
++++ b/types/src/publication/services/content/iterators/HTMLResourceContentIterator.d.ts
+@@ -1,7 +1,7 @@
+-import { Resource } from "../../../../fetcher/Resource";
+-import { Locator } from "../../../Locator";
+-import { Iterator } from "../Iterator";
+-import { ContentElement } from "../element";
++import { Resource } from "../../../../fetcher/Resource.ts";
++import { Locator } from "../../../Locator.ts";
++import { Iterator } from "../Iterator.ts";
++import { ContentElement } from "../element/index.ts";
+ /**
+  * Iterates an HTML [resource], starting from the given [locator].
+  *
+@@ -13,18 +13,18 @@ import { ContentElement } from "../element";
+  * Locators will contain a `before` context of up to `beforeMaxLength` characters.
+  */
+ export declare class HTMLResourceContentIterator extends Iterator {
+-    private resource;
+-    private locator;
+-    private beforeMaxLength;
+-    private currentElement;
+-    constructor(resource: Resource, locator: Locator, beforeMaxLength?: number);
+-    hasPrevious(): Promise<boolean>;
+-    previous(): ContentElement;
+-    hasNext(): Promise<boolean>;
+-    next(): ContentElement;
+-    private currentIndex;
+-    private parsedElementRecipes;
+-    private elements;
+-    private parser;
+-    private parseElements;
++  private resource;
++  private locator;
++  private beforeMaxLength;
++  private currentElement;
++  constructor(resource: Resource, locator: Locator, beforeMaxLength?: number);
++  hasPrevious(): Promise<boolean>;
++  previous(): ContentElement;
++  hasNext(): Promise<boolean>;
++  next(): ContentElement;
++  private currentIndex;
++  private parsedElementRecipes;
++  private elements;
++  private parser;
++  private parseElements;
+ }
+diff --git a/types/src/publication/services/content/iterators/PDFTextContentIterator.d.ts b/types/src/publication/services/content/iterators/PDFTextContentIterator.d.ts
+index 15efbef77025b4e9b04a1344b97276fb9a964905..825dbe50cf9b68955dc11cc400301c9182a0def3 100644
+--- a/types/src/publication/services/content/iterators/PDFTextContentIterator.d.ts
++++ b/types/src/publication/services/content/iterators/PDFTextContentIterator.d.ts
+@@ -1,60 +1,65 @@
+-import { Locator } from "../../../Locator";
+-import { Attribute, ContentElement } from "../element";
+-import { Iterator } from "../Iterator";
++import { Locator } from "../../../Locator.ts";
++import { Attribute, ContentElement } from "../element/index.ts";
++import { Iterator } from "../Iterator.ts";
+ type TextItem = {
+-    str: string;
+-    dir: string;
+-    locator: Locator;
++  str: string;
++  dir: string;
++  locator: Locator;
+ };
+ /**
+  * A pdf element.
+  */
+ export declare class PDFContentElement extends ContentElement {
++  /**
++   * Readable text.
++   */
++  readonly element: PDFReadableElement;
++  constructor(
++    locator: Locator,
+     /**
+      * Readable text.
+      */
+-    readonly element: PDFReadableElement;
+-    constructor(locator: Locator,
+-    /**
+-     * Readable text.
+-     */
+-    element: PDFReadableElement, attributes?: Attribute<any>[]);
+-    get text(): string | undefined;
++    element: PDFReadableElement,
++    attributes?: Attribute<any>[],
++  );
++  get text(): string | undefined;
+ }
+ export type PDFReadableElement = {
+-    index: number;
+-    text: string;
+-    readingDirection?: string;
++  index: number;
++  text: string;
++  readingDirection?: string;
+ };
+ export declare class PageContentIteratorPDF extends Iterator {
++  /**
++   * The pdf page, represented as array of [TextItem] which will be iterated through.
++   * @param {Array<TextItem>} pageContent - an array that represents the page content of a PDF page.
++   * @param {Locator} startLocator - (optional) the locator of the first element to be read.
++   */
++  private pageContent;
++  private startLocator?;
++  private pageContentFiltered;
++  private currentElement;
++  private currentProgression;
++  private currentElementIndex;
++  constructor(
+     /**
+      * The pdf page, represented as array of [TextItem] which will be iterated through.
+      * @param {Array<TextItem>} pageContent - an array that represents the page content of a PDF page.
+      * @param {Locator} startLocator - (optional) the locator of the first element to be read.
+      */
+-    private pageContent;
+-    private startLocator?;
+-    private pageContentFiltered;
+-    private currentElement;
+-    private currentProgression;
+-    private currentElementIndex;
+-    constructor(
+-    /**
+-     * The pdf page, represented as array of [TextItem] which will be iterated through.
+-     * @param {Array<TextItem>} pageContent - an array that represents the page content of a PDF page.
+-     * @param {Locator} startLocator - (optional) the locator of the first element to be read.
+-     */
+-    pageContent: Array<TextItem>, startLocator?: Locator | null | undefined);
+-    current(): ContentElement | null;
+-    hasPrevious(): Promise<boolean>;
+-    previous(): ContentElement;
+-    hasNext(): Promise<boolean>;
+-    next(): ContentElement;
+-    private nextIn;
+-    /**
+-     * Updates the current [PDFReadableElement] position in the pageContentFiltered array
+-     * based on the current progression value.
+-     */
+-    private updateElementIndex;
++    pageContent: Array<TextItem>,
++    startLocator?: Locator | null | undefined,
++  );
++  current(): ContentElement | null;
++  hasPrevious(): Promise<boolean>;
++  previous(): ContentElement;
++  hasNext(): Promise<boolean>;
++  next(): ContentElement;
++  private nextIn;
++  /**
++   * Updates the current [PDFReadableElement] position in the pageContentFiltered array
++   * based on the current progression value.
++   */
++  private updateElementIndex;
+ }
+ export {};
+diff --git a/types/src/publication/services/content/iterators/PublicationContentIterator.d.ts b/types/src/publication/services/content/iterators/PublicationContentIterator.d.ts
+index 9c4b2a0207c55a14f565e2515dfd6a867eefd639..73bdcdc16d7d6afbaa86aa82df0e8eb30b41464e 100644
+--- a/types/src/publication/services/content/iterators/PublicationContentIterator.d.ts
++++ b/types/src/publication/services/content/iterators/PublicationContentIterator.d.ts
+@@ -1,59 +1,63 @@
+-import { Resource } from "../../../../fetcher/Resource";
+-import { Locator } from "../../../Locator";
+-import { Publication } from "../../../Publication";
+-import { Iterator } from "../Iterator";
+-import { ContentElement } from "../element";
+-export type ResourceContentIteratorFactory = (resource: Resource, locator: Locator) => Iterator | null;
++import { Resource } from "../../../../fetcher/Resource.ts";
++import { Locator } from "../../../Locator.ts";
++import { Publication } from "../../../Publication.ts";
++import { Iterator } from "../Iterator.ts";
++import { ContentElement } from "../element/index.ts";
++export type ResourceContentIteratorFactory = (
++  resource: Resource,
++  locator: Locator,
++) => Iterator | null;
+ export declare class PublicationContentIterator extends Iterator {
++  /**
++   * The [Publication] which will be iterated through.
++   */
++  private publication;
++  /**
++   * Starting [Locator] in the publication.
++   */
++  private startLocator;
++  /**
++   * List of [ResourceContentIteratorFactory] which will be used to create the
++   * iterator for each resource. The factories are tried in order until there's a match.
++   */
++  private resourceContentIteratorFactories;
++  private _currentIterator;
++  private currentElement;
++  constructor(
+     /**
+      * The [Publication] which will be iterated through.
+      */
+-    private publication;
++    publication: Publication,
+     /**
+      * Starting [Locator] in the publication.
+      */
+-    private startLocator;
++    startLocator: Locator | undefined,
+     /**
+      * List of [ResourceContentIteratorFactory] which will be used to create the
+      * iterator for each resource. The factories are tried in order until there's a match.
+      */
+-    private resourceContentIteratorFactories;
+-    private _currentIterator;
+-    private currentElement;
+-    constructor(
+-    /**
+-     * The [Publication] which will be iterated through.
+-     */
+-    publication: Publication,
+-    /**
+-     * Starting [Locator] in the publication.
+-     */
+-    startLocator: Locator | undefined,
+-    /**
+-     * List of [ResourceContentIteratorFactory] which will be used to create the
+-     * iterator for each resource. The factories are tried in order until there's a match.
+-     */
+-    resourceContentIteratorFactories: ResourceContentIteratorFactory[]);
+-    hasPrevious(): Promise<boolean>;
+-    previous(): ContentElement;
+-    hasNext(): Promise<boolean>;
+-    next(): ContentElement;
+-    private nextIn;
+-    /**
+-     * Returns the [Iterator] for the current [Resource] in the reading order.
+-     */
+-    private get currentIterator();
+-    /**
+-     * Returns the first iterator starting at [startLocator] or the beginning of the publication.
+-     */
+-    private initialIterator;
+-    /**
+-     * Returns the next resource iterator in the given [direction], starting from [fromIndex].
+-     */
+-    private nextIteratorIn;
+-    /**
+-     * Loads the iterator at the given [index] in the reading order.
+-     * The [location] will be used to compute the starting [Locator] for the iterator.
+-     */
+-    private loadIteratorAt;
++    resourceContentIteratorFactories: ResourceContentIteratorFactory[],
++  );
++  hasPrevious(): Promise<boolean>;
++  previous(): ContentElement;
++  hasNext(): Promise<boolean>;
++  next(): ContentElement;
++  private nextIn;
++  /**
++   * Returns the [Iterator] for the current [Resource] in the reading order.
++   */
++  private get currentIterator();
++  /**
++   * Returns the first iterator starting at [startLocator] or the beginning of the publication.
++   */
++  private initialIterator;
++  /**
++   * Returns the next resource iterator in the given [direction], starting from [fromIndex].
++   */
++  private nextIteratorIn;
++  /**
++   * Loads the iterator at the given [index] in the reading order.
++   * The [location] will be used to compute the starting [Locator] for the iterator.
++   */
++  private loadIteratorAt;
+ }
+diff --git a/types/src/publication/services/content/iterators/index.d.ts b/types/src/publication/services/content/iterators/index.d.ts
+index 4f8b80e85824b32b822e225d869179ecb8b301a0..1dd6feeb1ccfb03fdd0a5cebddd35230e118c227 100644
+--- a/types/src/publication/services/content/iterators/index.d.ts
++++ b/types/src/publication/services/content/iterators/index.d.ts
+@@ -1,3 +1,3 @@
+-export * from './PublicationContentIterator';
+-export * from './PDFTextContentIterator';
+-export * from './HTMLResourceContentIterator';
++export * from "./PublicationContentIterator.ts";
++export * from "./PDFTextContentIterator.ts";
++export * from "./HTMLResourceContentIterator.ts";
+diff --git a/types/src/publication/services/index.d.ts b/types/src/publication/services/index.d.ts
+index 7b367d1463083b5ea261ecd913bdb2be658f58c2..f6c01e22dba6fc041f1b6b6494c707be37001c05 100644
+--- a/types/src/publication/services/index.d.ts
++++ b/types/src/publication/services/index.d.ts
+@@ -1 +1 @@
+-export * from './content';
++export * from "./content/index.ts";
+diff --git a/types/src/util/index.d.ts b/types/src/util/index.d.ts
+index 95e9e1098f794fbb4a03fe37730ebd5a050ae51e..748499df9de378a3f072c8c895ac49d7ddd6be41 100644
+--- a/types/src/util/index.d.ts
++++ b/types/src/util/index.d.ts
+@@ -1,5 +1,5 @@
+-export * from './mediatype';
+-export * from './JSONParse';
+-export * from './URITemplate';
+-export * from './Language';
+-export * from './tokenizer';
++export * from "./mediatype/index.ts";
++export * from "./JSONParse.ts";
++export * from "./URITemplate.ts";
++export * from "./Language.ts";
++export * from "./tokenizer/index.ts";
+diff --git a/types/src/util/mediatype/index.d.ts b/types/src/util/mediatype/index.d.ts
+index ead1b26c34442d86dbd3e325f3798946b83c5f08..d275eb19d318bd51607716ccdd435ea46d38c133 100644
+--- a/types/src/util/mediatype/index.d.ts
++++ b/types/src/util/mediatype/index.d.ts
+@@ -1 +1 @@
+-export * from './MediaType';
++export * from "./MediaType.ts";
+diff --git a/types/src/util/tokenizer/TextTokenizer.d.ts b/types/src/util/tokenizer/TextTokenizer.d.ts
+index 889d669edc9b21aa96454a07865e3f17c72cf4e2..cd5f34cfaccd986ee46a3674a4a48da9cb53a3b8 100644
+--- a/types/src/util/tokenizer/TextTokenizer.d.ts
++++ b/types/src/util/tokenizer/TextTokenizer.d.ts
+@@ -1,5 +1,5 @@
+-import { Language } from "../Language";
+-import { Tokenizer } from "./Tokenizer";
++import { Language } from "../Language.ts";
++import { Tokenizer } from "./Tokenizer.ts";
+ export type Range = [number, number];
+ /**
+  * A tokenizer splitting a String into range tokens (e.g. words, sentences, etc.).
+@@ -9,20 +9,23 @@ export type TextTokenizer = Tokenizer<string, Range>;
+  * A text token unit which can be used with a [TextTokenizer].
+  */
+ export declare enum TextUnit {
+-    Word = "word",
+-    Sentence = "sentence",
+-    Paragraph = "paragraph"
++  Word = "word",
++  Sentence = "sentence",
++  Paragraph = "paragraph",
+ }
+-export declare const DefaultTextContentTokenizer: (language: Language | null, unit: TextUnit) => TextTokenizer;
++export declare const DefaultTextContentTokenizer: (
++  language: Language | null,
++  unit: TextUnit,
++) => TextTokenizer;
+ /**
+  * A [TextTokenizer] using the Intl.Segmenter API.
+  * Very aware of language-specific rules since it uses ICU behind the scenes.
+  */
+ export declare class IntlTextTokenizer implements TextTokenizer {
+-    private unit;
+-    private segmenter;
+-    constructor(language: Language | null, unit: TextUnit);
+-    tokenize(data: string): Range[];
++  private unit;
++  private segmenter;
++  constructor(language: Language | null, unit: TextUnit);
++  tokenize(data: string): Range[];
+ }
+ /**
+  * A [TextTokenizer] using a naive approach to splitting text into tokens.
+@@ -30,10 +33,10 @@ export declare class IntlTextTokenizer implements TextTokenizer {
+  * It works mainly on English and similar languages. Don't use unless necessary.
+  */
+ export declare class NaiveTextTokenizer {
+-    private unit;
+-    private tokenizer;
+-    private isEnglish;
+-    constructor(language: Language | null, unit: TextUnit);
+-    tokenize(data: string): Range[];
++  private unit;
++  private tokenizer;
++  private isEnglish;
++  constructor(language: Language | null, unit: TextUnit);
++  tokenize(data: string): Range[];
+ }
+ export declare const speakableToken: (token: string) => string | null;
+diff --git a/types/src/util/tokenizer/index.d.ts b/types/src/util/tokenizer/index.d.ts
+index b6fd274dda9c5185dbae4fe9cbeca4e9fd87c187..1bf032c4aaeb08b7bd68841c886302638154dde2 100644
+--- a/types/src/util/tokenizer/index.d.ts
++++ b/types/src/util/tokenizer/index.d.ts
+@@ -1,2 +1,2 @@
+-export * from './Tokenizer';
+-export * from './TextTokenizer';
++export * from "./Tokenizer.ts";
++export * from "./TextTokenizer.ts";

@@ -203,6 +203,7 @@ async function main() {
         {
           granularity: parsed.granularity,
           textRef: parsed.textRef,
+          outFormat: parsed.outFormat,
           primaryLocale: parsed.language,
           logger,
           ...(!parsed.noProgress &&
@@ -367,6 +368,7 @@ async function main() {
         {
           granularity: parsed.granularity,
           textRef: parsed.textRef,
+          outFormat: parsed.outFormat,
           primaryLocale,
           logger,
           ...(!parsed.noProgress &&
