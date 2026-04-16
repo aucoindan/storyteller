@@ -381,18 +381,18 @@ release-ghost-story:
             "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/${PACKAGE_ID}/package_files/${FILE_ID}"
         done
       fi
-    - if [ -z ${CODESIGNING} ]; then echo "Signing executable..."; fi
-    - if [ -z ${CODESIGNING} ]; then codesign --sign "$APPLE_SIGNING_IDENTITY"
+    - if [ -n ${CODESIGNING} ]; then echo "Signing executable..."; fi
+    - if [ -n ${CODESIGNING} ]; then codesign --sign "$APPLE_SIGNING_IDENTITY"
       --force --options runtime --timestamp ./align/stalign; fi
-    - if [ -z ${CODESIGNING} ]; then codesign --verify --verbose
+    - if [ -n ${CODESIGNING} ]; then codesign --verify --verbose
       ./align/stalign; fi
-    - if [ -z ${CODESIGNING} ]; then spctl --assess --type execute --verbose
+    - if [ -n ${CODESIGNING} ]; then spctl --assess --type execute --verbose
       ./align/stalign; fi
-    - if [ -z ${CODESIGNING} ]; then zip -j stalign.zip ./align/stalign; fi
-    - if [ -z ${CODESIGNING} ]; then xcrun notarytool submit stalign.zip
+    - if [ -n ${CODESIGNING} ]; then zip -j stalign.zip ./align/stalign; fi
+    - if [ -n ${CODESIGNING} ]; then xcrun notarytool submit stalign.zip
       --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id
       "$APPLE_TEAM_ID" --wait; fi
-    - if [ -z ${CODESIGNING} ]; then xcrun stapler staple ./align/stalign; fi
+    - if [ -n ${CODESIGNING} ]; then xcrun stapler staple ./align/stalign; fi
 
     - echo "Uploading to GitLab Generic Package Registry..."
     - VERSION_PARTS=($(echo "$CI_COMMIT_TAG" | tr 'v' ' '))
@@ -408,7 +408,7 @@ publish-align-sea-darwin-arm64:
   tags: [saas-macos-medium-m1]
   variables:
     VARIANT: "darwin-arm64"
-    KEYCHAIN_NAME: "build-$CI_JOB_ID.keychain"
+    KEYCHAIN_PATH: "$HOME/Library/Keychains/build-$CI_JOB_ID.keychain-db"
     KEYCHAIN_PASSWORD: "temp-keychain-password"
     CODESIGNING: "true"
   before_script:
@@ -419,16 +419,16 @@ publish-align-sea-darwin-arm64:
     - nvm use 25
     - nvm alias default 25
     - npm i -g yarn
-    - security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
-    - security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
-    - security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+    - security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    - security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+    - security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
     - echo "$APPLE_CERTIFICATE_P12" | base64 --decode > certificate.p12
-    - security import certificate.p12 -k "$KEYCHAIN_NAME" -P
+    - security import certificate.p12 -k "$KEYCHAIN_PATH" -P
       "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
     - 'security set-key-partition-list -S apple-tool:,apple: -s -k
-      "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"'
+      "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"'
   after_script:
-    - security delete-keychain "$KEYCHAIN_NAME" || true
+    - security delete-keychain "$KEYCHAIN_PATH" || true
     - rm -f certificate.p12
 
 publish-align-sea-linux-x64:
