@@ -420,15 +420,18 @@ publish-align-sea-darwin-arm64:
     - nvm alias default 25
     - npm i -g yarn
     - security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+    - security list-keychains -d user -s "$KEYCHAIN_NAME" $(security
+      list-keychains -d user | tr -d '"')
     - security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
     - security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
     - echo "$APPLE_CERTIFICATE_P12" | base64 --decode > certificate.p12
     - security import certificate.p12 -k "$KEYCHAIN_NAME" -P
       "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-    - 'security set-key-partition-list -S apple-tool:,apple: -s -k
+    - echo "$APPLE_CA" | base64 --decode > developer_id_cert_authority.cer
+    - security import developer_id_cert_authority.cer -k "$KEYCHAIN_NAME" -T
+      /usr/bin/codesign
+    - 'security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k
       "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"'
-    - security list-keychains -d user -s "$KEYCHAIN_NAME" $(security
-      list-keychains -d user | tr -d '"')
     - security find-identity -v -p codesigning "$KEYCHAIN_NAME"
   after_script:
     - security delete-keychain "$KEYCHAIN_NAME" || true
