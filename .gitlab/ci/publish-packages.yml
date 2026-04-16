@@ -427,7 +427,8 @@ publish-align-sea-darwin-arm64:
       "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
     - 'security set-key-partition-list -S apple-tool:,apple: -s -k
       "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"'
-    - security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+    - security list-keychains -d user -s "$KEYCHAIN_NAME" $(security
+      list-keychains -d user | tr -d '"')
     - security find-identity -v -p codesigning "$KEYCHAIN_NAME"
   after_script:
     - security delete-keychain "$KEYCHAIN_NAME" || true
