@@ -3,7 +3,7 @@ import { describe, it } from "node:test"
 
 import { segmentText } from "@echogarden/text-segmentation"
 
-import { TextFragmentTrie } from "../textFragments.ts"
+import { TextFragmentFactory } from "../textFragments.ts"
 
 void describe("findMinimalFragment", () => {
   void it("should find a minimal fragment when there are no overlaps", async () => {
@@ -14,11 +14,11 @@ void describe("findMinimalFragment", () => {
       },
     )
 
-    const trie = new TextFragmentTrie(sentences.map((s) => s.text))
+    const factory = new TextFragmentFactory(sentences.map((s) => s.text))
 
-    assert.strictEqual(trie.findMinimalFragment(0), ":~:text=thi,.%20")
-    assert.strictEqual(trie.findMinimalFragment(1), ":~:text=it%20,.%20")
-    assert.strictEqual(trie.findMinimalFragment(2), ":~:text=no,.")
+    assert.strictEqual(factory.findMinimalFragment(0), ":~:text=t,.%20")
+    assert.strictEqual(factory.findMinimalFragment(1), ":~:text=it,.%20")
+    assert.strictEqual(factory.findMinimalFragment(2), ":~:text=no,.")
   })
 
   void it("should find a unique fragment when there are overlaps", async () => {
@@ -29,13 +29,13 @@ void describe("findMinimalFragment", () => {
       },
     )
 
-    const trie = new TextFragmentTrie(sentences.map((s) => s.text))
+    const factory = new TextFragmentFactory(sentences.map((s) => s.text))
 
+    assert.strictEqual(factory.findMinimalFragment(0), ":~:text=t,.%20")
     assert.strictEqual(
-      trie.findMinimalFragment(0),
-      ":~:text=this%20is%20a%20,.%20",
+      factory.findMinimalFragment(1),
+      ":~:text=this%20is%20an,.",
     )
-    assert.strictEqual(trie.findMinimalFragment(1), ":~:text=this%20is%20an,.")
   })
 
   void it("should find a unique fragment when there are mid-sentence overlaps", async () => {
@@ -46,11 +46,11 @@ void describe("findMinimalFragment", () => {
       },
     )
 
-    const trie = new TextFragmentTrie(sentences.map((s) => s.text))
+    const factory = new TextFragmentFactory(sentences.map((s) => s.text))
 
-    assert.strictEqual(trie.findMinimalFragment(0), ":~:text=t,.%20")
+    assert.strictEqual(factory.findMinimalFragment(0), ":~:text=t,.%20")
     assert.strictEqual(
-      trie.findMinimalFragment(1),
+      factory.findMinimalFragment(1),
       ":~:text=john%20mcclane%20,.",
     )
   })
@@ -63,14 +63,11 @@ void describe("findMinimalFragment", () => {
       },
     )
 
-    const trie = new TextFragmentTrie(sentences.map((s) => s.text))
+    const factory = new TextFragmentFactory(sentences.map((s) => s.text))
 
+    assert.strictEqual(factory.findMinimalFragment(0), ":~:text=t,.%20")
     assert.strictEqual(
-      trie.findMinimalFragment(0),
-      ":~:text=this%20is%20a%20simple%20sentence.%20",
-    )
-    assert.strictEqual(
-      trie.findMinimalFragment(2),
+      factory.findMinimalFragment(2),
       ":~:text=%20-,this%20is%20a%20simple%20sentence.",
     )
   })
@@ -83,14 +80,14 @@ void describe("findMinimalFragment", () => {
       },
     )
 
-    const trie = new TextFragmentTrie(sentences.map((s) => s.text))
+    const factory = new TextFragmentFactory(sentences.map((s) => s.text))
 
     assert.strictEqual(
-      trie.findMinimalFragment(1),
-      ":~:text=g.%20-,this%20is%20a%20simple%20sentence.%20",
+      factory.findMinimalFragment(1),
+      ":~:text=this%20is%20a%20si,.%20",
     )
     assert.strictEqual(
-      trie.findMinimalFragment(3),
+      factory.findMinimalFragment(3),
       ":~:text=e.%20-,this%20is%20a%20simple%20sentence.%20",
     )
   })

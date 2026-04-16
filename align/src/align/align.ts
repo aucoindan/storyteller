@@ -55,7 +55,7 @@ import {
 import { interpolateSentenceRanges } from "./interpolateSentenceRanges.ts"
 import { findBoundaries } from "./search.ts"
 import { slugify } from "./slugify.ts"
-import { TextFragmentTrie } from "./textFragments.ts"
+import { TextFragmentFactory } from "./textFragments.ts"
 
 type AlignedChapter = {
   chapter: ManifestItem
@@ -314,6 +314,8 @@ export class Aligner {
     const { chapter, sentenceRanges, wordRanges, xml } = alignedChapter
     const sentences = await this.getChapterSentences(chapter.id)
 
+    let sentenceIdToBlockFragment: Map<number, string> | null = null
+
     const sentenceIdToFragment = new Map(
       sentenceRanges.map((range) => [
         range.id,
@@ -338,41 +340,80 @@ export class Aligner {
     const wordRangeMap = new Map(wordRanges.map((w) => [w[0]!.sentenceId, w]))
 
     if (this.textRef === "text-fragment") {
-      const trie = new TextFragmentTrie(
-        sentences.map((s) => s.text.replace("\n", " ")),
+      sentenceIdToBlockFragment = new Map()
+      const blocks: string[][] = [[]]
+      for (const [i, sentence] of enumerate(sentences)) {
+        const text = sentence.text
+        blocks.at(-1)?.push(text)
+        if (text.includes("\n") && i < sentences.length - 1) {
+          blocks.push([])
+        }
+      }
+
+      const blockFactory = new TextFragmentFactory(
+        blocks.map((block) => block.join("")),
         locale,
       )
 
-      for (const range of sentenceRanges) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const sentence = sentences[range.id]!
-
-        sentenceIdToFragment.set(
-          range.id,
-          trie.findMinimalFragment(
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            range.id,
-          ),
+      let sentenceRangeIndex = 0
+      for (const [i, block] of enumerate(blocks)) {
+        sentenceIdToBlockFragment.set(
+          sentenceRangeIndex,
+          blockFactory.findMinimalFragment(i),
         )
 
-        if (this.granularity === "word") {
-          const wordRanges = wordRangeMap.get(range.id)
-          const toFragment = wordIdToFragment.get(range.id)
-          if (!wordRanges || !toFragment) continue
+        const sentenceFactory = new TextFragmentFactory(
+          block.map((s) => s.replace("\n", "")),
+          locale,
+        )
 
-          const words = sentence.words.entries.filter((w) => w.text.match(/\S/))
-          const wordTrie = new TextFragmentTrie(
-            words.map((w) => w.text.replace("\n", " ")),
-            locale,
+        const blockRanges = sentenceRanges.slice(
+          sentenceRangeIndex,
+          sentenceRangeIndex + block.length,
+        )
+
+        for (const [j, range] of enumerate(blockRanges)) {
+          sentenceIdToFragment.set(
+            range.id,
+            sentenceFactory.findMinimalFragment(j),
+          )
+        }
+
+        if (this.granularity === "word") {
+          const wordFactory = new TextFragmentFactory(
+            blockRanges.flatMap((range) => {
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              const sentence = sentences[range.id]!
+              const wordRanges = wordRangeMap.get(range.id)
+              const toFragment = wordIdToFragment.get(range.id)
+              if (!wordRanges || !toFragment) return []
+
+              const words = sentence.words.entries.filter((w) =>
+                w.text.match(/\S/),
+              )
+
+              return words.map((w) => w.text.replace("\n", ""))
+            }),
           )
 
-          for (const wordRange of wordRanges) {
-            toFragment.set(
-              wordRange.id,
-              wordTrie.findMinimalFragment(wordRange.id),
-            )
+          let wordRangeIndex = 0
+          for (const range of blockRanges) {
+            const wordRanges = wordRangeMap.get(range.id)
+            const toFragment = wordIdToFragment.get(range.id)
+            if (!wordRanges || !toFragment) continue
+
+            for (const [k, wordRange] of enumerate(wordRanges)) {
+              toFragment.set(
+                wordRange.id,
+                wordFactory.findMinimalFragment(k + wordRangeIndex),
+              )
+            }
+
+            wordRangeIndex += wordRanges.length
           }
         }
+
+        sentenceRangeIndex += block.length
       }
     }
 
@@ -423,6 +464,7 @@ export class Aligner {
         this.granularity,
         sentenceRanges,
         wordRangeMap,
+        sentenceIdToBlockFragment,
         sentenceIdToFragment,
         wordIdToFragment,
       ),
@@ -796,9 +838,29 @@ function createMediaOverlay(
   granularity: "sentence" | "word",
   sentenceRanges: SentenceRange[],
   wordRanges: Map<number, WordRange[]>,
+  sentenceIdToBlockFragment: Map<number, string> | null,
   sentenceIdToFragment: Map<number, string>,
   wordIdToFragment: Map<number, Map<number, string>>,
 ) {
+  const subSequences = sentenceIdToBlockFragment
+    ? createTextRangeLargeSequences(
+        chapter,
+        granularity,
+        sentenceRanges,
+        wordRanges,
+        sentenceIdToBlockFragment,
+        sentenceIdToFragment,
+        wordIdToFragment,
+      )
+    : createTextRangeSmallSequences(
+        chapter,
+        granularity,
+        sentenceRanges,
+        wordRanges,
+        sentenceIdToFragment,
+        wordIdToFragment,
+      )
+
   return [
     Epub.createXmlElement(
       "smil",
@@ -816,66 +878,116 @@ function createMediaOverlay(
               "epub:textref": `../${chapter.href}`,
               "epub:type": "chapter",
             },
-            sentenceRanges.map((sentenceRange) => {
-              if (
-                granularity === "sentence" ||
-                !wordRanges.has(sentenceRange.id)
-              ) {
-                return Epub.createXmlElement(
-                  "par",
-                  {
-                    id: `${chapter.id}-s${sentenceRange.id}`,
-                  },
-                  [
-                    Epub.createXmlElement("text", {
-                      src: `../${chapter.href}#${sentenceIdToFragment.get(sentenceRange.id)}`,
-                    }),
-                    Epub.createXmlElement("audio", {
-                      src: `../Audio/${basename(sentenceRange.audiofile)}`,
-                      clipBegin: `${sentenceRange.start.toFixed(3)}s`,
-                      clipEnd: `${sentenceRange.end.toFixed(3)}s`,
-                    }),
-                  ],
-                )
-              }
-
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              const words = wordRanges.get(sentenceRange.id)!
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              const wordToFragment = wordIdToFragment.get(sentenceRange.id)!
-
-              return Epub.createXmlElement(
-                "seq",
-                {
-                  id: `${chapter.id}-s${sentenceRange.id}`,
-                  "epub:type": "text-range-small",
-                  "epub:textref": `../${chapter.href}#${sentenceIdToFragment.get(sentenceRange.id)}`,
-                },
-                words.map((word) =>
-                  Epub.createXmlElement(
-                    "par",
-                    {
-                      id: `${chapter.id}-s${sentenceRange.id}-w${word.id}`,
-                    },
-                    [
-                      Epub.createXmlElement("text", {
-                        src: `../${chapter.href}#${wordToFragment.get(word.id)}`,
-                      }),
-                      Epub.createXmlElement("audio", {
-                        src: `../Audio/${basename(word.audiofile)}`,
-                        clipBegin: `${word.start.toFixed(3)}s`,
-                        clipEnd: `${word.end.toFixed(3)}s`,
-                      }),
-                    ],
-                  ),
-                ),
-              )
-            }),
+            subSequences,
           ),
         ]),
       ],
     ),
   ]
+}
+
+function createTextRangeLargeSequences(
+  chapter: ManifestItem,
+  granularity: "sentence" | "word",
+  sentenceRanges: SentenceRange[],
+  wordRanges: Map<number, WordRange[]>,
+  sentenceIdToBlockFragment: Map<number, string>,
+  sentenceIdToFragment: Map<number, string>,
+  wordIdToFragment: Map<number, Map<number, string>>,
+) {
+  const blockStarts = sentenceIdToBlockFragment
+    .entries()
+    .toArray()
+    .toSorted(([a], [b]) => a - b)
+
+  return blockStarts.map(([sentenceId, fragment], index) => {
+    const blockEnd =
+      index === blockStarts.length - 1
+        ? sentenceRanges.length - 1
+        : // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          blockStarts[index + 1]![0]
+
+    const sentences = sentenceRanges.slice(sentenceId, blockEnd)
+
+    return Epub.createXmlElement(
+      "seq",
+      {
+        id: `${chapter.id}-b${index}`,
+        "epub:type": "text-range-large",
+        "epub:textref": `../${chapter.href}#${fragment}`,
+      },
+      createTextRangeSmallSequences(
+        chapter,
+        granularity,
+        sentences,
+        wordRanges,
+        sentenceIdToFragment,
+        wordIdToFragment,
+      ),
+    )
+  })
+}
+
+function createTextRangeSmallSequences(
+  chapter: ManifestItem,
+  granularity: "sentence" | "word",
+  sentenceRanges: SentenceRange[],
+  wordRanges: Map<number, WordRange[]>,
+  sentenceIdToFragment: Map<number, string>,
+  wordIdToFragment: Map<number, Map<number, string>>,
+) {
+  return sentenceRanges.map((sentenceRange) => {
+    if (granularity === "sentence" || !wordRanges.has(sentenceRange.id)) {
+      return Epub.createXmlElement(
+        "par",
+        {
+          id: `${chapter.id}-s${sentenceRange.id}`,
+        },
+        [
+          Epub.createXmlElement("text", {
+            src: `../${chapter.href}#${sentenceIdToFragment.get(sentenceRange.id)}`,
+          }),
+          Epub.createXmlElement("audio", {
+            src: `../Audio/${basename(sentenceRange.audiofile)}`,
+            clipBegin: `${sentenceRange.start.toFixed(3)}s`,
+            clipEnd: `${sentenceRange.end.toFixed(3)}s`,
+          }),
+        ],
+      )
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const words = wordRanges.get(sentenceRange.id)!
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const wordToFragment = wordIdToFragment.get(sentenceRange.id)!
+
+    return Epub.createXmlElement(
+      "seq",
+      {
+        id: `${chapter.id}-s${sentenceRange.id}`,
+        "epub:type": "text-range-small",
+        "epub:textref": `../${chapter.href}#${sentenceIdToFragment.get(sentenceRange.id)}`,
+      },
+      words.map((word) =>
+        Epub.createXmlElement(
+          "par",
+          {
+            id: `${chapter.id}-s${sentenceRange.id}-w${word.id}`,
+          },
+          [
+            Epub.createXmlElement("text", {
+              src: `../${chapter.href}#${wordToFragment.get(word.id)}`,
+            }),
+            Epub.createXmlElement("audio", {
+              src: `../Audio/${basename(word.audiofile)}`,
+              clipBegin: `${word.start.toFixed(3)}s`,
+              clipEnd: `${word.end.toFixed(3)}s`,
+            }),
+          ],
+        ),
+      ),
+    )
+  })
 }
 
 export function concatTranscriptions(
