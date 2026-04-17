@@ -205,6 +205,7 @@ async function main() {
           textRef: parsed.textRef,
           outFormat: parsed.outFormat,
           primaryLocale: parsed.language,
+          reportsPath: parsed.reports,
           logger,
           ...(!parsed.noProgress &&
             parsed.logLevel === "silent" && {
@@ -370,6 +371,7 @@ async function main() {
           textRef: parsed.textRef,
           outFormat: parsed.outFormat,
           primaryLocale,
+          reportsPath: parsed.reports,
           logger,
           ...(!parsed.noProgress &&
             parsed.logLevel === "silent" && {

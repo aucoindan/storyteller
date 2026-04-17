@@ -32,7 +32,9 @@ export const alignParser = object("Alignment", {
     }),
     "id-fragment",
   ),
-  reports: optional(option("--reports", path({ type: "directory" }))),
+  reports: optional(
+    option("--reports", path({ type: "file", extensions: [".json"] })),
+  ),
   outFormat: withDefault(
     option("--out-format", choice(["epub", "gnp"]), {
       description: message`Whether to output a full EPUB 3 package with embedded media overlays and audio, or a Readium Guided Navigation Package with just a manifest and guided navigation documents.`,
