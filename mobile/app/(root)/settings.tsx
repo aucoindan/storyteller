@@ -209,7 +209,7 @@ export default function Settings() {
               />
               <Link
                 href="https://storyteller-platform.dev/"
-                className="ml-1 text-base"
+                className="text-foreground ml-1 text-base"
               >
                 Documentation
               </Link>
@@ -224,7 +224,7 @@ export default function Settings() {
               <Icon as={BugIcon} size={20} className="text-orange-500" />
               <Link
                 href="https://gitlab.com/storyteller-platform/storyteller/-/issues/new?type=ISSUE"
-                className="ml-1 text-base"
+                className="text-foreground ml-1 text-base"
               >
                 Report an issue
               </Link>
@@ -237,7 +237,10 @@ export default function Settings() {
 
             <View className="flex-row items-center justify-start gap-2 rounded-lg">
               <DiscordIcon size={20} />
-              <Link href="https://discord.gg/KhSvFqcrza" className="text-base">
+              <Link
+                href="https://discord.gg/KhSvFqcrza"
+                className="text-foreground text-base"
+              >
                 Join us on Discord
               </Link>
               <Icon
