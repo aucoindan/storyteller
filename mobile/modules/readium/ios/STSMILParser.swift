@@ -86,7 +86,7 @@ final class STSMILParser {
             return nil
         }
 
-        if fragment {
+        if let fragment = fragment {
             return "\(resolved)#\(fragment)"
         }
 
