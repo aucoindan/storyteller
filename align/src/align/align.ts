@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { createWriteStream } from "node:fs"
+import { createWriteStream, rmSync } from "node:fs"
 import {
   copyFile,
   cp,
@@ -165,9 +165,25 @@ export async function align(
   options: AlignOptions,
 ) {
   const outFormat = options.outFormat ?? "epub"
+  const epubPath =
+    outFormat === "epub"
+      ? autoJoin(
+          tmpdir(),
+          `storyteller-platform-align-${randomUUID()}`,
+          basename(output),
+        )
+      : input
+
+  using stack = new DisposableStack()
+  stack.defer(() => {
+    if (outFormat === "epub") {
+      rmSync(dirname(epubPath), { recursive: true, force: true })
+    }
+  })
+
   if (outFormat === "epub") {
-    await mkdir(dirname(output), { recursive: true })
-    await copyFile(input, output)
+    await mkdir(dirname(epubPath), { recursive: true })
+    await copyFile(input, epubPath)
   }
 
   const audiobookFiles = await readdir(audiobookDir).then((filenames) =>
@@ -176,7 +192,7 @@ export async function align(
       .map((f) => autoJoin(audiobookDir, f)),
   )
 
-  using epub = await Epub.from(outFormat === "epub" ? output : input)
+  using epub = await Epub.from(epubPath)
 
   const transcriptions = await readdir(transcriptionsDir)
     .then((filenames) =>
@@ -225,6 +241,8 @@ export async function align(
 
   if (outFormat === "epub") {
     await epub.saveAndClose()
+    await mkdir(dirname(output), { recursive: true })
+    await copyFile(epubPath, output)
   } else {
     const guidedNavigationDocuments =
       await generateGuidedNavigationDocuments(epub)

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { mkdir, readFile } from "node:fs/promises"
-import { basename, dirname } from "node:path"
+import { tmpdir } from "node:os"
+import { basename, dirname, join } from "node:path"
 import type { MessagePort } from "node:worker_threads"
 
 import { extension } from "mime-types"
@@ -213,19 +214,25 @@ export default async function processBook({
       }
 
       if (stage === "SYNC_CHAPTERS") {
+        const markupFilepath = join(
+          tmpdir(),
+          `storyteller-${randomUUID()}`,
+          `${book.uuid}.epub`,
+        )
+
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        await markup(book.ebook!.filepath, markupFilepath, {
+          onProgress,
+          logger,
+        })
+
         const settings = await getSettings()
         const readaloudFilepath = getReadaloudFilepath(book, settings)
         const readaloudDirectory = dirname(readaloudFilepath)
         await mkdir(readaloudDirectory, { recursive: true })
 
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        await markup(book.ebook!.filepath, readaloudFilepath, {
-          onProgress,
-          logger,
-        })
-
         await align(
-          readaloudFilepath,
+          markupFilepath,
           readaloudFilepath,
           getTranscriptionsFilepath(book),
           getProcessedAudioFilepath(book),
