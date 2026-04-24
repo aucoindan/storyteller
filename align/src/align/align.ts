@@ -445,21 +445,26 @@ export class Aligner {
         }
 
         if (this.granularity === "word") {
-          const wordFactory = new TextFragmentFactory(
-            blockRanges.flatMap((range) => {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              const sentence = sentences[range.id]!
-              const wordRanges = wordRangeMap.get(range.id)
-              const toFragment = wordIdToFragment.get(range.id)
-              if (!wordRanges || !toFragment) return []
+          const allWords: string[] = []
+          for (const range of blockRanges) {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            const sentence = sentences[range.id]!
+            const words: string[] = []
+            for (const w of sentence.words.entries) {
+              if (w.isPunctuation) {
+                const lastWord = words.at(-1)
+                if (lastWord === undefined) {
+                  continue
+                }
+                words[words.length - 1] = lastWord + w.text.replace("\n", "")
+              } else {
+                words.push(w.text)
+              }
+            }
+            allWords.push(...words)
+          }
 
-              const words = sentence.words.entries.filter((w) =>
-                w.text.match(/\S/),
-              )
-
-              return words.map((w) => w.text.replace("\n", ""))
-            }),
-          )
+          const wordFactory = new TextFragmentFactory(allWords)
 
           let wordRangeIndex = 0
           for (const range of blockRanges) {
