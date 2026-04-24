@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat } from "node:fs/promises"
+import { mkdir, readdir, rm, stat } from "node:fs/promises"
 import { basename, dirname, extname, join, resolve } from "node:path"
 
 import {
@@ -13,14 +13,20 @@ import {
   writeExtractedAudiobookCover,
   writeExtractedEbookCover,
 } from "@/assets/covers"
-import { writeCachedCoverImage } from "@/assets/fs"
+import { copyWithHardlink, move, writeCachedCoverImage } from "@/assets/fs"
 import {
   getMetadataFromAudiobook,
   getMetadataFromEpub,
   keepMissingMetadata,
   keepMissingRelations,
 } from "@/assets/metadata"
-import { getDefaultSuffix, getInternalBookDirectory } from "@/assets/paths"
+import {
+  getDefaultSuffix,
+  getInternalAudioDirectory,
+  getInternalBookDirectory,
+  getInternalEpubFilepath,
+  getInternalReadaloudFilepath,
+} from "@/assets/paths"
 import { isAudioFile } from "@/audio"
 import {
   type BookUpdate,
@@ -31,14 +37,88 @@ import {
   getBooks,
   updateBook,
 } from "@/database/books"
+import { db } from "@/database/connection"
+import { type ImportMode } from "@/database/settingsTypes"
 import { optimizeImage } from "@/images"
 import { logger } from "@/logging"
 import { type UUID } from "@/uuid"
+
+type BookPaths = {
+  ebook?: string
+  audiobook?: string
+  readaloud?: string
+}
+
+/**
+ * Handle imported book files according to import mode. For "reference" mode,
+ * just record skip paths. For "move"/"copy" modes, relocate files to the
+ * internal library (copy uses hardlinks where possible).
+ */
+async function handleImportedFiles(
+  book: BookWithRelations,
+  sourcePaths: BookPaths,
+  mode: ImportMode,
+  newSkipPaths: { bookUuid: UUID; filepath: string }[],
+): Promise<BookWithRelations> {
+  if (mode === "reference") {
+    for (const path of [
+      sourcePaths.ebook,
+      sourcePaths.readaloud,
+      sourcePaths.audiobook,
+    ]) {
+      if (path) newSkipPaths.push({ bookUuid: book.uuid, filepath: path })
+    }
+    return book
+  }
+  const relocate = mode === "move" ? move : copyWithHardlink
+  const relations: Parameters<typeof updateBook>[2] = {}
+  if (sourcePaths.ebook) {
+    const destPath = getInternalEpubFilepath(book)
+    await mkdir(dirname(destPath), { recursive: true })
+    await relocate(sourcePaths.ebook, destPath)
+    relations.ebook = { filepath: destPath }
+    if (mode === "copy")
+      newSkipPaths.push({ bookUuid: book.uuid, filepath: sourcePaths.ebook })
+  }
+  if (sourcePaths.readaloud) {
+    const destPath = getInternalReadaloudFilepath(book)
+    await mkdir(dirname(destPath), { recursive: true })
+    await relocate(sourcePaths.readaloud, destPath)
+    relations.readaloud = {
+      filepath: destPath,
+      currentStage: book.readaloud?.currentStage ?? "SPLIT_TRACKS",
+    }
+    if (mode === "copy")
+      newSkipPaths.push({
+        bookUuid: book.uuid,
+        filepath: sourcePaths.readaloud,
+      })
+  }
+  if (sourcePaths.audiobook) {
+    const destDir = getInternalAudioDirectory(book)
+    await mkdir(destDir, { recursive: true })
+    const entries = await readdir(sourcePaths.audiobook)
+    for (const entry of entries) {
+      if (!isAudioFile(entry)) continue
+      await relocate(join(sourcePaths.audiobook, entry), join(destDir, entry))
+    }
+    if (mode === "move") await rm(sourcePaths.audiobook, { recursive: true })
+    relations.audiobook = { filepath: destDir }
+    if (mode === "copy")
+      newSkipPaths.push({
+        bookUuid: book.uuid,
+        filepath: sourcePaths.audiobook,
+      })
+  }
+  if (Object.keys(relations).length === 0) return book
+  return await updateBook(book.uuid, null, relations)
+}
 
 export async function scan(
   importPath: string,
   collectionUuid: UUID | null,
   signal: AbortSignal,
+  importMode: ImportMode = "reference",
 ) {
   logger.debug(`Starting new scan for ${importPath}`)
   const allBooks = await getBooks()
@@ -57,6 +137,13 @@ export async function scan(
   const knownReadaloudPaths = new Set(
     books.map((book) => book.readaloud?.filepath),
   )
+  const skipPaths = new Set(
+    (await db.selectFrom("importSkipPath").select("filepath").execute()).map(
+      (row) => row.filepath,
+    ),
+  )
+  const seenSkipPaths = new Set<string>()
+  const newSkipPaths: { bookUuid: UUID; filepath: string }[] = []
 
   logger.debug("Starting recursive directory scan...")
   const entries = await readdir(importPath, {
@@ -91,6 +178,10 @@ export async function scan(
         continue
       }
       const fullPath = join(entry.parentPath, entry.name)
+      if (skipPaths.has(fullPath)) {
+        seenSkipPaths.add(fullPath)
+        continue
+      }
       ebookPaths.push(fullPath)
     }
     if (isAudioFile(ext)) {
@@ -98,6 +189,10 @@ export async function scan(
         logger.warn(
           `Found an audiobook file that was not in a book folder: skipping. Please place all files within book-specific folders: https://storyteller-platform.gitlab.io/storyteller/docs/managing/adding#organizing-your-auto-import-folder. ${entry.parentPath}${entry.name}`,
         )
+        continue
+      }
+      if (skipPaths.has(entry.parentPath)) {
+        seenSkipPaths.add(entry.parentPath)
         continue
       }
       audiobookPathsSet.add(entry.parentPath)
@@ -334,6 +429,7 @@ export async function scan(
             })
           }
         }
+        await handleImportedFiles(created, bookPath, importMode, newSkipPaths)
       } else if (bookPath.audiobook) {
         const audiobookPath = bookPath.audiobook
         const entries = await readdir(audiobookPath)
@@ -390,6 +486,7 @@ export async function scan(
             coverImage,
           )
         }
+        await handleImportedFiles(created, bookPath, importMode, newSkipPaths)
       }
       continue
     }
@@ -584,6 +681,26 @@ export async function scan(
       audioCover.data = optimized
       await writeCachedCoverImage(book.uuid, "audio", 147, 147, audioCover)
     }
+    const newFiles: BookPaths = {}
+    if (relations.ebook && bookPath.ebook) newFiles.ebook = bookPath.ebook
+    if (relations.audiobook && bookPath.audiobook)
+      newFiles.audiobook = bookPath.audiobook
+    if (relations.readaloud && bookPath.readaloud)
+      newFiles.readaloud = bookPath.readaloud
+    if (Object.keys(newFiles).length > 0) {
+      book = await handleImportedFiles(book, newFiles, importMode, newSkipPaths)
+    }
+  }
+  // Persist skip paths: add new ones, remove stale ones (files no longer in import directory)
+  if (newSkipPaths.length > 0) {
+    await db.insertInto("importSkipPath").values(newSkipPaths).execute()
+  }
+  const staleSkipPaths = [...skipPaths].filter((p) => !seenSkipPaths.has(p))
+  if (staleSkipPaths.length > 0) {
+    await db
+      .deleteFrom("importSkipPath")
+      .where("filepath", "in", staleSkipPaths)
+      .execute()
   }
 
   logger.info("Scanning complete")

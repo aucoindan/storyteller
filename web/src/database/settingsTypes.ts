@@ -34,6 +34,9 @@ export type ReadaloudLocationType = z.infer<typeof ReadaloudLocationTypeSchema>
 
 const optionalUrlSchema = z.union([z.literal(""), z.url()]).optional()
 
+export const ImportModeSchema = z.enum(["reference", "move", "copy"])
+export type ImportMode = z.infer<typeof ImportModeSchema>
+
 // Auth provider schemas
 export const BuiltInAuthProviderSchema = z.object({
   kind: z.literal("built-in"),
@@ -77,6 +80,7 @@ export const SettingsSchema = z.object({
   libraryName: z.string(),
   webUrl: z.string(),
   importPath: z.string().nullable(),
+  importMode: ImportModeSchema,
   // Audio settings
   codec: z.string().nullable(),
   bitrate: z.string().nullable(),

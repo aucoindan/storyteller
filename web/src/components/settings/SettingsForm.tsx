@@ -111,6 +111,7 @@ export function SettingsForm({
     authProviders: settings.authProviders,
     disablePasswordLogin: settings.disablePasswordLogin,
     importPath: settings.importPath,
+    importMode: settings.importMode,
     readaloudLocationType: settings.readaloudLocationType,
     readaloudLocation: settings.readaloudLocation,
     maxUploadChunkSize:
@@ -189,7 +190,8 @@ export function SettingsForm({
       >
         <Text className="text-sm text-black opacity-70 dark:text-white">
           Storyteller can be configured to automatically import book files from
-          a specific directory.
+          a specific directory. This can be configured globally below, or
+          per-collection in the collection settings.
         </Text>
         <Text className="text-sm text-black opacity-70 dark:text-white">
           When enabled, Storyteller will set up a filesystem watcher for the
@@ -202,6 +204,16 @@ export function SettingsForm({
           a collection. You can also configure collection-specific automatic
           import in the settings for that collection.
         </Text>
+        <NativeSelect
+          label="Import mode"
+          description="How to handle files found in import directories. Also applies to collections."
+          {...form.getInputProps("importMode")}
+          disabled={isLocked("importMode")}
+        >
+          <option value="reference">Reference in place</option>
+          <option value="move">Move to library</option>
+          <option value="copy">Copy to library</option>
+        </NativeSelect>
       </ImportPathInput>
       <Fieldset
         legend="Readaloud location"

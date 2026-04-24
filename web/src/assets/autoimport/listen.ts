@@ -33,7 +33,10 @@ function startWatcher(
   // This will always succeed, we just created the lock
   scanLock.tryLock()
 
-  scan(importPath, collection, controller.signal)
+  getSetting("importMode")
+    .then((importMode) =>
+      scan(importPath, collection, controller.signal, importMode),
+    )
     .catch((e: unknown) => {
       logger.error(
         `Encountered an error scanning for new book files in ${importPath}`,
@@ -65,7 +68,8 @@ function startWatcher(
 
       await scanLock.lock()
 
-      scan(importPath, collection, controller.signal)
+      const importMode = await getSetting("importMode")
+      scan(importPath, collection, controller.signal, importMode)
         .catch((e: unknown) => {
           logger.error(
             `Encountered an error scanning for new book files in ${importPath}`,

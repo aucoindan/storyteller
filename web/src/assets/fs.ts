@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { type Stats } from "node:fs"
 import {
   cp,
+  link,
   mkdir,
   readFile,
   readdir,
@@ -49,6 +50,22 @@ export async function move(source: string, destination: string) {
       /* empty */
     }
     throw e
+  }
+}
+
+/**
+ * Copy a file, using hardlink if possible (same filesystem), falling back to
+ * regular copy if cross-device.
+ */
+export async function copyWithHardlink(source: string, destination: string) {
+  try {
+    await link(source, destination)
+  } catch (e) {
+    if (e instanceof Error && "code" in e && e.code === "EXDEV") {
+      await cp(source, destination)
+    } else {
+      throw e
+    }
   }
 }
 
