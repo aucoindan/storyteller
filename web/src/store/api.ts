@@ -15,6 +15,7 @@ import {
   type CreatorRelation,
   type SeriesRelation,
 } from "@/database/books"
+import { type ChangelogEntry } from "@/database/changelog"
 import { type CollectionWithRelations } from "@/database/collections"
 import { type Creator } from "@/database/creators"
 import { type Position } from "@/database/positions"
@@ -602,6 +603,60 @@ export const api = createApi({
         body,
       }),
     }),
+
+    getInfiniteChangelog: build.infiniteQuery<
+      ChangelogEntry[],
+      string,
+      { page: number; perPage: number }
+    >({
+      infiniteQueryOptions: {
+        getNextPageParam: (_lastPage, _allPages, lastPageParam) => {
+          return {
+            page: lastPageParam.page + 1,
+            perPage: lastPageParam.perPage,
+          }
+        },
+        initialPageParam: { page: 1, perPage: 20 },
+        getPreviousPageParam: (_firstPage, _allPages, firstPageParam) => {
+          return firstPageParam.page > 1
+            ? {
+                page: firstPageParam.page - 1,
+                perPage: firstPageParam.perPage,
+              }
+            : undefined
+        },
+      },
+      query: ({ pageParam, queryArg }) => {
+        const params = new URLSearchParams({
+          component: queryArg,
+          page: String(pageParam.page),
+          perPage: String(pageParam.perPage),
+        })
+        return `/changelog?${params.toString()}`
+      },
+    }),
+
+    getChangelog: build.query<
+      ChangelogEntry[],
+      { component?: string; page?: number; perPage?: number }
+    >({
+      query: ({ component = "web", page = 1, perPage = 20 }) => {
+        const params = new URLSearchParams({
+          component,
+          page: String(page),
+          perPage: String(perPage),
+        })
+        return `/changelog?${params.toString()}`
+      },
+    }),
+
+    getLatestVersion: build.query<
+      { version: string | null },
+      { component?: string; beta?: boolean }
+    >({
+      query: ({ component = "web", beta = false }) =>
+        `/changelog/latest?component=${component}&beta=${beta}`,
+    }),
   }),
 })
 
@@ -653,6 +708,8 @@ export const {
   useUpdateSettingsMutation,
   useUpdateStatusMutation,
   useUpdateUserMutation,
+  useGetChangelogQuery,
+  useGetLatestVersionQuery,
 } = api
 
 export function getDownloadUrl(

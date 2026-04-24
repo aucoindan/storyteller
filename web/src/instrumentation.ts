@@ -10,6 +10,7 @@ export async function register() {
   const { listen } = await import("./assets/autoimport/listen")
   const { logger } = await import("./logging")
   const { migrate } = await import("./database/migrate")
+  const { syncChangelog } = await import("./database/changelog")
   const { getQueuedBooks } = await import("./database/books")
   const { startProcessing } = await import("./work/distributor")
   const { getReadiumService } = await import("./services/readiumService")
@@ -28,6 +29,21 @@ export async function register() {
     logger.error("Failed to initiate filesystem listener")
     logger.error(err)
   }
+
+  try {
+    await syncChangelog()
+  } catch (err) {
+    logger.error("Failed to sync changelog from GitLab")
+    logger.error(err)
+  }
+
+  // TODO: make cron
+  const THIRTY_MINUTES = 30 * 60 * 1000
+  setInterval(() => {
+    syncChangelog().catch((err: unknown) => {
+      logger.error({ msg: "Periodic changelog sync failed", err })
+    })
+  }, THIRTY_MINUTES)
 
   try {
     const queue = await getQueuedBooks()

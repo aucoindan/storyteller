@@ -281,10 +281,22 @@ export interface ImportSkipPath {
   filepath: string
 }
 
+export interface Changelog {
+  uuid: Generated<import("@/uuid").UUID>
+  tagName: string
+  version: string
+  component: string
+  description: string | null
+  releasedAt: string
+  createdAt: Generated<string>
+  updatedAt: Generated<string>
+}
+
 export interface DB {
   account: Account
   audiobook: Audiobook
   book: Book
+  changelog: Changelog
   bookToCollection: BookToCollection
   bookToCreator: BookToCreator
   bookToSeries: BookToSeries
