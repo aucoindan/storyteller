@@ -45,6 +45,12 @@ import type { RestartMode } from "./distributor"
 
 const STAGES = ["SPLIT_TRACKS", "TRANSCRIBE_CHAPTERS", "SYNC_CHAPTERS"] as const
 
+if (process.env["DEBUG_WORKER"] === "true") {
+  void import("node:inspector").then(({ default: inspector }) =>
+    inspector.open(9231, "0.0.0.0", true),
+  )
+}
+
 export default async function processBook({
   bookUuid,
   restart,

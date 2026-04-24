@@ -17,6 +17,12 @@ interface TransferableFile {
   arrayBuffer: ArrayBuffer
 }
 
+if (process.env["DEBUG_FILE_WRITE_WORKER"] === "true") {
+  void import("node:inspector").then(({ default: inspector }) =>
+    inspector.open(9232, "0.0.0.0", true),
+  )
+}
+
 export default async function writeMetadataToFiles({
   bookUuid,
   textCover: transferableTextCover,

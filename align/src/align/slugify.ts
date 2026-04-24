@@ -121,6 +121,7 @@ function createReplacers(locale: Intl.Locale) {
     const number = parseFloat(normalizedNumeral)
 
     if (Number.isNaN(number)) return match[0]
+
     try {
       return toWords(number, {
         localeCode: `${maximizedLocale.language}-${maximizedLocale.region}`,
@@ -150,5 +151,6 @@ export async function slugify(text: string, locale: Intl.Locale) {
     allowedChars: "a-zA-Z0-9",
     replace: replacers,
   })
+
   return { result, mapping }
 }
