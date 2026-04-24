@@ -63,8 +63,8 @@ data class OverlayPar(
                 map["relativeUrl"] as String,
                 fragmentId,
                 map["textResource"] as String,
-                map["start"] as Double,
-                map["end"] as Double,
+                (map["start"] as Number).toDouble(),
+                (map["end"] as Number).toDouble(),
                 Locator.fromJSON(JSONObject(map["locator"] as Map<String, Any>))!!
             )
         }
