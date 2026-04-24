@@ -149,6 +149,7 @@ export async function slugify(text: string, locale: Intl.Locale) {
 
   const { result, mapping } = await transliterateSlugify(text, {
     allowedChars: "a-zA-Z0-9",
+    locale,
     replace: replacers,
   })
 
