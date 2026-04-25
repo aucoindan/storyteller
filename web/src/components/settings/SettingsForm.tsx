@@ -192,8 +192,7 @@ export function SettingsForm({
       >
         <Text className="text-sm text-black opacity-70 dark:text-white">
           Storyteller can be configured to automatically import book files from
-          a specific directory. This can be configured globally below, or
-          per-collection in the collection settings.
+          a specific directory.
         </Text>
         <Text className="text-sm text-black opacity-70 dark:text-white">
           When enabled, Storyteller will set up a filesystem watcher for the
