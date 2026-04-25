@@ -12,8 +12,8 @@ import {
 } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import { reflinkFile } from "@reflink/reflink"
 import { AsyncMutex } from "@esfx/async-mutex"
+import { reflinkFile } from "@reflink/reflink"
 
 import { getFileChunks } from "@storyteller-platform/fs"
 
