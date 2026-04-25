@@ -13080,6 +13080,95 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@reflink/reflink-darwin-arm64@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-darwin-arm64@npm:0.1.19"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-darwin-x64@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-darwin-x64@npm:0.1.19"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-linux-arm64-gnu@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-linux-arm64-gnu@npm:0.1.19"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-linux-arm64-musl@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-linux-arm64-musl@npm:0.1.19"
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-linux-x64-gnu@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-linux-x64-gnu@npm:0.1.19"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-linux-x64-musl@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-linux-x64-musl@npm:0.1.19"
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-win32-arm64-msvc@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-win32-arm64-msvc@npm:0.1.19"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink-win32-x64-msvc@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink-win32-x64-msvc@npm:0.1.19"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@reflink/reflink@npm:^0.1.19":
+  version: 0.1.19
+  resolution: "@reflink/reflink@npm:0.1.19"
+  dependencies:
+    "@reflink/reflink-darwin-arm64": "npm:0.1.19"
+    "@reflink/reflink-darwin-x64": "npm:0.1.19"
+    "@reflink/reflink-linux-arm64-gnu": "npm:0.1.19"
+    "@reflink/reflink-linux-arm64-musl": "npm:0.1.19"
+    "@reflink/reflink-linux-x64-gnu": "npm:0.1.19"
+    "@reflink/reflink-linux-x64-musl": "npm:0.1.19"
+    "@reflink/reflink-win32-arm64-msvc": "npm:0.1.19"
+    "@reflink/reflink-win32-x64-msvc": "npm:0.1.19"
+  dependenciesMeta:
+    "@reflink/reflink-darwin-arm64":
+      optional: true
+    "@reflink/reflink-darwin-x64":
+      optional: true
+    "@reflink/reflink-linux-arm64-gnu":
+      optional: true
+    "@reflink/reflink-linux-arm64-musl":
+      optional: true
+    "@reflink/reflink-linux-x64-gnu":
+      optional: true
+    "@reflink/reflink-linux-x64-musl":
+      optional: true
+    "@reflink/reflink-win32-arm64-msvc":
+      optional: true
+    "@reflink/reflink-win32-x64-msvc":
+      optional: true
+  checksum: 10c0/b30700b9b20139d9156fc5c07b094b4a35ad57eb0755fb355973352805472599d0c8a6de4cbe7dcbb7b024a998c8ceaac588641d81cbebf49ed4defcb3f8e22e
+  languageName: node
+  linkType: hard
+
 "@remix-run/node@npm:^2.17.0":
   version: 2.17.0
   resolution: "@remix-run/node@npm:2.17.0"
@@ -15281,6 +15370,7 @@ __metadata:
     "@readium/navigator-html-injectables": "npm:2.1.1"
     "@readium/shared": "patch:@readium/shared@npm%3A2.1.5#~/.yarn/patches/@readium-shared-npm-2.1.5-8d6f9d2432.patch"
     "@reduxjs/toolkit": "npm:^2.11.2"
+    "@reflink/reflink": "npm:^0.1.19"
     "@remix-run/node": "npm:^2.17.0"
     "@scalar/nextjs-openapi": "npm:^0.1.17"
     "@storyteller-platform/align": "workspace:*"

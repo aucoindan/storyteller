@@ -13,7 +13,12 @@ import {
   writeExtractedAudiobookCover,
   writeExtractedEbookCover,
 } from "@/assets/covers"
-import { copyWithHardlink, move, writeCachedCoverImage } from "@/assets/fs"
+import {
+  copyWithHardlink,
+  copyWithReflink,
+  move,
+  writeCachedCoverImage,
+} from "@/assets/fs"
 import {
   getMetadataFromAudiobook,
   getMetadataFromEpub,
@@ -56,8 +61,8 @@ type BookPaths = {
 
 /**
  * Handle imported book files according to import mode. For "reference" mode,
- * just record skip paths. For "move"/"copy" modes, relocate files to the
- * internal library (copy uses hardlinks where possible).
+ * just record skip paths. For "move"/"copy"/"hardlink" modes, relocate files
+ * to the internal library.
  */
 async function handleImportedFiles(
   book: BookWithRelations,
@@ -75,14 +80,22 @@ async function handleImportedFiles(
     }
     return book
   }
-  const relocate = mode === "move" ? move : copyWithHardlink
+  const relocators: Record<
+    Exclude<ImportMode, "reference">,
+    (source: string, destination: string) => Promise<void>
+  > = {
+    move,
+    copy: copyWithReflink,
+    hardlink: copyWithHardlink,
+  }
+  const relocate = relocators[mode]
   const relations: Parameters<typeof updateBook>[2] = {}
   if (sourcePaths.ebook) {
     const destPath = getInternalEpubFilepath(book)
     await mkdir(dirname(destPath), { recursive: true })
     await relocate(sourcePaths.ebook, destPath)
     relations.ebook = { filepath: destPath }
-    if (mode === "copy")
+    if (mode !== "move")
       newSkipPaths.push({ bookUuid: book.uuid, filepath: sourcePaths.ebook })
   }
   if (sourcePaths.readaloud) {
@@ -93,7 +106,7 @@ async function handleImportedFiles(
       filepath: destPath,
       currentStage: book.readaloud?.currentStage ?? "SPLIT_TRACKS",
     }
-    if (mode === "copy")
+    if (mode !== "move")
       newSkipPaths.push({
         bookUuid: book.uuid,
         filepath: sourcePaths.readaloud,
@@ -109,7 +122,7 @@ async function handleImportedFiles(
     }
     if (mode === "move") await rm(sourcePaths.audiobook, { recursive: true })
     relations.audiobook = { filepath: destDir }
-    if (mode === "copy")
+    if (mode !== "move")
       newSkipPaths.push({
         bookUuid: book.uuid,
         filepath: sourcePaths.audiobook,

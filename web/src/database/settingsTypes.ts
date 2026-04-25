@@ -41,7 +41,12 @@ export type Epub2ImportStrategy = z.infer<typeof Epub2ImportStrategySchema>
 
 const optionalUrlSchema = z.union([z.literal(""), z.url()]).optional()
 
-export const ImportModeSchema = z.enum(["reference", "move", "copy"])
+export const ImportModeSchema = z.enum([
+  "reference",
+  "copy",
+  "move",
+  "hardlink",
+])
 export type ImportMode = z.infer<typeof ImportModeSchema>
 
 // Auth provider schemas

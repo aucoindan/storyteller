@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
+import { reflinkFile } from "@reflink/reflink"
 import { AsyncMutex } from "@esfx/async-mutex"
 
 import { getFileChunks } from "@storyteller-platform/fs"
@@ -53,10 +54,7 @@ export async function move(source: string, destination: string) {
   }
 }
 
-/**
- * Copy a file, using hardlink if possible (same filesystem), falling back to
- * regular copy if cross-device.
- */
+/** Hard-link a file, falling back to regular copy for cross-device sources. */
 export async function copyWithHardlink(source: string, destination: string) {
   try {
     await link(source, destination)
@@ -66,6 +64,31 @@ export async function copyWithHardlink(source: string, destination: string) {
     } else {
       throw e
     }
+  }
+}
+// Devices where reflink is known to be unsupported, so we only
+// attempt (and fail) once per filesystem per process lifetime.
+const reflinkUnsupportedDevices = new Set<number>()
+/**
+ * Copy a file using reflink (copy-on-write) when the filesystem supports it,
+ * falling back to a regular copy otherwise. Remembers which device IDs don't
+ * support reflink so subsequent copies on the same filesystem skip straight
+ * to regular copy.
+ */
+export async function copyWithReflink(source: string, destination: string) {
+  const sourceDev = (await stat(source)).dev
+  const destDev = (await stat(dirname(destination))).dev
+  // Reflink only works within the same filesystem, and we track
+  // filesystems where it's known not to be supported.
+  if (sourceDev !== destDev || reflinkUnsupportedDevices.has(sourceDev)) {
+    await cp(source, destination)
+    return
+  }
+  try {
+    await reflinkFile(source, destination)
+  } catch {
+    reflinkUnsupportedDevices.add(sourceDev)
+    await cp(source, destination)
   }
 }
 

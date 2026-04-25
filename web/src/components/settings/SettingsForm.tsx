@@ -213,8 +213,9 @@ export function SettingsForm({
           disabled={isLocked("importMode")}
         >
           <option value="reference">Reference in place</option>
-          <option value="move">Move to library</option>
           <option value="copy">Copy to library</option>
+          <option value="move">Move to library</option>
+          <option value="hardlink">Hard link to library</option>
         </NativeSelect>
       </ImportPathInput>
       <Fieldset
