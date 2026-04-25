@@ -8,6 +8,7 @@ import {
   type Shelves,
   type User,
 } from "@/apiModels"
+import { type UpgradeResult } from "@/app/api/v2/books/[bookId]/upgrade-epub/route"
 import {
   type BookRelationsUpdate,
   type BookUpdate,
@@ -279,6 +280,16 @@ export const api = createApi({
         method: "DELETE",
       }),
     }),
+    upgradeBookEpub: build.mutation<
+      Record<string, UpgradeResult>,
+      { uuid: UUID; createBackup?: boolean; backupSuffix?: string }
+    >({
+      query: ({ uuid, createBackup, backupSuffix }) => ({
+        url: `/books/${uuid}/upgrade-epub`,
+        method: "POST",
+        body: { createBackup, backupSuffix },
+      }),
+    }),
     mergeBooks: build.mutation<
       BookWithRelations,
       { update: BookUpdate; relations: BookRelationsUpdate; from: UUID[] }
@@ -291,7 +302,10 @@ export const api = createApi({
     }),
     createBook: build.mutation<
       BookWithRelations,
-      { collection: UUID | undefined; paths: string[] }
+      {
+        collection: UUID | undefined
+        paths: string[]
+      }
     >({
       query: (body) => ({
         url: `/books`,
@@ -710,6 +724,7 @@ export const {
   useUpdateUserMutation,
   useGetChangelogQuery,
   useGetLatestVersionQuery,
+  useUpgradeBookEpubMutation,
 } = api
 
 export function getDownloadUrl(

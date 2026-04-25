@@ -32,6 +32,13 @@ export const ReadaloudLocationTypeSchema = z.enum([
 ])
 export type ReadaloudLocationType = z.infer<typeof ReadaloudLocationTypeSchema>
 
+export const Epub2ImportStrategySchema = z.enum([
+  "backup-and-convert",
+  "replace",
+  "skip",
+])
+export type Epub2ImportStrategy = z.infer<typeof Epub2ImportStrategySchema>
+
 const optionalUrlSchema = z.union([z.literal(""), z.url()]).optional()
 
 export const ImportModeSchema = z.enum(["reference", "move", "copy"])
@@ -121,6 +128,9 @@ export const SettingsSchema = z.object({
   // OPDS settings
   opdsEnabled: z.boolean().nullable(),
   opdsPageSize: z.number().nullable(),
+  // EPUB 2 import settings
+  epub2ImportStrategy: Epub2ImportStrategySchema,
+  epub2BackupSuffix: z.string(),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

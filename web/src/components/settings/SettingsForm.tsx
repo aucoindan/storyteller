@@ -118,6 +118,8 @@ export function SettingsForm({
       maxUploadChunkSize?.maxUploadChunkSize ?? settings.maxUploadChunkSize,
     opdsEnabled: settings.opdsEnabled,
     opdsPageSize: settings.opdsPageSize,
+    epub2ImportStrategy: settings.epub2ImportStrategy,
+    epub2BackupSuffix: settings.epub2BackupSuffix,
   }
 
   const form = useForm({
@@ -215,6 +217,36 @@ export function SettingsForm({
           <option value="copy">Copy to library</option>
         </NativeSelect>
       </ImportPathInput>
+      <Fieldset
+        legend="EPUB 2 handling"
+        disabled={isAnyLocked("epub2ImportStrategy", "epub2BackupSuffix")}
+      >
+        <Text className="mb-3 text-sm text-black opacity-70 dark:text-white">
+          Many older EPUB files use the EPUB 2 format, which Storyteller does
+          not natively support. When an EPUB 2 file is encountered during
+          auto-import, Storyteller can automatically convert it to EPUB 3.
+        </Text>
+        <NativeSelect
+          label="EPUB 2 import strategy"
+          {...form.getInputProps("epub2ImportStrategy")}
+        >
+          <option value="backup-and-convert">
+            Create a backup copy, then convert to EPUB 3
+          </option>
+          <option value="replace">
+            Convert to EPUB 3 in place (no backup)
+          </option>
+          <option value="skip">Skip EPUB 2 files (do not import)</option>
+        </NativeSelect>
+        {form.values.epub2ImportStrategy !== "skip" && (
+          <TextInput
+            label="Backup suffix"
+            description="When creating a backup, this suffix is appended to the original filename before converting."
+            {...form.getInputProps("epub2BackupSuffix")}
+            disabled={form.values.epub2ImportStrategy !== "backup-and-convert"}
+          />
+        )}
+      </Fieldset>
       <Fieldset
         legend="Readaloud location"
         disabled={isAnyLocked("readaloudLocationType", "readaloudLocation")}

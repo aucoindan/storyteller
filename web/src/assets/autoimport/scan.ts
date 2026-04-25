@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat } from "node:fs/promises"
+import { cp, mkdir, readdir, rm, stat } from "node:fs/promises"
 import { basename, dirname, extname, join, resolve } from "node:path"
 
 import {
@@ -38,7 +38,12 @@ import {
   updateBook,
 } from "@/database/books"
 import { db } from "@/database/connection"
-import { type ImportMode } from "@/database/settingsTypes"
+import { getSetting } from "@/database/settings"
+import {
+  type Epub2ImportStrategy,
+  type ImportMode,
+} from "@/database/settingsTypes"
+import { isEpubVersionError } from "@/epub"
 import { optimizeImage } from "@/images"
 import { logger } from "@/logging"
 import { type UUID } from "@/uuid"
@@ -114,6 +119,78 @@ async function handleImportedFiles(
   return await updateBook(book.uuid, null, relations)
 }
 
+async function openOrUpgradeEpub(
+  path: string,
+  strategy: Epub2ImportStrategy,
+  backupSuffix: string,
+  createdBackups: Set<string>,
+): Promise<Epub | null> {
+  try {
+    return await Epub.from(path)
+  } catch (e) {
+    if (!isEpubVersionError(e)) throw e
+
+    if (strategy === "skip") {
+      logger.info(`Skipping non-EPUB 3 file at ${path} (strategy=skip)`)
+      return null
+    }
+
+    logger.info(
+      `Converting non-EPUB 3 file at ${path} to EPUB 3 (strategy=${strategy})`,
+    )
+
+    if (strategy === "backup-and-convert") {
+      const backupPath = path.replace(/\.epub$/i, `${backupSuffix}.epub`)
+      await cp(path, backupPath)
+      createdBackups.add(backupPath)
+      logger.info(`Created EPUB 2 backup at ${backupPath}`)
+    }
+
+    const upgraded = await Epub.upgrade(path)
+    await upgraded.saveAndClose()
+
+    return await Epub.from(path)
+  }
+}
+
+function effectiveEpub2Strategy(
+  strategy: Epub2ImportStrategy,
+  importMode: ImportMode,
+): Epub2ImportStrategy {
+  // if user has set "Copy" they almost certainly don't want to modify the original file, so we'll always create a backup
+  if (importMode === "copy" && strategy === "replace") {
+    return "backup-and-convert"
+  }
+
+  return strategy
+}
+
+async function handleCreatedBackups(
+  book: BookWithRelations,
+  epubPaths: (string | undefined)[],
+  backupSuffix: string,
+  createdBackups: Set<string>,
+  importMode: ImportMode,
+  newSkipPaths: { bookUuid: UUID; filepath: string }[],
+) {
+  for (const epubPath of epubPaths) {
+    if (!epubPath) continue
+
+    const backupPath = epubPath.replace(/\.epub$/i, `${backupSuffix}.epub`)
+    if (!createdBackups.has(backupPath)) continue
+
+    if (importMode === "move") {
+      const destPath = join(
+        getInternalBookDirectory(book),
+        basename(backupPath),
+      )
+      await move(backupPath, destPath)
+    } else {
+      newSkipPaths.push({ bookUuid: book.uuid, filepath: backupPath })
+    }
+  }
+}
+
 export async function scan(
   importPath: string,
   collectionUuid: UUID | null,
@@ -121,7 +198,16 @@ export async function scan(
   importMode: ImportMode = "reference",
 ) {
   logger.debug(`Starting new scan for ${importPath}`)
-  const allBooks = await getBooks()
+
+  const [allBooks, epub2Strategy, epub2Suffix] = await Promise.all([
+    getBooks(),
+    getSetting("epub2ImportStrategy"),
+    getSetting("epub2BackupSuffix"),
+  ])
+
+  const createdBackups = new Set<string>()
+  const upgradeStrategy = effectiveEpub2Strategy(epub2Strategy, importMode)
+
   if (signal.aborted) {
     logger.debug("Scanning aborted")
     return
@@ -173,10 +259,18 @@ export async function scan(
     if (ext === ".epub") {
       if (resolve(entry.parentPath) === resolve(importPath)) {
         logger.warn(
-          `Found an EPUB file that was not in a book folder: skipping. Please place all files within book-specific folders: https://storyteller-platform.gitlab.io/storyteller/docs/managing/adding#organizing-your-auto-import-folder. ${entry.parentPath}${entry.name}`,
+          `Found an EPUB file that was not in a book folder: skipping. Please place all files within book-specific folders: https://storyteller-platform.gitlab.io/storyteller/docs/managing/adding#organizing-your-auto-import-folder. ${join(entry.parentPath, entry.name)}`,
         )
         continue
       }
+
+      if (entry.name.endsWith(`${epub2Suffix}.epub`)) {
+        logger.debug(
+          `Skipping EPUB 2 backup file: ${entry.parentPath}/${entry.name}`,
+        )
+        continue
+      }
+
       const fullPath = join(entry.parentPath, entry.name)
       if (skipPaths.has(fullPath)) {
         seenSkipPaths.add(fullPath)
@@ -187,7 +281,7 @@ export async function scan(
     if (isAudioFile(ext)) {
       if (resolve(entry.parentPath) === resolve(importPath)) {
         logger.warn(
-          `Found an audiobook file that was not in a book folder: skipping. Please place all files within book-specific folders: https://storyteller-platform.gitlab.io/storyteller/docs/managing/adding#organizing-your-auto-import-folder. ${entry.parentPath}${entry.name}`,
+          `Found an audiobook file that was not in a book folder: skipping. Please place all files within book-specific folders: https://storyteller-platform.gitlab.io/storyteller/docs/managing/adding#organizing-your-auto-import-folder. ${join(entry.parentPath, entry.name)}`,
         )
         continue
       }
@@ -241,15 +335,25 @@ export async function scan(
       }
 
       try {
-        using epub = await Epub.from(path)
+        const epub = await openOrUpgradeEpub(
+          path,
+          upgradeStrategy,
+          epub2Suffix,
+          createdBackups,
+        )
+        if (!epub) continue
+
+        using _ = epub
         const manifest = await epub.getManifest()
         const isReadaloud = Object.values(manifest).some(
           (item) => item.mediaOverlay,
         )
+
         if (isReadaloud && !readaloudPath) {
           readaloudPath = path
           handledEbookPaths.add(path)
         }
+
         if (!isReadaloud && !plainEbookPath) {
           plainEbookPath = path
           handledEbookPaths.add(path)
@@ -312,17 +416,24 @@ export async function scan(
       )
 
       if (bookPath.readaloud || bookPath.ebook) {
-        // We've already confirmed that one of these is truthy above
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        using epub = await Epub.from((bookPath.readaloud ?? bookPath.ebook)!)
+        const epubPath = (bookPath.readaloud ?? bookPath.ebook)!
+        const epub = await openOrUpgradeEpub(
+          epubPath,
+          upgradeStrategy,
+          epub2Suffix,
+          createdBackups,
+        )
+        if (!epub) continue
+
+        using _epub = epub
 
         let created: BookWithRelations
         try {
           created = await createBookFromEpub(
             epub,
             {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              title: basename((bookPath.readaloud ?? bookPath.ebook)!, ".epub"),
+              title: basename(epubPath, ".epub"),
             },
             {
               ...(collectionUuid && { collections: [collectionUuid] }),
@@ -341,7 +452,7 @@ export async function scan(
           )
         } catch (e) {
           logger.error(
-            `Encountered issue attempting to read EPUB file at ${bookPath.readaloud ?? bookPath.ebook}, skipping`,
+            `Encountered issue attempting to read EPUB file at ${epubPath}, skipping`,
           )
           logger.error(e)
           continue
@@ -430,6 +541,15 @@ export async function scan(
           }
         }
         await handleImportedFiles(created, bookPath, importMode, newSkipPaths)
+
+        await handleCreatedBackups(
+          created,
+          [bookPath.ebook, bookPath.readaloud],
+          epub2Suffix,
+          createdBackups,
+          importMode,
+          newSkipPaths,
+        )
       } else if (bookPath.audiobook) {
         const audiobookPath = bookPath.audiobook
         const entries = await readdir(audiobookPath)
@@ -507,7 +627,15 @@ export async function scan(
       logger.debug(
         `Found new ebook file for ${book.title} at ${bookPath.ebook}. Importing metadata.`,
       )
-      using epub = await Epub.from(bookPath.ebook)
+      const epub = await openOrUpgradeEpub(
+        bookPath.ebook,
+        upgradeStrategy,
+        epub2Suffix,
+        createdBackups,
+      )
+      if (!epub) continue
+
+      using _epub = epub
       const { update: ebookUpdate, relations: ebookRelations } =
         await getMetadataFromEpub(epub)
 
@@ -604,7 +732,15 @@ export async function scan(
       logger.debug(
         `Found new readaloud book file for ${book.title} at ${bookPath.readaloud}. Importing metadata.`,
       )
-      using epub = await Epub.from(bookPath.readaloud)
+      const epub = await openOrUpgradeEpub(
+        bookPath.readaloud,
+        upgradeStrategy,
+        epub2Suffix,
+        createdBackups,
+      )
+      if (!epub) continue
+
+      using _epub = epub
       const { update: readaloudUpdate, relations: readaloudRelations } =
         await getMetadataFromEpub(epub)
 
@@ -690,6 +826,15 @@ export async function scan(
     if (Object.keys(newFiles).length > 0) {
       book = await handleImportedFiles(book, newFiles, importMode, newSkipPaths)
     }
+
+    await handleCreatedBackups(
+      book,
+      [bookPath.ebook, bookPath.readaloud],
+      epub2Suffix,
+      createdBackups,
+      importMode,
+      newSkipPaths,
+    )
   }
   // Persist skip paths: add new ones, remove stale ones (files no longer in import directory)
   if (newSkipPaths.length > 0) {
