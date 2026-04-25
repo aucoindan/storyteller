@@ -106,6 +106,11 @@ COPY --from=builder /app/align/prebuilds/linux-arm64 ./.next/standalone/web/work
 # Echogarden tries to naively resolve its own wasm builds
 COPY --from=builder /app/node_modules/@echogarden/icu-segmentation-wasm/wasm/*.wasm ./.next/standalone/web/work-dist/
 
+# kuromoji package: the bundled kuroshiro-analyzer-kuromoji still calls
+# require.resolve("kuromoji") at runtime to locate its dict/ directory, so the
+# package must exist on disk in a location reachable from web/work-dist/.
+COPY --from=builder /app/node_modules/kuromoji ./.next/standalone/node_modules/kuromoji
+
 # Copy pre-installed whisper binaries and models from builder
 COPY --from=builder --chown=storyteller:storyteller /root/.local/share/ghost-story /home/storyteller/.local/share/ghost-story
 

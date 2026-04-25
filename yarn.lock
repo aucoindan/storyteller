@@ -14997,6 +14997,7 @@ __metadata:
     eslint: "npm:^8.0.0"
     fastest-levenshtein: "npm:^1.0.16"
     itertools: "npm:^2.6.0"
+    kuromoji: "npm:0.1.2"
     locale-currency: "npm:^1.0.0"
     memoize: "npm:^10.2.0"
     node-addon-api: "npm:^8.3.1"
@@ -30340,7 +30341,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kuromoji@npm:^0.1.1":
+"kuromoji@npm:0.1.2, kuromoji@npm:^0.1.1":
   version: 0.1.2
   resolution: "kuromoji@npm:0.1.2"
   dependencies:
