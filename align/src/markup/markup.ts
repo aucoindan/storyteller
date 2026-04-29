@@ -120,7 +120,7 @@ export async function markupChapter(
         let j = 0
         let wordPos = pos
         for (const word of sentence.words.entries) {
-          if (word.text.match(/\S/)) {
+          if (!word.isPunctuation) {
             root = addMark(
               root,
               lifted.mapping.invert().map(wordPos),
