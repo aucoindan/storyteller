@@ -12,9 +12,11 @@ import {
 import { path } from "@optique/run/valueparser"
 
 import {
+  autoUpgradeParser,
   granularityParser,
   languageParser,
   loggingParser,
+  removeNcxParser,
 } from "../common/parse.ts"
 
 export const alignParser = object("Alignment", {
@@ -60,6 +62,8 @@ export const alignCommand = command(
       ),
     }),
     alignParser,
+    autoUpgradeParser,
+    removeNcxParser,
     loggingParser,
     languageParser,
     granularityParser,
