@@ -24,7 +24,6 @@ class MediaOverlayNode(
     val audio: Url?, // an URI possibly finishing by a simple timer (audioFile#t=start,end)
     val children: List<MediaOverlayNode> = listOf(),
     val role: List<String> = listOf(),
-    val locator: Locator? = null
 ) : Serializable {
 
     val audioFile: String?

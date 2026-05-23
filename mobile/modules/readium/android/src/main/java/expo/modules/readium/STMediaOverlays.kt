@@ -20,7 +20,6 @@ data class OverlayPar(
     val textResource: String,
     val start: Double,
     val end: Double,
-    val locator: Locator
 ) {
     @OptIn(InternalReadiumApi::class)
     fun toJson(): Map<String, Any> {
@@ -31,20 +30,18 @@ data class OverlayPar(
             "start" to this.start,
             "end" to this.end,
             "duration" to this.end - this.start,
-            "locator" to this.locator.toJSON().toMap()
         )
     }
 
     companion object {
         @OptIn(InternalReadiumApi::class)
-        fun fromReadiumClip(clip: Clip, textResource: String, locator: Locator): OverlayPar {
+        fun fromReadiumClip(clip: Clip, textResource: String): OverlayPar {
             return OverlayPar(
                 audioResource = clip.audioResource,
                 fragmentId = clip.fragmentId,
                 start = clip.start,
                 end = clip.end,
                 textResource = textResource,
-                locator = locator
             )
         }
 
@@ -65,7 +62,6 @@ data class OverlayPar(
                 map["textResource"] as String,
                 (map["start"] as Number).toDouble(),
                 (map["end"] as Number).toDouble(),
-                Locator.fromJSON(JSONObject(map["locator"] as Map<String, Any>))!!
             )
         }
     }
@@ -76,19 +72,16 @@ class STMediaOverlays(val link: Link, private val nodes: List<MediaOverlayNode> 
     fun clip(ref: String): OverlayPar? {
         val fragmentNode = findNode(ref, this.nodes) ?: return null
         val textResource = fragmentNode.text.path ?: return null
-        val locator = fragmentNode.locator ?: return null
-        return OverlayPar.fromReadiumClip(fragmentNode.clip ?: return null, textResource, locator)
+        return OverlayPar.fromReadiumClip(fragmentNode.clip ?: return null, textResource)
     }
 
     fun clips(): List<OverlayPar> {
         val nodes = collectNodes(this.nodes)
         return nodes.mapNotNull {
             val textResource = it.text.path ?: return@mapNotNull null
-            val locator = it.locator ?: return@mapNotNull null
             return@mapNotNull OverlayPar.fromReadiumClip(
                 it.clip ?: return@mapNotNull null,
                 textResource,
-                locator
             )
         }
     }

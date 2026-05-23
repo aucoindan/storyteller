@@ -22,7 +22,6 @@ public struct OverlayPar: Sendable {
     public let textResource: String
     public let start: Double
     public let end: Double
-    public let locator: Locator
     
     func toJson() -> [String:Any] {
         return [
@@ -31,19 +30,17 @@ public struct OverlayPar: Sendable {
             "textResource": textResource,
             "start": start,
             "end": end,
-            "duration": end - start,
-            "locator": locator.json
+            "duration": end - start
         ]
     }
     
-    static func fromReadiumClip(clip: Clip, textResource: String, locator: Locator) -> OverlayPar {
+    static func fromReadiumClip(clip: Clip, textResource: String) -> OverlayPar {
         return OverlayPar(
             relativeUrl: clip.relativeUrl,
             fragmentId: clip.fragmentId,
             textResource: textResource,
             start: clip.start,
-            end: clip.end,
-            locator: locator
+            end: clip.end
         )
     }
     
@@ -64,8 +61,7 @@ public struct OverlayPar: Sendable {
             fragmentId: fragmentId,
             textResource: map["textResource"] as! String,
             start: map["start"] as! Double,
-            end: map["end"] as! Double,
-            locator: try Locator(json: map["locator"] as! [String:Any])!
+            end: map["end"] as! Double
         )
     }
 }
@@ -85,14 +81,16 @@ public class STMediaOverlays : Loggable {
     
     public func clips() -> [OverlayPar] {
         return collectNodes(inNodes: nodes).compactMap {
-            guard let clip = $0.clip, let textResource = $0.text, let locator = $0.locator else {
+            guard let textResource = $0.text.flatMap({RelativeURL(epubHREF: $0)?.path}) else {
+                return nil
+            }
+            guard let clip = $0.clip else {
                 return nil
             }
 
             return OverlayPar.fromReadiumClip(
                 clip: clip,
-                textResource: textResource,
-                locator: locator
+                textResource: textResource
             )
         }
     }
@@ -113,14 +111,13 @@ public class STMediaOverlays : Loggable {
         do {
             let fragmentNode = try node(forFragmentId: id)
             
-            guard let clip = fragmentNode.clip, let textResource = fragmentNode.text, let locator = fragmentNode.locator else {
+            guard let clip = fragmentNode.clip, let textResource = fragmentNode.text else {
                 return nil
             }
 
             par = OverlayPar.fromReadiumClip(
                 clip: clip,
-                textResource: textResource,
-                locator: locator
+                textResource: textResource
             )
         }
         return par
@@ -144,14 +141,13 @@ public class STMediaOverlays : Loggable {
 
         do {
             let fragmentNextNode = try node(nextAfterFragmentId: id)
-            guard let clip = fragmentNextNode.clip, let textResource = fragmentNextNode.text, let locator = fragmentNextNode.locator else {
+            guard let clip = fragmentNextNode.clip, let textResource = fragmentNextNode.text else {
                 return nil
             }
 
             par = OverlayPar.fromReadiumClip(
                 clip: clip,
-                textResource: textResource,
-                locator: locator
+                textResource: textResource
             )
         }
         return par

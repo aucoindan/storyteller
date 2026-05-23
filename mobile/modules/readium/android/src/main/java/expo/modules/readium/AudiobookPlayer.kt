@@ -43,11 +43,15 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
 import org.json.JSONObject
@@ -55,6 +59,8 @@ import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.toList
 import org.readium.r2.shared.extensions.toMap
 import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.util.Url
+import org.readium.r2.shared.util.fromEpubHref
 import java.io.File
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
@@ -129,7 +135,7 @@ data class Track(
 }
 
 interface Listener : Player.Listener {
-    fun onClipChanged(overlayPar: OverlayPar)
+    fun onClipChanged(overlayPar: OverlayPar, locator: Locator)
     fun onPositionChanged(position: Double)
     fun onTrackChanged(track: Track, position: Double, index: Int)
 }
@@ -167,8 +173,11 @@ class PlaybackService : MediaLibraryService() {
     // Set when onAddMediaItems resolves a book with a saved position; consumed
     // by the STATE_READY listener in onCreate so the seek happens exactly once
     // after ExoPlayer finishes preparing the new queue.
-    @Volatile private var pendingSeekTrackIndex: Int = -1
-    @Volatile private var pendingSeekMs: Long = 0L
+    @Volatile
+    private var pendingSeekTrackIndex: Int = -1
+
+    @Volatile
+    private var pendingSeekMs: Long = 0L
 
     // Track connected automotive controllers for URI permission granting
     private val automotiveControllers = mutableSetOf<String>()
@@ -356,7 +365,6 @@ class PlaybackService : MediaLibraryService() {
                             "audioResource" to clip.audioResource,
                             "start" to clip.start,
                             "end" to clip.end,
-                            "locator" to clip.locator.toJSON(),
                             "fragmentId" to clip.fragmentId,
                             "textResource" to clip.textResource
                         )
@@ -563,7 +571,8 @@ class PlaybackService : MediaLibraryService() {
 
             val progression = locations?.optDoubleOrNull("progression")
             if (progression != null && readingOrder != null) {
-                val trackDuration = readingOrder.optJSONObject(trackIndex)?.optDouble("duration", 0.0) ?: 0.0
+                val trackDuration =
+                    readingOrder.optJSONObject(trackIndex)?.optDouble("duration", 0.0) ?: 0.0
                 if (trackDuration > 0) {
                     return trackIndex to (progression * trackDuration * 1000).roundToLong()
                 }
@@ -643,6 +652,7 @@ class PlaybackService : MediaLibraryService() {
                         categoryItem(HOME_ID, "Home", ChildStyle.GRID),
                         categoryItem(LIBRARY_ID, "Library", ChildStyle.GRID),
                     )
+
                     HOME_ID -> buildSectionedHome(browser)
                     LIBRARY_ID -> buildBookItems(browser, dbHelper.getDownloads())
                     else -> emptyList()
@@ -741,7 +751,8 @@ class PlaybackService : MediaLibraryService() {
                         val clips = mediaIdToClips[mediaId] ?: return result
                         val clip = clips.find { it.fragmentId == fragmentId } ?: return result
 
-                        val positionMs = ((clip.start + fragmentProgress * (clip.end - clip.start)) * 1000).roundToLong()
+                        val positionMs =
+                            ((clip.start + fragmentProgress * (clip.end - clip.start)) * 1000).roundToLong()
 
                         clipEventMessage = player?.createMessage { _, _ ->
                             session.broadcastCustomCommand(
@@ -830,6 +841,8 @@ class AudiobookPlayer(
     private var afterBreakRewind = 0.0
     private var lastPaused: Instant? = null
 
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     @androidx.annotation.OptIn(UnstableApi::class)
     suspend fun loadTracks(tracks: List<Track>) {
         val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
@@ -906,7 +919,11 @@ class AudiobookPlayer(
 
         controllerFuture.await()
 
-        listener.onTrackChanged(getCurrentTrack() ?: return, getPosition(), controller?.currentMediaItemIndex ?: 0)
+        listener.onTrackChanged(
+            getCurrentTrack() ?: return,
+            getPosition(),
+            controller?.currentMediaItemIndex ?: 0
+        )
     }
 
     fun getIsPlaying(): Boolean {
@@ -964,9 +981,18 @@ class AudiobookPlayer(
 
     private fun emitClipChange(relativeUri: String, positionSeconds: Double) {
         val trackClips = relativeUriToClips[relativeUri] ?: return
+        val bookUuid = bookUuid ?: return
         val currentClip = searchForClip(trackClips, positionSeconds)
         if (currentClip != null) {
-            listener.onClipChanged(currentClip)
+            serviceScope.launch {
+                listener.onClipChanged(
+                    currentClip, BookService.buildFragmentLocator(
+                        bookUuid,
+                        Url.fromEpubHref(currentClip.textResource)!!,
+                        currentClip.fragmentId
+                    )
+                )
+            }
         }
     }
 
@@ -1106,7 +1132,11 @@ class AudiobookPlayer(
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        listener.onTrackChanged(getCurrentTrack() ?: return, getPosition(), controller?.currentMediaItemIndex ?: 0)
+        listener.onTrackChanged(
+            getCurrentTrack() ?: return,
+            getPosition(),
+            controller?.currentMediaItemIndex ?: 0
+        )
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -1137,17 +1167,28 @@ class AudiobookPlayer(
             "CLIP_CHANGED" -> {
                 if (!controller.isPlaying) return result
 
-                val clipData = args.getString("clip") ?: return result
-                val clipMap = JSONObject(clipData).toMap()
-                val clip = OverlayPar(
-                    clipMap["audioResource"] as String,
-                    clipMap["fragmentId"] as String,
-                    clipMap["textResource"] as String,
-                    clipMap["start"] as? Double ?: (clipMap["start"] as Int).toDouble(),
-                    clipMap["end"] as? Double ?: (clipMap["end"] as Int).toDouble(),
-                    Locator.fromJSON(JSONObject(clipMap["locator"] as Map<String, Any>))!!
-                )
-                listener.onClipChanged(clip)
+                return serviceScope.future {
+                    val result = SessionResult(SessionResult.RESULT_SUCCESS)
+                    val bookUuid = bookUuid ?: return@future result
+
+                    val clipData = args.getString("clip") ?: return@future result
+                    val clipMap = JSONObject(clipData).toMap()
+                    val clip = OverlayPar(
+                        clipMap["audioResource"] as String,
+                        clipMap["fragmentId"] as String,
+                        clipMap["textResource"] as String,
+                        clipMap["start"] as? Double ?: (clipMap["start"] as Int).toDouble(),
+                        clipMap["end"] as? Double ?: (clipMap["end"] as Int).toDouble(),
+                    )
+                    listener.onClipChanged(
+                        clip, BookService.buildFragmentLocator(
+                            bookUuid,
+                            Url.fromEpubHref(clipMap["textResource"] as String)!!,
+                            clipMap["fragmentId"] as String
+                        )
+                    )
+                    result
+                }
             }
 
             "CLIP_EVENT_FIRED" -> {

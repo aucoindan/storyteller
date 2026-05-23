@@ -488,7 +488,7 @@ extension EPUBView: WKScriptMessageHandler {
                     guard let fragment = message.body as? String else { return }
                     guard let currentLocator = props!.locator else { return }
 
-                    guard let locator = BookService.shared.getLocatorFor(bookId: props!.bookId, href: currentLocator.href.string, fragment: fragment) else {
+                    guard let locator = try? await BookService.shared.getLocatorFor(bookId: props!.bookId, href: currentLocator.href.string, fragment: fragment) else {
                         return
                     }
 

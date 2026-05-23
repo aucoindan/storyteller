@@ -45,14 +45,11 @@ public class STMediaOverlayNode {
 
     public var role = [String]()
     public var children = [STMediaOverlayNode]()
-    
-    public var locator: Locator?
 
     public init(_ text: String? = nil, clip: Clip? = nil, locator: Locator? = nil) {
         self.text = text
         self.clip = clip
         self.clip?.fragmentId = fragmentId()
-        self.locator = locator
     }
 
     // MARK: - Internal Methods.

@@ -113,7 +113,7 @@ object BookService {
             return null
         }
 
-        return clips.first { it.locator.href == locator.href && it.fragmentId == fragment }
+        return clips.first { Url.fromEpubHref(it.textResource) == locator.href && it.fragmentId == fragment }
     }
 
     fun getOverlayClips(bookUuid: String): List<OverlayPar> {
@@ -179,7 +179,7 @@ object BookService {
 
     fun getFragments(bookUuid: String, locator: Locator): List<OverlayPar> {
         val clips = this.clips[bookUuid] ?: return emptyList()
-        return clips.filter { it.locator.href == locator.href }
+        return clips.filter { Url.fromEpubHref(it.textResource) == locator.href }
     }
 
     fun getFragment(bookUuid: String, clipUrl: String, position: Double): OverlayPar? {
@@ -194,7 +194,7 @@ object BookService {
         val currentFragment = locator.locations.fragments.firstOrNull() ?: return null
         val clips = this.clips[bookUuid] ?: return null
         val currentIndex =
-            clips.indexOfFirst { it.locator.href == locator.href && it.fragmentId == currentFragment }
+            clips.indexOfFirst { Url.fromEpubHref(it.textResource) == locator.href && it.fragmentId == currentFragment }
         if (currentIndex == 0) return null
         val previousIndex = currentIndex.dec()
         return clips[previousIndex]
@@ -204,7 +204,7 @@ object BookService {
         val currentFragment = locator.locations.fragments.firstOrNull() ?: return null
         val clips = this.clips[bookUuid] ?: return null
         val currentIndex =
-            clips.indexOfFirst { it.locator.href == locator.href && it.fragmentId == currentFragment }
+            clips.indexOfFirst { Url.fromEpubHref(it.textResource) == locator.href && it.fragmentId == currentFragment }
         if (currentIndex == 0) return null
         val nextIndex = currentIndex.inc()
         return clips[nextIndex]
@@ -287,15 +287,15 @@ object BookService {
         return publication
     }
 
-    fun buildAudiobookManifest(bookUuid: String): Manifest {
+    suspend fun buildAudiobookManifest(bookUuid: String): Manifest {
         val publication = getPublication(bookUuid)
             ?: throw Exception("Publication for book $bookUuid is unopened.")
         val bookClips = this.clips[bookUuid]
             ?: throw Exception("Book $bookUuid has no media overlays")
 
-        val clipsByHref = bookClips.groupBy { it.locator.href }
+        val clipsByHref = bookClips.groupBy { Url.fromEpubHref(it.textResource) }
 
-        fun buildAudiobookTocLink(link: Link): Link? {
+        suspend fun buildAudiobookTocLink(link: Link): Link? {
             val children = link.children.mapNotNull { buildAudiobookTocLink(it) }
             val fallbackLink = children.firstOrNull()?.let {
                 Link(
@@ -312,7 +312,7 @@ object BookService {
             val plainLink = publication.linkWithHref(tocLocator.href) ?: return fallbackLink
             val chapterClips = clipsByHref[plainLink.url()] ?: return fallbackLink
             val clip =
-                searchForClipByProgression(chapterClips, tocProgression) ?: return fallbackLink
+                searchForClipByProgression(bookUuid, chapterClips, tocProgression) ?: return fallbackLink
 
             val clipResource =
                 publication.resources.first { it.href.toString() == clip.audioResource }
@@ -372,7 +372,7 @@ object BookService {
     }
 }
 
-fun searchForClipByProgression(clips: List<OverlayPar>, progression: Double): OverlayPar? {
+suspend fun searchForClipByProgression(bookUuid: String, clips: List<OverlayPar>, progression: Double): OverlayPar? {
     var startIndex = 0
     var endIndex = clips.size - 1
     while (startIndex <= endIndex) {
@@ -380,11 +380,11 @@ fun searchForClipByProgression(clips: List<OverlayPar>, progression: Double): Ov
         val midItem = clips[midIndex]
         val prevIndex = midIndex.dec()
         val prevItem = if (prevIndex < 0) null else clips[prevIndex]
-        if (progression > (midItem.locator.locations.progression ?: 0.0)) {
+        if (progression > (BookService.buildFragmentLocator(bookUuid,Url.fromEpubHref(midItem.textResource)!!, midItem.fragmentId).locations.progression ?: 0.0)) {
             startIndex = midIndex + 1
             continue
         }
-        if (prevItem != null && progression < (prevItem.locator.locations.progression ?: 0.0)) {
+        if (prevItem != null && progression < (BookService.buildFragmentLocator(bookUuid,Url.fromEpubHref(midItem.textResource)!!, midItem.fragmentId).locations.progression ?: 0.0)) {
             endIndex = midIndex - 1
             continue
         }

@@ -31,7 +31,7 @@ internal object SmilParser {
        one EPUB Content Document by means of its attribute epub:textref
      */
 
-    suspend fun parse(
+    fun parse(
         publication: Publication,
         document: ElementNode,
         link: Link
@@ -41,7 +41,7 @@ internal object SmilParser {
     }
 
     @OptIn(DelicateReadiumApi::class)
-    private suspend fun parseSeq(
+    private fun parseSeq(
         publication: Publication,
         node: ElementNode,
         filePath: Url
@@ -49,45 +49,17 @@ internal object SmilParser {
         val textref = node.getAttrNs("textref", Namespaces.OPS)
             ?.let { Url.fromEpubHref(it) }
 
-        val defaultLocator = textref?.let {
-            Locator(
-                href = it,
-                mediaType = MediaType.XHTML
-            )
-        }
-
-        val link = textref?.let {
-            publication.linkWithHref(filePath.resolve(it))
-        }
-
-        val resource = link?.let {
-            publication.get(it)
-        }
-
-        val htmlContent = resource?.let {
-            it.readDecodeOrNull { Try.success(it.decodeString()) }?.getOrNull()
-        }
-
-        var htmlContentStart = 0
-
         val children: MutableList<MediaOverlayNode> = mutableListOf()
         for (child in node.getAll()) {
             if (child.name == "par" && child.namespace == Namespaces.SMIL) {
-                if (htmlContent == null) return listOf()
-                if (defaultLocator == null) return listOf()
 
-                val pair = parsePar(
-                    publication,
-                    htmlContentStart,
-                    htmlContent,
-                    defaultLocator,
+                val node = parsePar(
                     child,
                     filePath
                 )
-                pair.first?.let {
+                node?.let {
                     children.add(it)
                 }
-                htmlContentStart = pair.second
             } else if (child.name == "seq" && child.namespace == Namespaces.SMIL) {
                 parseSeq(publication, child, filePath)?.let { children.addAll(it) }
             }
@@ -104,58 +76,6 @@ internal object SmilParser {
         } else {
             children
         }
-    }
-
-    private suspend fun createLocator(
-        publication: Publication,
-        htmlContentStart: Int,
-        htmlContent: String,
-        defaultLocator: Locator,
-        text: Url,
-    ): Pair<Locator, Int> {
-        val fragmentRegex = Regex("id=\"${text.fragment}\"")
-        val startOfFragment =
-            fragmentRegex.find(htmlContent, htmlContentStart)?.range?.start ?: return Pair(
-                defaultLocator,
-                htmlContentStart
-            )
-        val progression = startOfFragment.toDouble() / htmlContent.length.toDouble()
-        val readingOrderIndex = publication.readingOrder.indexOfFirstWithHref(text.removeFragment())
-            ?: throw Exception("Could not find a locator for href ${text.removeFragment()} in reading order")
-
-        val startOfChapterProgression =
-            publication.positionsByReadingOrder()[readingOrderIndex].first().locations.totalProgression
-                ?: return Pair(defaultLocator, htmlContentStart)
-
-        val chapterIndex = publication.readingOrder.indexOfFirstWithHref(text.removeFragment())
-            ?: return Pair(defaultLocator, htmlContentStart)
-        val nextChapterIndex = chapterIndex + 1
-        val startOfNextChapterProgression = nextChapterIndex.let {
-            if (it == publication.readingOrder.size) {
-                return@let 1.0
-            } else {
-                val nextChapterLink = publication.readingOrder[nextChapterIndex]
-                val readingOrderIndex =
-                    publication.readingOrder.indexOfFirstWithHref(nextChapterLink.url())
-                        ?: throw Exception("Could not find a locator for href ${nextChapterLink.url()} in reading order")
-
-                return@let publication.positionsByReadingOrder()[readingOrderIndex].first().locations.totalProgression
-            }
-        } ?: return Pair(defaultLocator, htmlContentStart)
-        val totalProgression =
-            startOfChapterProgression + (progression * (startOfNextChapterProgression - startOfChapterProgression))
-
-        return Pair(
-            Locator(
-                href = text.removeFragment(),
-                mediaType = MediaType.XHTML,
-                locations = Locator.Locations(
-                    fragments = listOf(text.fragment!!),
-                    progression = progression,
-                    totalProgression = totalProgression
-                )
-            ), startOfFragment + (text.fragment?.length ?: 0) + 5
-        )
     }
 
     // Url.fromEpubHref encodes # as %23 when falling back to path-based
@@ -177,19 +97,15 @@ internal object SmilParser {
         return Url("$resolved#$fragment")
     }
 
-    private suspend fun parsePar(
-        publication: Publication,
-        htmlContentStart: Int,
-        htmlContent: String,
-        defaultLocator: Locator,
+    private fun parsePar(
         node: ElementNode,
         filePath: Url
-    ): Pair<MediaOverlayNode?, Int> {
+    ): MediaOverlayNode? {
         val textSrc = node.getFirst("text", Namespaces.SMIL)?.getAttr("src")
-            ?: return Pair(null, 0)
+            ?: return null
 
         val resolvedText = resolveEpubHref(textSrc, filePath)
-            ?: return Pair(null, 0)
+            ?: return null
 
         val resolvedAudio = node.getFirst("audio", Namespaces.SMIL)
             ?.let { audioNode ->
@@ -199,21 +115,10 @@ internal object SmilParser {
                 resolveEpubHref("$src#t=$begin,$end", filePath)
             }
 
-        val pair = createLocator(
-            publication,
-            htmlContentStart,
-            htmlContent,
-            defaultLocator,
-            resolvedText
-        )
-
-        return Pair(
-            MediaOverlayNode(
+        return MediaOverlayNode(
                 resolvedText,
                 resolvedAudio,
-                locator = pair.first
-            ), pair.second
-        )
+            )
     }
 
     private fun mediaOverlayFromChildren(

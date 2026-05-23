@@ -6,7 +6,7 @@ public class ReadiumModule: Module {
     public func definition() -> ModuleDefinition {
         OnCreate {
             Task { @AudiobookPlayerActor in
-                await AudiobookPlayerActor.shared.observeClipChanged(self.onClipChanged(overlayPar:))
+                await AudiobookPlayerActor.shared.observeClipChanged(self.onClipChanged(overlayPar:locator:))
                 await AudiobookPlayerActor.shared.observeTrackChanged(self.onTrackChanged(track:position:index:))
                 await AudiobookPlayerActor.shared.observeIsPlayingChanged(self.onIsPlayingChanged(isPlaying:))
                 await AudiobookPlayerActor.shared.observePositionChanged(self.onPositionChanged(position:))
@@ -141,10 +141,13 @@ public class ReadiumModule: Module {
                   let fragment = BookService.shared.getFragment(for: bookId, clipUrl: clipUrl, position: position) else {
                 return nil
             }
+            guard let locator = try? await BookService.shared.getLocatorFor(bookId: bookId, href: fragment.textResource, fragment: fragment.fragmentId) else {
+                return nil
+            }
             return [
-                "href": fragment.locator.href,
+                "href": locator.href,
                 "fragment": fragment.fragmentId,
-                "locator": fragment.locator.json
+                "locator": locator.json
             ]
         }
 
@@ -153,11 +156,14 @@ public class ReadiumModule: Module {
                   let previous = BookService.shared.getFragment(for: bookId, before: locator) else {
                 return nil
             }
+            guard let locator = try? await BookService.shared.getLocatorFor(bookId: bookId, href: previous.textResource, fragment: previous.fragmentId) else {
+                return nil
+            }
 
             return [
-                "href": previous.locator.href,
+                "href": locator.href,
                 "fragment": previous.fragmentId,
-                "locator": previous.locator.json
+                "locator": locator.json
             ]
         }
 
@@ -166,11 +172,14 @@ public class ReadiumModule: Module {
                   let next = BookService.shared.getFragment(for: bookId, after: locator) else {
                 return nil
             }
+            guard let locator = try? await BookService.shared.getLocatorFor(bookId: bookId, href: next.textResource, fragment: next.fragmentId) else {
+                return nil
+            }
 
             return [
-                "href": next.locator.href,
+                "href": locator.href,
                 "fragment": next.fragmentId,
-                "locator": next.locator.json
+                "locator": locator.json
             ]
         }
 
@@ -303,14 +312,14 @@ public class ReadiumModule: Module {
         }
     }
 
-    func onClipChanged(overlayPar: OverlayPar) {
+    func onClipChanged(overlayPar: OverlayPar, locator: Locator) {
         sendEvent("clipChanged", [
             "relativeUrl": overlayPar.relativeUrl.absoluteString,
             "fragmentId": overlayPar.fragmentId,
             "start": overlayPar.start,
             "end": overlayPar.end,
             "duration": overlayPar.end - overlayPar.start,
-            "locator": overlayPar.locator.json
+            "locator": locator.json
         ])
     }
 

@@ -64,7 +64,7 @@ class Track {
     }
 }
 
-public typealias ClipChangedCallback = (_ clip: OverlayPar) -> Void
+public typealias ClipChangedCallback = (_ clip: OverlayPar, _ locator: Locator) -> Void
 typealias DuckCallback = () -> Void
 typealias TrackChangedCallback = (_ track: Track, _ position: Double, _ index: Int) -> Void
 typealias PositionChangedCallback = (_ position: Double) -> Void
@@ -234,7 +234,7 @@ public actor AudiobookPlayerActor {
 
         bookUuid = firstTrack.bookUuid
 
-        let clips = try bookService.getOverlayClips(for: firstTrack.bookUuid)
+        let clips = bookService.getOverlayClips(for: firstTrack.bookUuid)
 
         relativeUriToClips.removeAll()
         clips.forEach { clip in
@@ -289,7 +289,7 @@ public actor AudiobookPlayerActor {
         return tracks
     }
 
-    private func emitClipChange(relativeUri: RelativeURL, positionSeconds: Double) {
+    private func emitClipChange(relativeUri: RelativeURL, positionSeconds: Double) async {
         guard let trackClips = relativeUriToClips[relativeUri.string] else {
             return
         }
@@ -297,9 +297,13 @@ public actor AudiobookPlayerActor {
         guard let clip = searchForClip(clips: trackClips, position: positionSeconds) else {
             return
         }
+        
+        guard let bookUuid = bookUuid, let locator = try? await BookService.shared.getLocatorFor(bookId: bookUuid, href: clip.textResource, fragment: clip.fragmentId) else {
+            return
+        }
 
         clipChangedCallbacks.forEach {
-            $0(clip)
+            $0(clip, locator)
         }
     }
 
@@ -320,7 +324,7 @@ public actor AudiobookPlayerActor {
         guard let track = getCurrentTrack() else { return }
         let position = getPosition()
 
-        emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
+        await emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
     }
 
     func pause() {
@@ -333,7 +337,7 @@ public actor AudiobookPlayerActor {
         guard let track = getCurrentTrack() else { return }
         let position = getPosition()
 
-        emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
+        await emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
     }
 
     func seekBy(amount: Double, bounded: Bool) async {
@@ -361,7 +365,7 @@ public actor AudiobookPlayerActor {
         guard let track = getCurrentTrack() else { return }
         let position = getPosition()
 
-        emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
+        await emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
     }
 
     func seekTo(relativeUri: String, position: Double, skipEmit: Bool) async {
@@ -381,7 +385,7 @@ public actor AudiobookPlayerActor {
         }
 
         if !skipEmit {
-            emitClipChange(relativeUri: tracks[seekToIndex].relativeUri, positionSeconds: position)
+            await emitClipChange(relativeUri: tracks[seekToIndex].relativeUri, positionSeconds: position)
         }
     }
 
@@ -392,7 +396,7 @@ public actor AudiobookPlayerActor {
         guard let track = getCurrentTrack() else { return }
         let position = getPosition()
 
-        emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
+        await emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
     }
 
     func prev() async {
@@ -402,7 +406,7 @@ public actor AudiobookPlayerActor {
         guard let track = getCurrentTrack() else { return }
         let position = getPosition()
 
-        emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
+        await emitClipChange(relativeUri: track.relativeUri, positionSeconds: position)
     }
 
     func setRate(rate: Double) {

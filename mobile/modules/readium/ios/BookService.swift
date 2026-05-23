@@ -146,7 +146,7 @@ final class BookService {
         }
         
         return bookClips.first {
-            $0.locator.href.string == locator.href.string &&
+            RelativeURL(epubHREF: $0.textResource)?.string == locator.href.string &&
             $0.fragmentId == fragment
         }
     }
@@ -173,7 +173,7 @@ final class BookService {
         guard let bookClips = clips[bookId] else {
             return []
         }
-        return bookClips.filter { $0.locator.href.string == locator.href.string }
+        return bookClips.filter { RelativeURL(epubHREF: $0.textResource)?.string == locator.href.string }
     }
 
     func getFragment(for bookId: String, before locator: Locator) -> OverlayPar? {
@@ -183,7 +183,7 @@ final class BookService {
         guard let bookClips = clips[bookId] else {
             return nil
         }
-        guard let currentIndex = bookClips.firstIndex(where: { $0.locator.href.string == locator.href.string && $0.fragmentId == currentFragment }) else {
+        guard let currentIndex = bookClips.firstIndex(where: { RelativeURL(epubHREF: $0.textResource)?.string == locator.href.string && $0.fragmentId == currentFragment }) else {
             return nil
         }
         if currentIndex == bookClips.startIndex {
@@ -200,7 +200,7 @@ final class BookService {
         guard let bookClips = clips[bookId] else {
             return nil
         }
-        guard let currentIndex = bookClips.firstIndex(where: { $0.locator.href.string == locator.href.string && $0.fragmentId == currentFragment }) else {
+        guard let currentIndex = bookClips.firstIndex(where: { RelativeURL(epubHREF: $0.textResource)?.string == locator.href.string && $0.fragmentId == currentFragment }) else {
             return nil
         }
         if currentIndex == bookClips.endIndex {
@@ -210,12 +210,51 @@ final class BookService {
         return bookClips[nextIndex]
     }
 
-    func getLocatorFor(bookId: String, href: String, fragment: String) -> Locator? {
-        guard let bookClips = clips[bookId] else {
+    func getLocatorFor(bookId: String, href: String, fragment: String) async throws -> Locator? {
+        guard let publication = getPublication(for: bookId) else {
+            throw BookServiceError.unopenedPublication(bookId)
+        }
+
+        guard let link = publication.linkWithHREF(RelativeURL(epubHREF: href)!) else {
             return nil
         }
-        
-        return bookClips.first { $0.locator.href.string == href && $0.fragmentId == fragment }?.locator
+
+        let resource = publication.get(link)!
+        let htmlContent = try await resource.readAsString().get()
+        if #available(iOS 16.0, *) {
+            let fragmentRegex = try Regex("id=\"\(fragment)\"")
+            if let startOfFragment = htmlContent.firstMatch(of: fragmentRegex)?.range.lowerBound {
+                let fragmentPosition = htmlContent.distance(from: htmlContent.startIndex, to: startOfFragment)
+                let progression = Double(fragmentPosition) / Double(htmlContent.distance(from: htmlContent.startIndex, to: htmlContent.endIndex))
+                guard let startOfChapterProgression = try await locateFromPositions(for: bookId, link: link).locations.totalProgression else {
+                    return nil
+                }
+                guard let chapterIndex = publication.readingOrder.firstIndexWithHREF(RelativeURL(epubHREF: link.href)!) else {
+                    return nil
+                }
+                let nextChapterIndex = publication.readingOrder.index(after: chapterIndex)
+                let nextChapterLink = publication.readingOrder[nextChapterIndex]
+                let startOfNextChapterProgression = try await locateFromPositions(for: bookId, link: nextChapterLink).locations.totalProgression ?? 1
+                let totalProgression = startOfChapterProgression + (progression * (startOfNextChapterProgression - startOfChapterProgression))
+                return Locator(
+                    href: RelativeURL(epubHREF: href)!,
+                    mediaType: .xhtml,
+                    locations: Locator.Locations(
+                        fragments: [fragment],
+                        progression: progression,
+                        totalProgression: totalProgression
+                    )
+                )
+            }
+
+            return nil
+        }
+
+        return Locator(
+            href: RelativeURL(epubHREF: href)!,
+            mediaType: .xhtml
+        )
+
     }
 
     func getFragment(for bookId: String, clipUrl: URL, position: Double) -> OverlayPar? {
@@ -278,7 +317,7 @@ final class BookService {
             }
 
             // get body parameters <par>a
-            await STSMILParser.parseParallels(publication, in: body, withParent: node, base: link.href, htmlContent: nil)
+            await STSMILParser.parseParallels(publication, in: body, withParent: node, base: link.href)
             await STSMILParser.parseSequences(publication, in: body, withParent: node, mediaOverlays: mediaOverlays, base: link.href)
 
             bookClips.append(contentsOf: mediaOverlays.clips())
@@ -321,7 +360,7 @@ final class BookService {
         guard let bookClips = clips[bookId] else {
             throw BookError.bookNotFound
         }
-        let clipsByHref = Dictionary(grouping: bookClips, by: \.locator.href.string)
+        let clipsByHref = Dictionary(grouping: bookClips, by: \.textResource)
 
         func buildAudiobookTocLink(link: Link) async throws -> Link? {
             let children = try await link.children.asyncMap {
@@ -350,7 +389,7 @@ final class BookService {
             guard let chapterClips = clipsByHref[plainLink.url().string] else {
                 return fallbackLink
             }
-            guard let clip = searchForClipsByProgression(clips: chapterClips, progression: tocProgression) else {
+            guard let clip = await searchForClipsByProgression(bookId: bookId, clips: chapterClips, progression: tocProgression) else {
                 return fallbackLink
             }
 
@@ -416,7 +455,7 @@ final class BookService {
     }
 }
 
-func searchForClipsByProgression(clips: [OverlayPar], progression: Double) -> OverlayPar? {
+func searchForClipsByProgression(bookId: String, clips: [OverlayPar], progression: Double) async -> OverlayPar? {
     var startIndex = clips.startIndex
     var endIndex = clips.endIndex
     while (startIndex <= endIndex) {
@@ -424,11 +463,12 @@ func searchForClipsByProgression(clips: [OverlayPar], progression: Double) -> Ov
         let midItem = clips[midIndex]
         let prevIndex = midIndex - 1
         let prevItem = prevIndex < 0 ? nil : clips[prevIndex]
-        if progression > (midItem.locator.locations.progression ?? 0.0) {
+        let midLocator = try? await BookService.shared.getLocatorFor(bookId: bookId, href: midItem.textResource, fragment: midItem.fragmentId)
+        if progression > (midLocator?.locations.progression ?? 0.0) {
             startIndex = midIndex + 1
             continue
         }
-        if (prevItem != nil && progression < (midItem.locator.locations.progression ?? 0.0)) {
+        if (prevItem != nil && progression < (midLocator?.locations.progression ?? 0.0)) {
             endIndex = midIndex - 1
             continue
         }
