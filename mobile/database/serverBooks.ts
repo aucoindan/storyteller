@@ -495,12 +495,7 @@ export async function upsertServerBooks(
           .insertInto("bookToCreator")
           .values(chunk)
           .onConflict((oc) =>
-            oc
-              .column("bookUuid")
-              .column("creatorUuid")
-              .doUpdateSet((eb) => ({
-                role: eb.ref("excluded.role"),
-              })),
+            oc.columns(["bookUuid", "creatorUuid", "role"]).doNothing(),
           )
           .execute()
       }
