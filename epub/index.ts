@@ -1,26 +1,37 @@
-import { randomUUID } from "node:crypto"
-import { createWriteStream, rmSync } from "node:fs"
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { pipeline } from "node:stream/promises"
+import { cp, mkdir } from "node:fs/promises"
 
 import { Mutex } from "async-mutex"
 import { XMLBuilder, XMLParser } from "fast-xml-parser"
 import memoize from "mem"
 import { lookup } from "mime-types"
 import { nanoid } from "nanoid"
-import { fromBuffer, open } from "yauzl-promise"
-import { ZipFile } from "yazl"
 
 import {
   dirname,
   hrefToPlatformPath,
   join,
   resolve,
-  sep,
 } from "@storyteller-platform/path"
 
+import type {
+  AdapterOptions,
+  EpubStorageAdapter,
+  EpubStorageAdapterClass,
+  EpubStorageKind,
+} from "./adapters/interface.ts"
+import { TmpFsAdapter } from "./adapters/tmpfs.ts"
 import * as Upgrade from "./upgrade.ts"
+
+export type { EpubStorageKind } from "./adapters/interface.ts"
+export {
+  type AdapterOptions,
+  type EpubListEntry,
+  type EpubStorageAdapter,
+  type EpubStorageAdapterClass,
+  type EpubStorageCapabilities,
+} from "./adapters/interface.ts"
+export { MemoryAdapter, type MemoryAdapterOptions } from "./adapters/memory.ts"
+export { TmpFsAdapter } from "./adapters/tmpfs.ts"
 
 /*
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/getTextInfo
@@ -164,46 +175,67 @@ interface GuideItem {
 
 export type PackageElement = XmlElement<"package">
 
-const MP3_FILE_EXTENSIONS = [".mp3"] as const
-const MPEG4_FILE_EXTENSIONS = [".mp4", ".m4a", ".m4b"] as const
-const AAC_FILE_EXTENSIONS = [".aac"] as const
-const OGG_FILE_EXTENSIONS = [".ogg", ".oga", ".mogg"] as const
-const OPUS_FILE_EXTENSIONS = [".opus"] as const
-const WAVE_FILE_EXTENSIONS = [".wav"] as const
-const AIFF_FILE_EXTENSIONS = [".aiff"] as const
-const FLAC_FILE_EXTENSIONS = [".flac"] as const
-const ALAC_FILE_EXTENSIONS = [".alac"] as const
-const WEBM_FILE_EXTENSIONS = [".weba"] as const
-
-const AUDIO_FILE_EXTENSIONS = [
-  ...MP3_FILE_EXTENSIONS,
-  ...AAC_FILE_EXTENSIONS,
-  ...MPEG4_FILE_EXTENSIONS,
-  ...OPUS_FILE_EXTENSIONS,
-  ...OGG_FILE_EXTENSIONS,
-  ...WAVE_FILE_EXTENSIONS,
-  ...AIFF_FILE_EXTENSIONS,
-  ...FLAC_FILE_EXTENSIONS,
-  ...ALAC_FILE_EXTENSIONS,
-  ...WEBM_FILE_EXTENSIONS,
-] as const
-
-/**
- * Determines if a file with the given name or extension might contain audio.
- *
- * @remarks
- * Note that extension-based file type determination is only a heuristic; both
- * false negatives and false positives are possible.  False positives are
- * especially likely, since many file types can optionally contain audio.
- *
- * @param ext The extension (or complete filename) to check
- * @returns Whether the file *may* contain audio
- */
-function isAudioFile(filenameOrExt: string): boolean {
-  return AUDIO_FILE_EXTENSIONS.some((ext) => filenameOrExt.endsWith(ext))
+export interface FromOptions {
+  /**
+   * when true, mutation methods throw {@link EpubReadOnlyError} at runtime
+   * @default false
+   */
+  readonly?: boolean
 }
 
+/**
+ * Read-only view of an EPUB
+ * Returned by Epub.using(MemoryAdapter).from(...) and by Epub.from(path, { readonly: true })
+ */
+export type EpubReader = Pick<
+  Epub,
+  | "storage"
+  | "getManifest"
+  | "getVersion"
+  | "getLayout"
+  | "getBaseDirection"
+  | "getMetadata"
+  | "findMetadataItem"
+  | "findAllMetadataItems"
+  | "getIdentifier"
+  | "getTitle"
+  | "getSubtitle"
+  | "getTitles"
+  | "getLanguage"
+  | "getPublicationDate"
+  | "getModifiedDate"
+  | "getDescription"
+  | "getType"
+  | "getCreators"
+  | "getContributors"
+  | "getSubjects"
+  | "getCollections"
+  | "getPackageVocabularyPrefixes"
+  | "getCoverImageItem"
+  | "getCoverImage"
+  | "getSpineItems"
+  | "getNcxTableOfContents"
+  | "getGuideEntries"
+  | "getTableOfContents"
+  | "getLandmarks"
+  | "getPageList"
+  | "resolveHref"
+  | "readFileContents"
+  | "readItemContents"
+  | "readXhtmlItemContents"
+  | "getItemArchiveLength"
+  | "discardAndClose"
+> &
+  Disposable
+
+/**
+ * Readonly Epub-instance backed by an in-memory zip handle
+ * Returned by `Epub.using(MemoryAdapter).from(...)`
+ */
+export type InMemoryEpubReader = EpubReader & { readonly storage: "in-memory" }
+
 export class EpubVersionError extends Error {}
+export class EpubReadOnlyError extends Error {}
 
 /**
  * A single EPUB instance.
@@ -483,10 +515,28 @@ export class Epub {
 
   private packageMutex = new Mutex()
 
-  protected constructor(
-    protected extractPath: string,
+  /**
+   * Storage backend kind in use for this instance
+   *
+   * Public so callers can declare type-level requirements via {@link InMemoryEpubReader}
+   * Orthogonal to the read-only / writable axis (controlled by `readonlyOverride`
+   * and the adapter's capability bag)
+   */
+  readonly storage: EpubStorageKind
+
+  /**
+   * Prefer the static factories ({@link Epub.using}, {@link Epub.from},
+   * {@link Epub.create}, {@link Epub.upgrade}) over calling this constructor
+   * directly. It's public so {@link EpubFactory} can construct instances; nothing
+   * else should need to.
+   */
+  constructor(
+    protected adapterClass: EpubStorageAdapterClass,
+    protected adapter: EpubStorageAdapter,
     protected inputPath: string | undefined,
+    protected readonlyOverride: boolean = false,
   ) {
+    this.storage = adapterClass.kind
     this.readXhtmlItemContents = memoize(
       this.readXhtmlItemContents.bind(this),
       // This isn't unnecessary, the generic here just isn't handling the
@@ -497,98 +547,77 @@ export class Epub {
   }
 
   /**
-   * Construct an Epub instance, optionally beginning
-   * with the provided metadata.
+   * Runtime guard for mutation methods
+   */
+  private assertWritable(): void {
+    if (!this.adapterClass.capabilities.writable || this.readonlyOverride) {
+      throw new EpubReadOnlyError(
+        "cannot mutate a read-only Epub. open via Epub.using(TmpFsAdapter).from(path) (without { readonly: true }) to modify.",
+      )
+    }
+  }
+
+  /**
+   * Construct a new EPUB on a writable backend, optionally seeded
+   * with the provided metadata. Equivalent to
+   * `Epub.using(TmpFsAdapter).create(...)`.
    *
    * @param dublinCore Core metadata terms
    * @param additionalMetadata An array of additional metadata entries
    */
   static async create(
     path: string,
-    {
-      title,
-      language,
-      identifier,
-      date,
-      subjects,
-      type,
-      creators,
-      contributors,
-    }: DublinCore,
+    dublinCore: DublinCore,
     additionalMetadata: EpubMetadata = [],
   ): Promise<Epub> {
-    const extractPath = join(
-      tmpdir(),
-      `storyteller-platform-epub-${randomUUID()}`,
-    )
-    const encoder = new TextEncoder()
-    const container = encoder.encode(`<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile media-type="application/oebps-package+xml" full-path="OEBPS/content.opf"/>
-  </rootfiles>
-</container>
-`)
-    await mkdir(join(extractPath, "META-INF"), { recursive: true })
-    await writeFile(join(extractPath, "META-INF", "container.xml"), container)
-
-    const packageDocument = encoder.encode(`<?xml version="1.0"?>
-<package unique-identifier="pub-id" dir="${language.textInfo.direction}" xml:lang="${language.toString()}" version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
-  <metadata>
-  </metadata>
-  <manifest>
-  </manifest>
-  <spine>
-  </spine>
-</package>
-`)
-    await mkdir(join(extractPath, "OEBPS"))
-    await writeFile(join(extractPath, "OEBPS", "content.opf"), packageDocument)
-
-    const epub = new this(extractPath, path)
-    const metadata: MetadataEntry[] = [
-      {
-        id: "pub-id",
-        type: "dc:identifier",
-        properties: {},
-        value: identifier,
-      },
-      ...additionalMetadata,
-    ]
-
-    await Promise.all(metadata.map((entry) => epub.addMetadata(entry)))
-
-    await epub.setTitle(title)
-    await epub.setLanguage(language)
-
-    if (date) await epub.setPublicationDate(date)
-    if (type) await epub.setType(type)
-    if (subjects) {
-      await Promise.all(subjects.map((subject) => epub.addSubject(subject)))
-    }
-    if (creators) {
-      await Promise.all(creators.map((creator) => epub.addCreator(creator)))
-    }
-    if (contributors) {
-      await Promise.all(
-        contributors.map((contributor) => epub.addCreator(contributor)),
-      )
-    }
-
-    return epub
+    return Epub.using(TmpFsAdapter).create(path, dublinCore, additionalMetadata)
   }
 
   /**
-   * Construct an Epub instance by reading an existing EPUB
-   * publication.
+   * Specify the storage backend to use for the EPUB
    *
-   * @param pathOrData Must be either a string representing the
-   *        path to an EPUB file on disk, or a Uint8Array representing
-   *        the data of the EPUB publication.
+   * The returned factory exposes `from`, `create`, and `upgrade`,
+   * which route through the supplied adapter.
+   *
+   * @example
+   * ```ts
+   * using epub = await Epub.using(TmpFsAdapter).from(path)
+   * using reader = await Epub.using(MemoryAdapter).from(buffer, { cache: false })
+   * ```
    */
-  static async from(pathOrData: string | Uint8Array): Promise<Epub> {
-    const epub = await this.open(pathOrData)
+  static using<A extends EpubStorageAdapterClass>(
+    adapterClass: A,
+  ): EpubFactory<A> {
+    return new EpubFactory(adapterClass)
+  }
 
+  /**
+   * Open an existing EPUB publication, extracting it to a temp directory
+   * so writes can mutate the unpacked tree and rezip with `saveAndClose`.
+   *
+   * Pass `{ readonly: true }` to gate mutations at runtime.
+   *
+   * prefer `Epub.using(TmpFsAdapter).from(path)` (or
+   *   `Epub.using(MemoryAdapter).from(path)` for read-only, in-memory access)
+   * @throws {EpubVersionError} when the archive is not a valid EPUB 3
+   */
+  static async from(pathOrData: string | Uint8Array): Promise<Epub>
+  static async from(
+    pathOrData: string | Uint8Array,
+    options: FromOptions & { readonly: true },
+  ): Promise<EpubReader>
+  static async from(
+    pathOrData: string | Uint8Array,
+    options?: FromOptions,
+  ): Promise<Epub | EpubReader>
+  static async from(
+    pathOrData: string | Uint8Array,
+    options: FromOptions = {},
+  ): Promise<Epub | EpubReader> {
+    return Epub.using(TmpFsAdapter).from(pathOrData, options)
+  }
+
+  static async assertEpub3(epub: Epub): Promise<void> {
     const version = await epub.getVersion()
     if (!version.startsWith("3.")) {
       epub.discardAndClose()
@@ -596,103 +625,65 @@ export class Epub {
         "This is not a valid EPUB 3 publication. This library only supports EPUB 3, not EPUB 2. Use Epub.upgrade(path) to convert.",
       )
     }
-
-    return epub
-  }
-
-  /**
-   * Open an EPUB publication and return an Epub instance.
-   */
-  private static async open(pathOrData: string | Uint8Array): Promise<Epub> {
-    const extractPath = join(
-      tmpdir(),
-      `storyteller-platform-epub-${randomUUID()}.epub`,
-    )
-    try {
-      const zipfile =
-        typeof pathOrData === "string"
-          ? await open(pathOrData)
-          : await fromBuffer(Buffer.from(pathOrData))
-
-      await using stack = new AsyncDisposableStack()
-      stack.defer(async () => {
-        await zipfile.close()
-      })
-
-      for await (const entry of zipfile) {
-        if (entry.filename.endsWith(sep)) {
-          // Directory file names end with '/'.
-          // Note that entries for directories themselves are optional.
-          // An entry's filename implicitly requires its parent directories to exist.
-        } else {
-          const writePath = join(extractPath, entry.filename)
-          const readStream = await entry.openReadStream()
-          await mkdir(dirname(writePath), { recursive: true })
-          const writeStream = createWriteStream(writePath)
-          await pipeline(readStream, writeStream)
-        }
-      }
-    } catch (error) {
-      rmSync(extractPath, { force: true, recursive: true })
-      throw error
-    }
-
-    const epub = new this(
-      extractPath,
-      typeof pathOrData === "string" ? pathOrData : undefined,
-    )
-
-    try {
-      await epub.getPackageElement()
-    } catch (e) {
-      epub.discardAndClose()
-      console.error(e)
-      throw new Error(
-        "This is not a valid EPUB publication. Could not read the package document.",
-      )
-    }
-
-    return epub
   }
 
   async copy(path?: string): Promise<Epub> {
-    const extractPath = join(
-      tmpdir(),
-      `storyteller-platform-epub-${randomUUID()}.epub`,
-    )
-
-    try {
-      await cp(this.extractPath, extractPath, { recursive: true })
-    } catch (error) {
-      rmSync(extractPath, { force: true, recursive: true })
-      throw error
+    if (!this.adapter.duplicate) {
+      throw new Error(
+        `cannot copy an Epub backed by ${this.adapterClass.kind}: adapter does not implement duplicate()`,
+      )
     }
-
-    return new Epub(extractPath, path)
+    const newAdapter = await this.adapter.duplicate()
+    return new Epub(this.adapterClass, newAdapter, path)
   }
 
   private async removeEntry(href: string) {
+    this.assertWritable()
+    if (!this.adapter.remove) {
+      throw new EpubReadOnlyError(
+        `adapter ${this.adapterClass.kind} does not support entry removal`,
+      )
+    }
     const rootfile = await this.getRootfile()
-
     const filename = this.resolveInternalHref(rootfile, href)
-
-    await rm(filename)
+    await this.adapter.remove(filename)
   }
 
+  /**
+   * Read raw bytes (or utf-8 text) from the underlying adapter
+   */
   private async getFileData(path: string): Promise<Uint8Array>
   private async getFileData(path: string, encoding: "utf-8"): Promise<string>
   private async getFileData(
     path: string,
     encoding?: "utf-8",
   ): Promise<string | Uint8Array> {
-    return await readFile(path, encoding)
+    if (encoding) {
+      return this.adapter.read(path, encoding)
+    }
+    return this.adapter.read(path)
+  }
+
+  /**
+   * Length of the underlying archive entry for a manifest item, in bytes
+   * Necessary to compute the readium page count which is for COMPRESSED content
+   * @see {@link https://github.com/readium/architecture/issues/123}
+   */
+  async getItemArchiveLength(id: string): Promise<number> {
+    const rootfile = await this.getRootfile()
+    const manifest = await this.getManifest()
+    const manifestItem = manifest[id]
+    if (!manifestItem)
+      throw new Error(`Could not find item with id "${id}" in manifest`)
+    const path = this.resolveInternalHref(rootfile, manifestItem.href)
+    return this.adapter.archiveLength(path)
   }
 
   async getRootfile() {
     if (this.rootfile !== null) return this.rootfile
 
     const containerString = await this.getFileData(
-      join(this.extractPath, "META-INF", "container.xml"),
+      join(this.adapter.rootPath, "META-INF", "container.xml"),
       "utf-8",
     )
 
@@ -731,7 +722,7 @@ export class Epub {
         "Failed to parse EPUB container.xml: Found no rootfile element",
       )
 
-    this.rootfile = resolve(this.extractPath, fullPath)
+    this.rootfile = resolve(this.adapter.rootPath, fullPath)
 
     return this.rootfile
   }
@@ -752,7 +743,7 @@ export class Epub {
     return packageDocument
   }
 
-  private async getPackageElement() {
+  async getPackageElement() {
     const packageDocument = await this.getPackageDocument()
 
     const packageElement = Epub.findXmlChildByName("package", packageDocument)
@@ -778,13 +769,14 @@ export class Epub {
    *    it returns a new package document, that will be persisted, otherwise
    *    it will be assumed that the package document was modified in place.
    */
-  private async withPackage(
+  async withPackage(
     producer:
       | ((packageElement: PackageElement) => void)
       | ((packageElement: PackageElement) => PackageElement)
       | ((packageElement: PackageElement) => Promise<PackageElement>)
       | ((packageElement: PackageElement) => Promise<void>),
   ) {
+    this.assertWritable()
     await this.packageMutex.runExclusive(async () => {
       const packageDocument = await this.getPackageDocument()
 
@@ -2300,7 +2292,7 @@ export class Epub {
   private resolveInternalHref(from: string, href: string) {
     const startPath = dirname(from)
     return resolve(
-      this.extractPath,
+      this.adapter.rootPath,
       hrefToPlatformPath(startPath),
       hrefToPlatformPath(href),
     )
@@ -2325,7 +2317,7 @@ export class Epub {
       : rootfile
     const path = this.resolveInternalHref(from, href)
     return path
-      .replace(toRoot ? this.extractPath : dirname(rootfile), "")
+      .replace(toRoot ? this.adapter.rootPath : dirname(rootfile), "")
       .slice(1)
   }
 
@@ -2466,8 +2458,17 @@ export class Epub {
     contents: Uint8Array | string,
     encoding?: "utf-8",
   ): Promise<void> {
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, contents, encoding)
+    this.assertWritable()
+    if (!this.adapter.write) {
+      throw new EpubReadOnlyError(
+        `adapter ${this.adapterClass.kind} does not support writes`,
+      )
+    }
+    if (encoding === "utf-8") {
+      await this.adapter.write(path, contents as string, encoding)
+    } else {
+      await this.adapter.write(path, contents as Uint8Array)
+    }
   }
 
   /**
@@ -2638,8 +2639,7 @@ export class Epub {
           )
         : (contents as Uint8Array)
 
-    await mkdir(dirname(filename), { recursive: true })
-    await writeFile(filename, data)
+    await this.writeEntryContents(filename, data)
   }
 
   /**
@@ -2946,8 +2946,7 @@ export class Epub {
     this.rootfile = null
     this.manifest = null
     this.spine = null
-
-    rmSync(this.extractPath, { recursive: true, force: true })
+    void this.adapter.dispose()
   }
 
   /**
@@ -2959,8 +2958,14 @@ export class Epub {
    * timestamp.
    */
   async saveAndClose() {
+    this.assertWritable()
     if (!this.inputPath) {
       throw new Error("In-memory EPUB files cannot be saved to disk")
+    }
+    if (!this.adapter.serialize) {
+      throw new Error(
+        `adapter ${this.adapterClass.kind} does not support serialization`,
+      )
     }
     await this.replaceMetadata(
       (entry) => entry.properties["property"] === "dcterms:modified",
@@ -2972,53 +2977,195 @@ export class Epub {
       },
     )
 
-    const tmpArchivePath = join(
-      tmpdir(),
-      `storyteller-platform-epub-${randomUUID()}`,
-    )
-
-    // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-    const { promise, resolve } = Promise.withResolvers<void>()
-    const zipfile = new ZipFile()
-    const writeStream = createWriteStream(tmpArchivePath)
-    writeStream.on("close", () => {
-      resolve()
-    })
-    await using stack = new AsyncDisposableStack()
-    stack.defer(async () => {
-      writeStream.close()
-      await rm(tmpArchivePath, { force: true })
-    })
-
-    zipfile.outputStream.pipe(writeStream)
-
-    zipfile.addBuffer(Buffer.from("application/epub+zip"), "mimetype", {
-      compress: false,
-    })
-
-    const entries = await readdir(this.extractPath, {
-      recursive: true,
-      withFileTypes: true,
-    })
-
-    for (const entry of entries) {
-      if (entry.name === "mimetype" || entry.isDirectory()) continue
-
-      zipfile.addFile(
-        join(entry.parentPath, entry.name),
-        join(entry.parentPath, entry.name).replace(`${this.extractPath}/`, ""),
-        { compress: !isAudioFile(entry.name) },
-      )
-    }
-
-    zipfile.end()
-    await promise
-
-    await cp(tmpArchivePath, this.inputPath)
+    await this.adapter.serialize(this.inputPath)
   }
 
   /**
-   * Upgrade an EPUB 2 publication to EPUB 3 in place, returning a new, valid Epub 3 instance.
+   * Upgrade an EPUB 2 publication to EPUB 3 in place, returning a new,
+   * valid Epub 3 instance. Equivalent to
+   * `Epub.using(TmpFsAdapter).upgrade(...)`.
+   */
+  static async upgrade(
+    path: string,
+    options: Upgrade.Epub2UpgradeOptions = {},
+  ): Promise<Epub> {
+    return Epub.using(TmpFsAdapter).upgrade(path, options)
+  }
+
+  [Symbol.dispose]() {
+    this.discardAndClose()
+  }
+}
+
+/**
+ * Resolves to {@link Epub} for writable adapters, {@link EpubReader} for read-only ones.
+ *
+ * The conditional pivots on `capabilities.writable`, which must be a literal
+ * `true`/`false` on the adapter class (use `as const`) for inference to work.
+ */
+export type EpubInstanceFor<A extends EpubStorageAdapterClass> =
+  A["capabilities"]["writable"] extends true ? Epub : EpubReader
+
+/**
+ * Adapter-bound factory returned by {@link Epub.using}.
+ *
+ * Mirrors the static factory surface (`from`, `create`, `upgrade`) but routes
+ * all I/O through the supplied adapter. Each method's signature degrades
+ * gracefully when the adapter doesn't support the operation: `create` and
+ * `upgrade` throw at runtime if the adapter is read-only or lacks `initEmpty`.
+ */
+export class EpubFactory<A extends EpubStorageAdapterClass> {
+  constructor(public readonly adapterClass: A) {}
+
+  /**
+   * Open an existing EPUB through this factory's adapter
+   *
+   * @throws {EpubVersionError} when the archive is not a valid EPUB 3
+   */
+  from(
+    source: string | Uint8Array,
+    options: FromOptions & { readonly: true } & AdapterOptions<A>,
+  ): Promise<EpubReader>
+  from(
+    source: string | Uint8Array,
+    options?: FromOptions & AdapterOptions<A>,
+  ): Promise<EpubInstanceFor<A>>
+  async from(
+    source: string | Uint8Array,
+    options: FromOptions = {},
+  ): Promise<Epub | EpubReader> {
+    const adapter = await this.adapterClass.init(
+      source,
+      options as AdapterOptions<A>,
+    )
+    const inputPath = typeof source === "string" ? source : undefined
+    const readonlyOverride = options.readonly === true
+
+    const epub = new Epub(
+      this.adapterClass,
+      adapter,
+      inputPath,
+      readonlyOverride,
+    )
+
+    try {
+      await epub.getPackageElement()
+    } catch (e) {
+      epub.discardAndClose()
+      console.error(e)
+      throw new Error(
+        "This is not a valid EPUB publication. Could not read the package document.",
+      )
+    }
+
+    await Epub.assertEpub3(epub)
+    return epub
+  }
+
+  /**
+   * Construct a new EPUB on this factory's adapter, optionally seeded
+   * with the provided metadata. Requires a writable adapter that
+   * implements `initEmpty` (today: {@link TmpFsAdapter}).
+   *
+   * @throws when the adapter is read-only or does not implement initEmpty
+   */
+  async create(
+    path: string,
+    {
+      title,
+      language,
+      identifier,
+      date,
+      subjects,
+      type,
+      creators,
+      contributors,
+    }: DublinCore,
+    additionalMetadata: EpubMetadata = [],
+  ): Promise<EpubInstanceFor<A>> {
+    if (!this.adapterClass.capabilities.writable) {
+      throw new EpubReadOnlyError(
+        `adapter ${this.adapterClass.kind} is read-only; cannot create`,
+      )
+    }
+    if (!this.adapterClass.initEmpty) {
+      throw new Error(
+        `adapter ${this.adapterClass.kind} does not support create() (missing initEmpty)`,
+      )
+    }
+
+    const adapter = await this.adapterClass.initEmpty()
+    if (!adapter.write) {
+      // unreachable: a writable adapter must implement write
+      throw new Error(
+        `adapter ${this.adapterClass.kind} declared writable but did not implement write()`,
+      )
+    }
+
+    const encoder = new TextEncoder()
+    const container = encoder.encode(`<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile media-type="application/oebps-package+xml" full-path="OEBPS/content.opf"/>
+  </rootfiles>
+</container>
+`)
+    await adapter.write(
+      join(adapter.rootPath, "META-INF", "container.xml"),
+      container,
+    )
+
+    const packageDocument = encoder.encode(`<?xml version="1.0"?>
+<package unique-identifier="pub-id" dir="${language.textInfo.direction}" xml:lang="${language.toString()}" version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <metadata>
+  </metadata>
+  <manifest>
+  </manifest>
+  <spine>
+  </spine>
+</package>
+`)
+    await adapter.write(
+      join(adapter.rootPath, "OEBPS", "content.opf"),
+      packageDocument,
+    )
+
+    const epub = new Epub(this.adapterClass, adapter, path)
+    const metadata: MetadataEntry[] = [
+      {
+        id: "pub-id",
+        type: "dc:identifier",
+        properties: {},
+        value: identifier,
+      },
+      ...additionalMetadata,
+    ]
+
+    await Promise.all(metadata.map((entry) => epub.addMetadata(entry)))
+
+    await epub.setTitle(title)
+    await epub.setLanguage(language)
+
+    if (date) await epub.setPublicationDate(date)
+    if (type) await epub.setType(type)
+    if (subjects) {
+      await Promise.all(subjects.map((subject) => epub.addSubject(subject)))
+    }
+    if (creators) {
+      await Promise.all(creators.map((creator) => epub.addCreator(creator)))
+    }
+    if (contributors) {
+      await Promise.all(
+        contributors.map((contributor) => epub.addCreator(contributor)),
+      )
+    }
+
+    return epub as EpubInstanceFor<A>
+  }
+
+  /**
+   * Upgrade an EPUB 2 publication to EPUB 3 in place using this
+   * factory's adapter, returning a new, valid Epub 3 instance.
    *
    * Performs the following transformations:
    *  - upgrades OPF metadata to EPUB 3 conventions
@@ -3028,11 +3175,22 @@ export class Epub {
    *  - fixes common font MIME types
    *  - bumps the package version to 3.0
    *  - goes over each xhtml item and rewrites it using XMLParser to make sure the output is valid XHTML
+   *
+   * Requires a writable adapter. When {@link Upgrade.Epub2UpgradeOptions.outputPath}
+   * is set, the source file is copied to that path on disk first; this
+   * only makes sense for adapters whose `source` is a real fs path.
+   *
+   * @throws when the adapter is read-only
    */
-  static async upgrade(
+  async upgrade(
     path: string,
     options: Upgrade.Epub2UpgradeOptions = {},
-  ): Promise<Epub> {
+  ): Promise<EpubInstanceFor<A>> {
+    if (!this.adapterClass.capabilities.writable) {
+      throw new EpubReadOnlyError(
+        `adapter ${this.adapterClass.kind} is read-only; cannot upgrade`,
+      )
+    }
     const { removeNcx = false, outputPath } = options
 
     if (outputPath) {
@@ -3040,11 +3198,25 @@ export class Epub {
       await cp(path, outputPath, { force: true })
     }
 
-    const epub = await Epub.open(outputPath ?? path)
+    const source = outputPath ?? path
+    const adapter = await this.adapterClass.init(
+      source,
+      options as AdapterOptions<A>,
+    )
+    const epub = new Epub(this.adapterClass, adapter, source)
+    try {
+      await epub.getPackageElement()
+    } catch (e) {
+      epub.discardAndClose()
+      console.error(e)
+      throw new Error(
+        "This is not a valid EPUB publication. Could not read the package document.",
+      )
+    }
 
     const version = await epub.getVersion()
     if (version.startsWith("3.")) {
-      return epub
+      return epub as EpubInstanceFor<A>
     }
 
     const tocEntries = await epub.getNcxTableOfContents()
@@ -3102,11 +3274,7 @@ export class Epub {
       await epub.writeXhtmlItemContents(item.id, contents)
     }
 
-    return epub
-  }
-
-  [Symbol.dispose]() {
-    this.discardAndClose()
+    return epub as EpubInstanceFor<A>
   }
 }
 

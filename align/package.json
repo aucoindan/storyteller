@@ -37,6 +37,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"
+    },
+    "./readium": {
+      "types": "./dist/readium/index.d.ts",
+      "default": "./src/readium/index.ts"
     }
   },
   "scripts": {
@@ -102,6 +106,16 @@
         "require": {
           "types": "./dist/index.d.cts",
           "default": "./dist/index.cjs"
+        }
+      },
+      "./readium": {
+        "import": {
+          "types": "./dist/readium.d.ts",
+          "default": "./dist/readium.js"
+        },
+        "require": {
+          "types": "./dist/readium.d.cts",
+          "default": "./dist/readium.cjs"
         }
       }
     }

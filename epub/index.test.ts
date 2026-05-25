@@ -1,5 +1,6 @@
 import assert from "node:assert"
-import { cp, stat } from "node:fs/promises"
+import { cp, readdir, stat } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -7,8 +8,11 @@ import { streamFile } from "@storyteller-platform/fs"
 
 import {
   Epub,
+  EpubReadOnlyError,
+  MemoryAdapter,
   type MetadataEntry,
   type ParsedXml,
+  TmpFsAdapter,
   type XmlElement,
   type XmlTextNode,
 } from "./index.js"
@@ -27,7 +31,7 @@ void describe("xhtml parsing", () => {
 void describe("Epub", () => {
   void it("can be created from scratch", async () => {
     const outputPath = join("__fixtures__", "__output__", "created.epub")
-    using epub = await Epub.create(outputPath, {
+    using epub = await Epub.using(TmpFsAdapter).create(outputPath, {
       title: "Title",
       language: new Intl.Locale("en-US"),
       identifier: "1",
@@ -41,7 +45,7 @@ void describe("Epub", () => {
 
   void it("strips leading and trailing whitespace from metadata values", async () => {
     const outputPath = join("__fixtures__", "__output__", "strip.epub")
-    using epub = await Epub.create(outputPath, {
+    using epub = await Epub.using(TmpFsAdapter).create(outputPath, {
       title: "\n  Title\n",
       language: new Intl.Locale("en-US"),
       identifier: "1",
@@ -63,20 +67,20 @@ void describe("Epub", () => {
 
   void it("can read from an archived .epub file", async () => {
     const filepath = join("__fixtures__", "moby-dick.epub")
-    using epub = await Epub.from(filepath)
+    using epub = await Epub.using(TmpFsAdapter).from(filepath)
     assert.ok(epub instanceof Epub)
   })
 
   void it("can read from a data array representing a .epub file", async () => {
     const filepath = join("__fixtures__", "moby-dick.epub")
     const data = await streamFile(filepath)
-    using epub = await Epub.from(data)
+    using epub = await Epub.using(TmpFsAdapter).from(data)
     assert.ok(epub instanceof Epub)
   })
 
   void it("can parse the spine correctly", async () => {
     const filepath = join("__fixtures__", "moby-dick.epub")
-    using epub = await Epub.from(filepath)
+    using epub = await Epub.using(TmpFsAdapter).from(filepath)
     const spineItems = await epub.getSpineItems()
     assert.strictEqual(spineItems.length, 12)
   })
@@ -124,7 +128,7 @@ void describe("Epub", () => {
 
   void it("can parse void xhtml tags", async () => {
     const filepath = join("__fixtures__", "moby-dick.epub")
-    using epub = await Epub.from(filepath)
+    using epub = await Epub.using(TmpFsAdapter).from(filepath)
     const spineItems = await epub.getSpineItems()
     const chapterOneData = await epub.readXhtmlItemContents(spineItems[1]!.id)
     const html = chapterOneData[1] as XmlElement<"html">
@@ -153,7 +157,7 @@ void describe("Epub", () => {
   void it("replaces the correct metadata entry", async () => {
     // This is to test a regression for !106.  There is still a related issue for malformed epubs.
     const inputFilepath = join("__fixtures__", "moby-dick.epub")
-    using epub = await Epub.from(inputFilepath)
+    using epub = await Epub.using(TmpFsAdapter).from(inputFilepath)
 
     const firstValue: MetadataEntry = {
       properties: { property: "example" },
@@ -185,7 +189,7 @@ void describe("Epub", () => {
 
     await cp(inputFilepath, outputFilepath, { force: true })
 
-    using epub = await Epub.from(outputFilepath)
+    using epub = await Epub.using(TmpFsAdapter).from(outputFilepath)
     await epub.saveAndClose()
     const info = await stat(outputFilepath)
     assert.ok(info.isFile())
@@ -196,12 +200,12 @@ void describe("Epub", () => {
     const outputFilepath = join("__fixtures__", "__output__", "moby-dick.epub")
     await cp(inputFilepath, outputFilepath, { force: true })
 
-    using epub = await Epub.from(outputFilepath)
+    using epub = await Epub.using(TmpFsAdapter).from(outputFilepath)
 
     const startTime = new Date()
     startTime.setMilliseconds(0)
     await epub.saveAndClose()
-    using updatedEpub = await Epub.from(outputFilepath)
+    using updatedEpub = await Epub.using(TmpFsAdapter).from(outputFilepath)
     const endTime = new Date()
     endTime.setMilliseconds(1000) // Round up to next second
 
@@ -225,7 +229,7 @@ void describe("Epub", () => {
     const inputFilepath = join("__fixtures__", "moby-dick.epub")
     const outputFilepath = join("__fixtures__", "__output__", "moby-dick.epub")
     await cp(inputFilepath, outputFilepath, { force: true })
-    using epub = await Epub.from(outputFilepath)
+    using epub = await Epub.using(TmpFsAdapter).from(outputFilepath)
 
     const spineItems = await epub.getSpineItems()
     const coverPageData = await epub.readXhtmlItemContents(spineItems[0]!.id)
@@ -244,7 +248,7 @@ void describe("Epub", () => {
 
     await epub.saveAndClose()
 
-    const updatedEpub = await Epub.from(outputFilepath)
+    const updatedEpub = await Epub.using(TmpFsAdapter).from(outputFilepath)
 
     const updatedSpineItems = await updatedEpub.getSpineItems()
     const updatedCoverPageData = await updatedEpub.readXhtmlItemContents(
@@ -490,5 +494,149 @@ void describe("Epub", () => {
     assert.strictEqual(collections[0]?.name, "Series")
     assert.strictEqual(collections[0].position, "1")
     assert.strictEqual(collections[0].type, "series")
+  })
+})
+
+void describe("Epub.using(MemoryAdapter) (read-only, in-memory)", () => {
+  const fixture = join("__fixtures__", "moby-dick.epub")
+
+  void it("reads metadata and content from an in-memory zip", async () => {
+    using epub = await Epub.using(MemoryAdapter).from(fixture)
+    assert.strictEqual(epub.storage, "in-memory")
+    const title = await epub.getTitle()
+    assert.ok(title && title.length > 0)
+    const spine = await epub.getSpineItems()
+    assert.ok(spine.length > 0)
+  })
+
+  void it("refuses mutations with EpubReadOnlyError", async () => {
+    using reader = await Epub.using(MemoryAdapter).from(fixture)
+    const asWriter = reader as unknown as Epub
+
+    await assert.rejects(
+      asWriter.setTitle("Mutated"),
+      (err) => err instanceof EpubReadOnlyError,
+      "setTitle should throw EpubReadOnlyError",
+    )
+    await assert.rejects(
+      asWriter.addCreator({ name: "Someone" }),
+      (err) => err instanceof EpubReadOnlyError,
+      "addCreator should throw EpubReadOnlyError",
+    )
+    await assert.rejects(
+      asWriter.saveAndClose(),
+      (err) => err instanceof EpubReadOnlyError,
+      "saveAndClose should throw EpubReadOnlyError",
+    )
+  })
+
+  void it("does not leave a temp directory on disk", async () => {
+    // the virtualRoot path is constructed for href anchoring but never written
+    const prefix = "storyteller-platform-epub-zip-"
+    const before = (await readdir(tmpdir())).filter((n) => n.startsWith(prefix))
+
+    // sneaky scope
+    {
+      using _epub = await Epub.using(MemoryAdapter).from(fixture)
+      const during = (await readdir(tmpdir())).filter((n) =>
+        n.startsWith(prefix),
+      )
+      assert.deepStrictEqual(
+        during,
+        before,
+        "MemoryAdapter should not create any temp dir matching the in-memory prefix before disposal",
+      )
+    }
+
+    const after = (await readdir(tmpdir())).filter((n) => n.startsWith(prefix))
+    assert.deepStrictEqual(
+      after,
+      before,
+      "MemoryAdapter should not create any temp dir matching the in-memory prefix",
+    )
+  })
+
+  void it("clears the entry index on dispose", async () => {
+    const epub = await Epub.using(MemoryAdapter).from(fixture)
+    await epub.getTitle()
+    epub.discardAndClose()
+
+    await assert.rejects(
+      epub.getTitle(),
+      "reading after discardAndClose should fail",
+    )
+  })
+
+  void it("respects cache: false (repeated reads still work)", async () => {
+    using epub = await Epub.using(MemoryAdapter).from(fixture, {
+      cache: false,
+    })
+    // read a non-xhtml entry twice. xhtml is memoized separately by `mem`
+    // on readXhtmlItemContents, so use a different entry to actually
+    // exercise the cache path.
+    const manifest = await epub.getManifest()
+    const imageEntry = Object.values(manifest).find((item) =>
+      item.mediaType?.startsWith("image/"),
+    )
+    assert.ok(imageEntry, "fixture should contain an image")
+    const first = await epub.readItemContents(imageEntry.id)
+    const second = await epub.readItemContents(imageEntry.id)
+    assert.strictEqual(
+      first.byteLength,
+      second.byteLength,
+      "repeated reads should yield the same bytes regardless of caching",
+    )
+  })
+
+  void it("aborts when the signal is already triggered", async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await assert.rejects(
+      Epub.using(MemoryAdapter).from(fixture, { signal: controller.signal }),
+      "should throw when signal is pre-aborted",
+    )
+  })
+})
+
+void describe("Epub.from (read-only, extracted-dir)", () => {
+  const fixture = join("__fixtures__", "moby-dick.epub")
+
+  void it("reads metadata with { readonly: true }", async () => {
+    using epub = await Epub.from(fixture, { readonly: true })
+    // storage remains extracted-dir; only mutations are gated
+    assert.strictEqual(epub.storage, "extracted-dir")
+    const title = await epub.getTitle()
+    assert.ok(title && title.length > 0)
+  })
+
+  void it("refuses mutations with EpubReadOnlyError", async () => {
+    // cast through Epub so we can call mutators that EpubReader hides
+    // at the type level. the runtime guard should still trigger.
+    using reader = await Epub.from(fixture, { readonly: true })
+    const asWriter = reader as unknown as Epub
+
+    await assert.rejects(
+      asWriter.setTitle("Mutated"),
+      (err) => err instanceof EpubReadOnlyError,
+      "setTitle should throw EpubReadOnlyError",
+    )
+    await assert.rejects(
+      asWriter.addCreator({ name: "Someone" }),
+      (err) => err instanceof EpubReadOnlyError,
+      "addCreator should throw EpubReadOnlyError",
+    )
+    await assert.rejects(
+      asWriter.saveAndClose(),
+      (err) => err instanceof EpubReadOnlyError,
+      "saveAndClose should throw EpubReadOnlyError",
+    )
+  })
+
+  void it("Epub.from without readonly still allows mutations", async () => {
+    using epub = await Epub.from(fixture)
+    // we're not actually saving; this just verifies the writer path
+    // doesn't have the runtime guard tripped
+    await epub.setTitle("Mutated")
+    assert.strictEqual(await epub.getTitle(), "Mutated")
   })
 })
