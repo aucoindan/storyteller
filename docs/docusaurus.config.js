@@ -141,8 +141,16 @@ const config = {
             position: "right",
           },
           {
+            href: "https://discord.gg/KhSvFqcrza",
+            className: "navbar-discord-link",
+            "aria-label": "Join Discord server",
+            position: "right",
+          },
+          {
             href: "https://gitlab.com/storyteller-platform/storyteller",
-            label: "GitLab",
+            className: "navbar-gitlab-link",
+            "aria-label": "GitLab repository",
+            // label: "GitLab",
             position: "right",
           },
         ],
@@ -181,6 +189,23 @@ const config = {
               {
                 label: "Development",
                 to: "/contributing/contributing-overview",
+              },
+            ],
+          },
+          {
+            title: "More",
+            items: [
+              {
+                label: "Discord",
+                href: "https://discord.gg/KhSvFqcrza",
+              },
+              {
+                label: "GitLab",
+                href: "https://gitlab.com/storyteller-platform/storyteller",
+              },
+              {
+                label: "Blog",
+                to: "/blog",
               },
             ],
           },

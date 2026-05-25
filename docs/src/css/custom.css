@@ -56,3 +56,36 @@ h6,
 code {
   white-space: pre;
 }
+
+.navbar-gitlab-link:hover,
+.navbar-discord-link:hover {
+  opacity: 0.6;
+}
+
+.navbar-gitlab-link:before {
+  /* background-color: orange; */
+  background-color: black;
+  mask-image: url(https://simpleicons.org/icons/gitlab.svg);
+  content: "";
+  display: flex;
+  height: 20px;
+  width: 20px;
+}
+
+.navbar-discord-link:before {
+  background-color: black;
+  mask-image: url(https://simpleicons.org/icons/discord.svg);
+  content: "";
+  display: flex;
+  height: 22px;
+  width: 22px;
+}
+
+[data-theme="dark"] {
+  .navbar-gitlab-link:before {
+    background-color: white;
+  }
+  .navbar-discord-link:before {
+    background-color: white;
+  }
+}
