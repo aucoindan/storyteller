@@ -4,6 +4,7 @@ package expo.modules.readium
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.view.KeyEvent
 import android.webkit.JavascriptInterface
 import androidx.annotation.ColorInt
 import androidx.core.graphics.toColorInt
@@ -96,6 +97,30 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         post {
             measureAndLayoutRecursively(this)
         }
+    }
+
+    // When the WebView has an active InputConnection (after a touch/tap), Android routes
+    // the next key's ACTION_DOWN through the IME dispatch path (ViewRootImpl.dispatchKeyFromIme),
+    // which calls dispatchKeyEventPreIme directly on the view hierarchy — bypassing
+    // Activity.dispatchKeyEvent entirely. By intercepting here, we handle both cases:
+    //   - Normal (WebView not focused): Activity.dispatchKeyEvent fires first, returns true,
+    //     view hierarchy never sees it → no double navigation.
+    //   - After touch (WebView focused): Activity never sees DOWN, we catch it here → works.
+    override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val activity = appContext.currentActivity as FragmentActivity?
+            when (event.keyCode) {
+                93, 117 -> {
+                    activity?.lifecycleScope?.launch { navigator?.goForward(animated = false) }
+                    return true
+                }
+                92 -> {
+                    activity?.lifecycleScope?.launch { navigator?.goBackward(animated = false) }
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEventPreIme(event)
     }
 
     private fun measureAndLayoutRecursively(view: android.view.View) {
