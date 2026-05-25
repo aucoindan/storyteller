@@ -45,11 +45,32 @@ export const bookshelfSlice = createSlice({
     ) {
       const { bookUuid, format } = action.payload
 
-      state.isAudioLoading = state.currentlyPlayingBookUuid !== bookUuid
+      const openingSameBookFormat =
+        state.currentlyPlayingBookUuid === bookUuid &&
+        state.currentlyPlayingFormat === format
+
+      state.isAudioLoading = !openingSameBookFormat
       state.currentlyPlayingBookUuid = bookUuid
       state.currentlyPlayingFormat = format
+
+      if (!openingSameBookFormat) {
+        state.tracks = []
+        state.position = 0
+        state.currentTrack = null
+        state.currentTrackIndex = 0
+      }
     },
     playerQueued(state, action: PayloadAction<{ tracks: StorytellerTrack[] }>) {
+      const hasTracksFromAnotherBook = action.payload.tracks.some(
+        (track) => track.bookUuid !== state.currentlyPlayingBookUuid,
+      )
+      if (hasTracksFromAnotherBook) {
+        logger.debug(
+          `playerQueued: ignoring tracks for a different book while ${state.currentlyPlayingBookUuid ?? "none"} is open`,
+        )
+        return
+      }
+
       state.isAudioLoading = false
       state.tracks = action.payload.tracks
     },
@@ -64,6 +85,13 @@ export const bookshelfSlice = createSlice({
         index: number
       }>,
     ) {
+      if (action.payload.track.bookUuid !== state.currentlyPlayingBookUuid) {
+        logger.debug(
+          `audioTrackChanged: ignoring track for ${action.payload.track.bookUuid} while ${state.currentlyPlayingBookUuid ?? "none"} is open`,
+        )
+        return
+      }
+
       const trackFromState = state.tracks[action.payload.index]
       if (!trackFromState) {
         logger.debug(

@@ -1,6 +1,11 @@
 import { isAnyOf } from "@reduxjs/toolkit"
 
-import { Storyteller, getClip, getFragment } from "@/modules/readium"
+import {
+  Storyteller,
+  buildAudiobookLocator,
+  getClip,
+  getFragment,
+} from "@/modules/readium"
 import {
   type ReadiumLocator,
   type StorytellerTrack,
@@ -86,9 +91,7 @@ startAppListening({
         .unwrap()
     }
 
-    const clip =
-      book.position &&
-      (await getClip(book, format, book.position.locator, positions))
+    const clip = await getClip(book, format, locator, positions)
 
     if (!clip) return
 
@@ -175,30 +178,7 @@ async function getLocatorFromTrackPosition(
   }
 
   const tracks = await Storyteller.getTracks()
-
-  let prev = true
-  let prevDuration = 0
-  let totalDuration = 0
-  for (const t of tracks) {
-    if (t.relativeUri === track.relativeUri) {
-      prev = false
-    }
-    if (prev) {
-      prevDuration += t.duration ?? 0
-    }
-    totalDuration += t.duration ?? 0
-  }
-
-  return {
-    href: track.relativeUri,
-    title: track.title,
-    type: track.mimeType,
-    locations: {
-      fragments: [`t=${position}`],
-      progression: position / track.duration!,
-      totalProgression: (prevDuration + position) / totalDuration,
-    },
-  }
+  return buildAudiobookLocator(tracks, track, position)
 }
 
 startAppListening({

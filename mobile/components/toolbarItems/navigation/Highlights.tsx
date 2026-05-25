@@ -36,15 +36,24 @@ export function Highlights() {
     bookUuid ? { uuid: bookUuid } : skipToken,
   )
 
+  const toc =
+    format === "readaloud"
+      ? book?.readaloud?.epubManifest?.toc
+      : format === "ebook"
+        ? book?.ebook?.manifest?.toc
+        : undefined
+
   const highlightTitles = useMemo(() => {
-    const toc = book?.readaloud?.epubManifest?.toc
-    if (!toc) return []
     return (
       highlights?.map((highlight) => {
-        return getHrefChapterTitle(highlight.locator.href, toc)
+        return (
+          (toc ? getHrefChapterTitle(highlight.locator.href, toc) : null) ??
+          highlight.locator.title ??
+          "Untitled chapter"
+        )
       }) ?? []
     )
-  }, [book?.readaloud?.epubManifest?.toc, highlights])
+  }, [highlights, toc])
 
   const { data: positions } = useGetBookPositionsQuery(
     bookUuid && (format === "readaloud" || format === "ebook")

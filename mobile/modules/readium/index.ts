@@ -15,6 +15,13 @@ import {
 } from "./src/Readium.types"
 import ReadiumModule from "./src/ReadiumModule"
 export { default as ReadiumView } from "./src/ReadiumView"
+export {
+  AUDIOBOOK_TOC_LOOKAHEAD_SECONDS,
+  buildAudiobookLocator,
+  getAudiobookLocatorDetails,
+  getAudiobookLocatorPosition,
+  getAudiobookTocItemAtPosition,
+} from "./audiobook"
 import EPUBView from "./src/ReadiumView"
 
 export async function extractArchive(archiveUrl: string, extractedUrl: string) {

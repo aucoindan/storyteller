@@ -20,8 +20,16 @@ import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
 import { PortalHost } from "@/components/ui/portal-context"
 import { Text } from "@/components/ui/text"
-import { Storyteller, areLocatorsEqual } from "@/modules/readium"
-import { type ReadiumLink } from "@/modules/readium/src/Readium.types"
+import {
+  AUDIOBOOK_TOC_LOOKAHEAD_SECONDS,
+  Storyteller,
+  areLocatorsEqual,
+  getAudiobookLocatorPosition,
+} from "@/modules/readium"
+import {
+  type ReadiumLink,
+  type StorytellerTrack,
+} from "@/modules/readium/src/Readium.types"
 import { playerPositionSeeked } from "@/store/actions"
 import { useAppDispatch, useAppSelector } from "@/store/appState"
 import { useGetBookBookmarksQuery, useGetBookQuery } from "@/store/localApi"
@@ -38,6 +46,20 @@ import {
 import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 import { type UUID } from "@/uuid"
 
+const ACTIVE_AUDIO_BOOKMARK_WINDOW_SECONDS = 2
+
+function getTrackStartPositions(tracks: StorytellerTrack[]) {
+  const positions: Record<string, number> = {}
+  let startPosition = 0
+
+  for (const track of tracks) {
+    positions[track.relativeUri] = startPosition
+    startPosition += track.duration
+  }
+
+  return positions
+}
+
 export default function PlayerScreen() {
   const { uuid, format = "readaloud" } = useLocalSearchParams() as {
     uuid: UUID
@@ -48,17 +70,7 @@ export default function PlayerScreen() {
   const { data: bookmarks } = useGetBookBookmarksQuery(
     uuid ? { bookUuid: uuid } : skipToken,
   )
-
   const locator = book?.position?.locator
-  const activeBookmarks = useMemo(
-    () =>
-      locator && bookmarks
-        ? bookmarks.filter((bookmark) =>
-            areLocatorsEqual(bookmark.locator, locator),
-          )
-        : [],
-    [bookmarks, locator],
-  )
 
   const dispatch = useAppDispatch()
   const isLoading = useAppSelector(getIsAudioLoading)
@@ -89,6 +101,72 @@ export default function PlayerScreen() {
 
   const tracks = useAppSelector(getTracks)
   const currentTrackIndex = useAppSelector(getCurrentTrackIndex)
+
+  const trackStartPositions = useMemo(() => {
+    return getTrackStartPositions(tracks)
+  }, [tracks])
+
+  const audioBookmarkPositions = useMemo(() => {
+    if (!bookmarks || format !== "audiobook") return []
+
+    return bookmarks.flatMap((bookmark) => {
+      const bookmarkTrackStart = trackStartPositions[bookmark.locator.href]
+      if (bookmarkTrackStart === undefined) return []
+
+      return [
+        {
+          audioPosition:
+            bookmarkTrackStart + getAudiobookLocatorPosition(bookmark.locator),
+          bookmark,
+        },
+      ]
+    })
+  }, [bookmarks, format, trackStartPositions])
+
+  const activeBookmarks = useMemo(() => {
+    if (!bookmarks) return []
+
+    if (format === "audiobook") {
+      const currentTrack = tracks[currentTrackIndex]
+      if (!currentTrack) return []
+
+      const currentTrackStart = trackStartPositions[currentTrack.relativeUri]
+      if (currentTrackStart === undefined) return []
+
+      const currentAudioPosition = currentTrackStart + position
+      const minPosition =
+        currentAudioPosition - ACTIVE_AUDIO_BOOKMARK_WINDOW_SECONDS
+      const maxPosition =
+        currentAudioPosition + ACTIVE_AUDIO_BOOKMARK_WINDOW_SECONDS
+
+      const activeAudioBookmarks = []
+      for (const bookmarkPosition of audioBookmarkPositions) {
+        if (
+          bookmarkPosition.audioPosition >= minPosition &&
+          bookmarkPosition.audioPosition <= maxPosition
+        ) {
+          activeAudioBookmarks.push(bookmarkPosition.bookmark)
+        }
+      }
+
+      return activeAudioBookmarks
+    }
+
+    return locator
+      ? bookmarks.filter((bookmark) =>
+          areLocatorsEqual(bookmark.locator, locator),
+        )
+      : []
+  }, [
+    bookmarks,
+    audioBookmarkPositions,
+    currentTrackIndex,
+    format,
+    locator,
+    position,
+    trackStartPositions,
+    tracks,
+  ])
 
   const fromTracks = tracks.map((track) => ({
     href: track.relativeUri + "#t=0",
@@ -121,7 +199,8 @@ export default function PlayerScreen() {
     if (readingOrderIndex === undefined) return false
     return (
       readingOrderIndex <= currentTrackIndex &&
-      parseFloat(fragment ?? "0.0") <= position + 3
+      parseFloat(fragment ?? "0.0") <=
+        position + AUDIOBOOK_TOC_LOOKAHEAD_SECONDS
     )
   })
 

@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { useSpacingVariable } from "@/hooks/useSpacingVariable"
 import { cn } from "@/lib/utils"
+import {
+  AUDIOBOOK_TOC_LOOKAHEAD_SECONDS,
+  getAudiobookTocItemAtPosition,
+} from "@/modules/readium"
 import { type ReadiumLink } from "@/modules/readium/src/Readium.types"
 import { playerTrackChanged } from "@/store/actions"
 import { useAppDispatch, useAppSelector } from "@/store/appState"
@@ -48,35 +52,24 @@ export function TrackLisk({ onClose }: Props) {
       }) as ReadiumLink,
   )
 
-  const listing =
+  const manifest =
     format === "audiobook"
-      ? book?.audiobook?.manifest?.toc ?? fromTracks
-      : book?.readaloud?.audioManifest?.toc ?? fromTracks
+      ? book?.audiobook?.manifest
+      : book?.readaloud?.audioManifest
+
+  const listing = manifest?.toc ?? fromTracks
 
   const frame = useSafeAreaFrame()
 
   const maxHeight = frame.height - useSpacingVariable(72)
 
-  const readingOrder =
-    format === "audiobook"
-      ? book?.audiobook?.manifest?.readingOrder
-      : book?.readaloud?.audioManifest?.readingOrder
-
-  const hrefToReadingOrderIndex = readingOrder?.reduce(
-    (acc, link, index) => ({ ...acc, [link.href]: index }),
-    {} as Record<string, number>,
-  )
-
-  const currentTocItem = listing.findLast((link) => {
-    const [hrefWithoutFragment, fragment] = link.href.split("#t=")
-    const readingOrderIndex = hrefToReadingOrderIndex?.[hrefWithoutFragment!]
-    if (readingOrderIndex === undefined) return false
-
-    return (
-      readingOrderIndex <= currentTrackIndex &&
-      parseFloat(fragment ?? "0.0") <= position + 3
-    )
-  })
+  const currentTocItem = manifest?.toc
+    ? getAudiobookTocItemAtPosition(
+        manifest,
+        currentTrackIndex,
+        position + AUDIOBOOK_TOC_LOOKAHEAD_SECONDS,
+      )
+    : listing[currentTrackIndex]
 
   if (!book) return null
 
@@ -98,7 +91,7 @@ export function TrackLisk({ onClose }: Props) {
     >
       <Sublist
         listing={listing}
-        currentTocItem={currentTocItem}
+        currentTocItem={currentTocItem ?? undefined}
         currentItemRef={currentItemRef}
         onClose={onClose}
       />
