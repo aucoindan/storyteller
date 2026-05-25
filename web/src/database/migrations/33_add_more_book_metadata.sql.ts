@@ -52,6 +52,7 @@ export default async function migrate() {
         update,
         relations: { tags = [], series = [] },
       } = await getMetadataFromEpub(epub)
+      epub.discardAndClose()
 
       if (update) {
         delete update.title

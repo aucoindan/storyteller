@@ -30,7 +30,11 @@ export interface Account {
 export interface Audiobook {
   bookUuid: import("@/uuid").UUID
   createdAt: Generated<string>
+  duration: number | null
   filepath: string
+  fileSize: number | null
+  fingerprint: string | null
+  manifest: ColumnType<Record<string, unknown>, string, string> | null
   missing: Generated<boolean>
   updatedAt: Generated<string>
   uuid: Generated<import("@/uuid").UUID>
@@ -40,14 +44,16 @@ export interface Book {
   alignedAt: string | null
   alignedByStorytellerVersion: string | null
   alignedWith: string | null
+  assetDir: Generated<string>
   createdAt: Generated<string>
   description: string | null
+  duration: number | null
   id: number | null
   language: Generated<string | null>
+  pageCount: number | null
   publicationDate: string | null
   rating: number | null
   subtitle: string | null
-  suffix: Generated<string>
   title: string
   updatedAt: Generated<string>
   uuid: Generated<import("@/uuid").UUID>
@@ -97,10 +103,20 @@ export interface BookToTag {
   uuid: Generated<import("@/uuid").UUID>
 }
 
+export interface Changelog {
+  component: string
+  createdAt: Generated<string>
+  description: string | null
+  releasedAt: string
+  tagName: string
+  updatedAt: Generated<string>
+  uuid: Generated<import("@/uuid").UUID>
+  version: string
+}
+
 export interface Collection {
   createdAt: Generated<string>
   description: string | null
-  importPath: Generated<string | null>
   name: string
   public: Generated<boolean>
   updatedAt: Generated<string>
@@ -141,9 +157,32 @@ export interface Ebook {
   bookUuid: import("@/uuid").UUID
   createdAt: Generated<string>
   filepath: string
+  fileSize: number | null
+  fingerprint: string | null
+  isEpub2: Generated<boolean>
+  manifest: Record<string, unknown> | null
   missing: Generated<boolean>
+  pageCount: number | null
   updatedAt: Generated<string>
   uuid: Generated<import("@/uuid").UUID>
+}
+
+export interface ImportRule {
+  bookUuid: import("@/uuid").UUID | null
+  createdAt: Generated<string>
+  importMode: import("@/database/settingsTypes").ImportMode | null
+  kind: "watch" | "ignore"
+  path: string
+  source: Generated<
+    "user" | "import-relocate" | "import-backup" | "prevent-reimport"
+  >
+  updatedAt: Generated<string>
+  uuid: Generated<import("@/uuid").UUID>
+}
+
+export interface ImportRuleToCollection {
+  collectionUuid: import("@/uuid").UUID
+  importRuleUuid: import("@/uuid").UUID
 }
 
 export interface Migration {
@@ -172,10 +211,16 @@ export interface Readaloud {
   bookUuid: import("@/uuid").UUID
   createdAt: Generated<string>
   currentStage: "SPLIT_TRACKS" | "TRANSCRIBE_CHAPTERS" | "SYNC_CHAPTERS"
+  duration: number | null
   filepath: string | null
+  fileSize: number | null
+  fingerprint: string | null
+  isEpub2: Generated<boolean>
+  manifest: ColumnType<Record<string, unknown>, string, string> | null
   missing: Generated<boolean>
+  pageCount: number | null
   queuePosition: number | null
-  restartPending: "full" | "transcription" | "sync" | null
+  restartPending: import("@/work/distributor").RestartMode | null
   stageProgress: Generated<number>
   status: Generated<
     "CREATED" | "QUEUED" | "PROCESSING" | "STOPPED" | "ERROR" | "ALIGNED"
@@ -276,38 +321,23 @@ export interface VerificationToken {
   updatedAt: Generated<string>
 }
 
-export interface ImportSkipPath {
-  bookUuid: import("@/uuid").UUID | null
-  filepath: string
-}
-
-export interface Changelog {
-  uuid: Generated<import("@/uuid").UUID>
-  tagName: string
-  version: string
-  component: string
-  description: string | null
-  releasedAt: string
-  createdAt: Generated<string>
-  updatedAt: Generated<string>
-}
-
 export interface DB {
   account: Account
   audiobook: Audiobook
   book: Book
-  changelog: Changelog
   bookToCollection: BookToCollection
   bookToCreator: BookToCreator
   bookToSeries: BookToSeries
   bookToStatus: BookToStatus
   bookToTag: BookToTag
+  changelog: Changelog
   collection: Collection
   collectionToUser: CollectionToUser
   creator: Creator
   deviceAuthorization: DeviceAuthorization
   ebook: Ebook
-  importSkipPath: ImportSkipPath
+  importRule: ImportRule
+  importRuleToCollection: ImportRuleToCollection
   migration: Migration
   position: Position
   readaloud: Readaloud

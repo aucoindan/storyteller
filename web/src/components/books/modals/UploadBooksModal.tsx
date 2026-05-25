@@ -56,6 +56,11 @@ export function UploadBooksModal({ isOpen, onClose, collection }: Props) {
   const [isEpubAligned, setIsEpubAligned] = useState(false)
   const [isEpubComplete, setIsEpubComplete] = useState(false)
   const [isAudioComplete, setIsAudioComplete] = useState(false)
+  // tracked separately from uppy state because uppy clears it on reset; we
+  // need them after upload finishes to enable the manual finalize button.
+  const [currentBookUuid, setCurrentBookUuid] = useState<string | null>(null)
+  const [audioFailedCount, setAudioFailedCount] = useState(0)
+  const [isFinalizing, setIsFinalizing] = useState(false)
 
   const maxUploadChunkSize = data?.maxUploadChunkSize
 
@@ -159,8 +164,9 @@ export function UploadBooksModal({ isOpen, onClose, collection }: Props) {
     setIsEpubComplete(true)
   })
 
-  useUppyEvent(audioUppy, "complete", () => {
+  useUppyEvent(audioUppy, "complete", (result) => {
     setIsAudioComplete(true)
+    setAudioFailedCount(result.failed?.length ?? 0)
   })
 
   const epubFilesRecord = useUppyState(epubUppy, (state) => state.files)
@@ -180,6 +186,31 @@ export function UploadBooksModal({ isOpen, onClose, collection }: Props) {
     setIsEpubComplete(false)
     setIsAudioComplete(false)
     setIsEpubAligned(false)
+    setCurrentBookUuid(null)
+    setAudioFailedCount(0)
+    setIsFinalizing(false)
+  }
+
+  async function finalizeAudiobook() {
+    if (!currentBookUuid) return
+    setIsFinalizing(true)
+    try {
+      const response = await fetch("/api/v2/books/upload/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookUuid: currentBookUuid,
+          ...(collection && { collectionUuid: collection.uuid }),
+        }),
+      })
+      if (!response.ok) {
+        console.error("Finalize failed", response.status)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsFinalizing(false)
+    }
   }
 
   const complete = isEpubComplete && isAudioComplete
@@ -265,6 +296,8 @@ export function UploadBooksModal({ isOpen, onClose, collection }: Props) {
           }
 
           const bookUuid = uuidv4()
+          setCurrentBookUuid(bookUuid)
+          const totalAudio = audioUppy.getFiles().length
 
           function addFileMeta(file: UppyFile<Meta, Record<string, unknown>>) {
             file.meta["bookUuid"] = bookUuid
@@ -274,7 +307,13 @@ export function UploadBooksModal({ isOpen, onClose, collection }: Props) {
           }
 
           epubUppy.getFiles().forEach(addFileMeta)
-          audioUppy.getFiles().forEach(addFileMeta)
+          audioUppy.getFiles().forEach((file) => {
+            addFileMeta(file)
+            // server uses this to defer scan() until all audio files have
+            // landed in UPLOADS_DIR; without it move-mode relocate strands
+            // late arrivals.
+            file.meta["totalAudioFiles"] = String(totalAudio)
+          })
 
           epubUppy.upload().catch((e: unknown) => {
             console.error(e)
@@ -286,6 +325,19 @@ export function UploadBooksModal({ isOpen, onClose, collection }: Props) {
       >
         {complete ? "Done! Upload another?" : "Upload"}
       </Button>
+      {complete && audioFailedCount > 0 && currentBookUuid && (
+        <Button
+          variant="light"
+          loading={isFinalizing}
+          onClick={() => {
+            void finalizeAudiobook()
+          }}
+        >
+          {audioFailedCount} audio file
+          {audioFailedCount === 1 ? "" : "s"} failed to upload — process the
+          rest anyway
+        </Button>
+      )}
     </Modal>
   )
 }

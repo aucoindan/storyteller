@@ -32,6 +32,23 @@ const jsMigrations: Record<string, () => Promise<void>> = {
   ).default,
   "59_migrate_hrefs.sql": (await import("./migrations/59_migrate_hrefs.sql"))
     .default,
+  "72_add_scan_pipeline.sql": (
+    await import("./migrations/72_add_scan_pipeline.sql")
+  ).default,
+  "73_schema_cleanup.sql": (await import("./migrations/73_schema_cleanup.sql"))
+    .default,
+  "74_normalize_import_paths.sql": (
+    await import("./migrations/74_normalize_import_paths.sql")
+  ).default,
+  "75_import_rules.sql": (await import("./migrations/75_import_rules.sql"))
+    .default,
+  "76_metadata_override_merge.sql": (
+    await import("./migrations/76_metadata_override_merge.sql")
+  ).default,
+  "77_importrule_source.sql": (
+    await import("./migrations/77_importrule_source.sql")
+  ).default,
+  "78_asset_dir.sql": (await import("./migrations/78_asset_dir.sql")).default,
 }
 
 async function isFirstStartup() {

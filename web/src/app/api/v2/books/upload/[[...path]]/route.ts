@@ -1,72 +1,43 @@
 import { randomBytes } from "node:crypto"
-import { rm } from "node:fs/promises"
-import { extname } from "node:path"
+import { mkdir, readdir, rm } from "node:fs/promises"
+import { basename, extname, join } from "node:path"
 
-import { AsyncSemaphore } from "@esfx/async-semaphore"
 import { FileStore } from "@tus/file-store"
 import { Server } from "@tus/server"
 import { lookup } from "mime-types"
 import { type NextRequest } from "next/server"
 
-import { Audiobook } from "@storyteller-platform/audiobook"
-import { Epub } from "@storyteller-platform/epub"
-
-import {
-  getAudioCover,
-  getEpubCover,
-  writeExtractedAudiobookCover,
-  writeExtractedEbookCover,
-} from "@/assets/covers"
+import { move } from "@/assets/fs"
+import { scan } from "@/assets/library/scanner/scan"
+import { type Candidate } from "@/assets/library/scanner/types"
 import { isAudioFile, isZipArchive, lookupAudioMime } from "@/audio"
 import { withHasPermission } from "@/auth/auth"
-import { getBook } from "@/database/books"
 import { UPLOADS_DIR } from "@/directories"
-import { isEpubVersionError } from "@/epub"
 import { logger } from "@/logging"
 import { type UUID } from "@/uuid"
 
-import {
-  handleAudiobookExistingBook,
-  handleAudiobookNewBook,
-  handleEpubExistingBook,
-  handleEpubNewBook,
-} from "./uploadHandlers"
+const inProgressAudioUploads = new Set<string>()
 
 /* the default naming func found in @tus/server */
 const defaultNamingFunc = () => randomBytes(16).toString("hex")
-
-const mutex = new AsyncSemaphore(1)
 
 const server = new Server({
   path: "/api/v2/books/upload",
   respectForwardedHeaders: true,
   onResponseError(_req, err) {
-    // These are expected, this just means that the file
-    // is being uploaded for the first time
-    if ("status_code" in err && err.status_code === 404) {
-      return undefined
-    }
+    if ("status_code" in err && err.status_code === 404) return undefined
     logger.error(`Upload server encountered error`)
     logger.error(err)
     return undefined
   },
+
   datastore: new FileStore({ directory: UPLOADS_DIR }),
-  // makes sure Audiobook.createFile() works, as it needs to find a filetype
   namingFunction(_req, metadata) {
-    if (!metadata?.["filename"]) {
-      return defaultNamingFunc()
-    }
-
+    if (!metadata?.["filename"]) return defaultNamingFunc()
     const extension = extname(metadata["filename"])
-
-    if (!extension) {
-      return defaultNamingFunc()
-    }
-
+    if (!extension) return defaultNamingFunc()
     return `${defaultNamingFunc()}${extension}`
   },
-  // TODO: check user permissions on specific book id here
-  // ?: Is _req a NextRequest? Does it have auth.user?
   onUploadFinish: async (_req, upload) => {
     if (!upload.metadata) {
       return {
@@ -74,7 +45,6 @@ const server = new Server({
         body: "Missing required file metadata: bookId, filename, filetype (optional)",
       }
     }
-    await mutex.wait()
 
     try {
       const bookUuid = upload.metadata["bookUuid"] as UUID | undefined
@@ -96,10 +66,8 @@ const server = new Server({
 
       const isEpub =
         filetype !== false &&
-        (filetype.startsWith("application/epub") ||
-          // For some baffling reason, Chrome on Windows thinks that
-          // EPUBs are images
-          filetype === "image/epub")
+        (filetype.startsWith("application/epub") || filetype === "image/epub")
+
       const isAudiobook = isAudioFile(filename) || isZipArchive(filename)
       if (!isEpub && !isAudiobook) {
         return {
@@ -108,102 +76,72 @@ const server = new Server({
         }
       }
 
-      // This hook is only called when storage has been successfully set
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const uploadPath = upload.storage!.path
+      // make uuid dir in uploads dir
+      const uuidDir = join(UPLOADS_DIR, bookUuid)
+      await mkdir(uuidDir, { recursive: true })
+
+      const newUploadPath = join(uuidDir, filename)
+      await move(uploadPath, newUploadPath)
+
+      const candidates: Candidate[] = []
       if (isEpub) {
-        let epub: Epub
-
-        try {
-          epub = await Epub.from(uploadPath)
-        } catch (e) {
-          if (!isEpubVersionError(e)) throw e
-
-          logger.info(`Uploaded EPUB is not EPUB 3, auto-converting to EPUB 3`)
-
-          using upgraded = await Epub.upgrade(uploadPath)
-          await upgraded.saveAndClose()
-
-          epub = await Epub.from(uploadPath)
-        }
-
-        using _ = epub
-        const manifest = await epub.getManifest()
-        const isAligned = Object.values(manifest).some(
-          (item) => item.mediaOverlay,
-        )
-
-        let book = await getBook(bookUuid)
-        if (book) {
-          book = await handleEpubExistingBook(book, uploadPath, epub, isAligned)
-        } else {
-          book = await handleEpubNewBook(
-            bookUuid,
-            filename,
-            uploadPath,
-            epub,
-            collectionUuid,
-            isAligned,
-          )
-        }
-
-        const epubCover = await getEpubCover(book)
-        if (epubCover) {
-          await writeExtractedEbookCover(
-            book,
-            epubCover.filename,
-            epubCover.data,
-          )
-        }
-        if (isAligned) {
-          const audioCover = await getAudioCover(book)
-          if (audioCover) {
-            await writeExtractedAudiobookCover(
-              book,
-              audioCover.filename,
-              audioCover.data,
-            )
-          }
-        }
+        candidates.push({
+          folder: uuidDir,
+          format: "ebook",
+          filepath: newUploadPath,
+          titleHint: basename(filename, extname(filename)),
+          bookUuidHint: bookUuid,
+          ...(collectionUuid && { collections: [collectionUuid] }),
+          importMode: "move",
+          // override other possible strategy, doesn't make sense to skip or backup-and-convert
+          epub2ImportStrategy: "replace",
+        })
       }
 
       if (isAudiobook) {
-        const relativePath =
-          upload.metadata["relativePath"] === "null" ||
-          !upload.metadata["relativePath"]
-            ? filename
-            : upload.metadata["relativePath"]
+        // wait until all audio files have landed in uuidDir before scanning
+        const totalAudioFilesMeta = upload.metadata["totalAudioFiles"]
+        const totalAudioFiles =
+          totalAudioFilesMeta && /^\d+$/.test(totalAudioFilesMeta)
+            ? parseInt(totalAudioFilesMeta, 10)
+            : null
 
-        let book = await getBook(bookUuid)
-
-        using audiobook = await Audiobook.from(uploadPath)
-        if (book) {
-          book = await handleAudiobookExistingBook(
-            book,
-            relativePath,
-            uploadPath,
-            audiobook,
-          )
-        } else {
-          book = await handleAudiobookNewBook(
-            bookUuid,
-            relativePath,
-            uploadPath,
-            audiobook,
-            collectionUuid,
-          )
+        if (totalAudioFiles !== null && totalAudioFiles > 1) {
+          const entries = await readdir(uuidDir).catch(() => [] as string[])
+          const arrived = entries.filter(
+            (name) => isAudioFile(name) || isZipArchive(name),
+          ).length
+          const stillInFlight = inProgressAudioUploads.has(bookUuid)
+          if (arrived < totalAudioFiles || stillInFlight) {
+            // siblings still in flight; the last one to arrive will scan.
+            return {}
+          }
+          inProgressAudioUploads.add(bookUuid)
+          const stack = new DisposableStack()
+          stack.defer(() => {
+            inProgressAudioUploads.delete(bookUuid)
+          })
         }
-        audiobook.discardAndClose()
 
-        const audioCover = await getAudioCover(book)
-        if (audioCover) {
-          await writeExtractedAudiobookCover(
-            book,
-            audioCover.filename,
-            audioCover.data,
-          )
-        }
+        candidates.push({
+          folder: uuidDir,
+          format: "audiobook",
+          filepath: uuidDir,
+          titleHint: basename(filename, extname(filename)),
+          bookUuidHint: bookUuid,
+          ...(collectionUuid && { collections: [collectionUuid] }),
+          importMode: "move",
+        })
       }
+
+      await scan({
+        source: "upload",
+        request: { kind: "candidates", candidates },
+        options: { force: true },
+        signal: new AbortController().signal,
+      })
 
       return {}
     } catch (e) {
@@ -214,7 +152,6 @@ const server = new Server({
         await rm(upload.storage.path, { force: true })
         await rm(`${upload.storage.path}.json`, { force: true })
       }
-      mutex.release()
     }
   },
 })

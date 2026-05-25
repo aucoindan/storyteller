@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto"
 import { extname } from "node:path"
 
-import type { NextRequest } from "next/server"
+import { type NextRequest, after } from "next/server"
 
 import { assertHasPermission } from "@/auth/auth"
 import { isReadiumServiceError } from "@/components/reader/BookService"
-import { type BookWithRelations, getBook } from "@/database/books"
+import {
+  type BookFormat,
+  type BookWithRelations,
+  getBook,
+  markFormatMissing,
+} from "@/database/books"
 import { getSettings } from "@/database/settings"
 import type { UserWithPermissions } from "@/database/users"
 import { logger } from "@/logging"
@@ -90,6 +95,12 @@ function checkIfNoneMatch(request: Request, etag: string): boolean {
   // handle both single etag and comma-separated list
   const etags = ifNoneMatch.split(",").map((e) => e.trim())
   return etags.includes(etag) || etags.includes("*")
+}
+
+function getReadFormat(book: BookWithRelations): BookFormat | null {
+  if (book.readaloud?.filepath) return "readaloud"
+  if (book.ebook?.filepath) return "ebook"
+  return null
 }
 
 async function rwp(
@@ -220,6 +231,12 @@ export const GET = async (
           },
           `Book file not found: ${book.title} (${bookId})`,
         )
+
+        const format = getReadFormat(book)
+        if (format) {
+          after(() => markFormatMissing(bookId, format))
+        }
+
         return Response.json(
           {
             error: "book_not_found",

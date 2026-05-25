@@ -24,6 +24,42 @@ export const WhisperModelOverridesSchema = z.record(
 )
 export type WhisperModelOverrides = z.infer<typeof WhisperModelOverridesSchema>
 
+export const METADATA_FIELDS = [
+  "cover",
+  "title",
+  "subtitle",
+  "description",
+  "language",
+  "publicationDate",
+  "authors",
+  "narrators",
+  "creators",
+  "series",
+  "tags",
+] as const
+
+export type MetadataField = (typeof METADATA_FIELDS)[number]
+
+export const MetadataFieldModeSchema = z.enum(["skip", "merge", "always"])
+export type MetadataFieldMode = z.infer<typeof MetadataFieldModeSchema>
+
+export const MetadataFieldOverridesSchema = z.object(
+  Object.fromEntries(
+    METADATA_FIELDS.map((field) => [field, MetadataFieldModeSchema]),
+  ) as { [K in MetadataField]: typeof MetadataFieldModeSchema },
+)
+export type MetadataFieldOverrides = z.infer<
+  typeof MetadataFieldOverridesSchema
+>
+
+export function defaultMetadataFieldOverrides(
+  mode: MetadataFieldMode = "merge",
+): MetadataFieldOverrides {
+  return Object.fromEntries(
+    METADATA_FIELDS.map((field) => [field, mode]),
+  ) as MetadataFieldOverrides
+}
+
 export const ReadaloudLocationTypeSchema = z.enum([
   "SUFFIX",
   "SIBLING_FOLDER",
@@ -48,6 +84,12 @@ export const ImportModeSchema = z.enum([
   "hardlink",
 ])
 export type ImportMode = z.infer<typeof ImportModeSchema>
+
+/** @deprecated use import rules instead */
+export type ImportPathEntry = {
+  path: string
+  importMode?: ImportMode | null
+}
 
 // Auth provider schemas
 export const BuiltInAuthProviderSchema = z.object({
@@ -91,7 +133,6 @@ export const SettingsSchema = z.object({
   // Library settings
   libraryName: z.string(),
   webUrl: z.string(),
-  importPath: z.string().nullable(),
   importMode: ImportModeSchema,
   // Audio settings
   codec: z.string().nullable(),
@@ -133,6 +174,9 @@ export const SettingsSchema = z.object({
   // OPDS settings
   opdsEnabled: z.boolean().nullable(),
   opdsPageSize: z.number().nullable(),
+  // Scanning settings
+  scanCronExpression: z.string().nullable(),
+  metadataFieldOverrides: MetadataFieldOverridesSchema,
   // EPUB 2 import settings
   epub2ImportStrategy: Epub2ImportStrategySchema,
   epub2BackupSuffix: z.string(),

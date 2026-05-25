@@ -8,17 +8,20 @@ import {
 import { jsonArrayFrom, jsonObjectFrom } from "kysely/helpers/sqlite"
 
 import { type Audiobook as AudiobookAsset } from "@storyteller-platform/audiobook"
-import { type Epub } from "@storyteller-platform/epub"
+import { type EpubReader } from "@storyteller-platform/epub"
 
 import {
   type ProcessingTaskStatus,
   type ProcessingTaskType,
 } from "@/apiModels/models/ProcessingStatus"
+import { pathBelongsTo } from "@/assets/library/scanner/folder"
 import {
   getMetadataFromAudiobook,
   getMetadataFromEpub,
 } from "@/assets/metadata"
-import { BookEvents } from "@/events"
+import { getDefaultSuffix, getSafeFilepathSegment } from "@/assets/paths"
+import { ASSETS_DIR } from "@/directories"
+import { BookEvents, type BookUpdatePayload } from "@/events"
 import { type UUID } from "@/uuid"
 
 import { db } from "./connection"
@@ -108,7 +111,7 @@ export type NewBook = Insertable<DB["book"]>
 export type BookUpdate = Updateable<DB["book"]>
 
 export async function createBookFromEpub(
-  epub: Epub,
+  epub: EpubReader,
   {
     uuid,
     title,
@@ -191,6 +194,24 @@ export async function createBook(
       .executeTakeFirstOrThrow()
 
     uuid = row.uuid
+
+    const desired = getSafeFilepathSegment(insert.title)
+    const collision = await tr
+      .selectFrom("book")
+      .select(["uuid"])
+      .where("assetDir", "=", desired)
+      .where("uuid", "!=", uuid)
+      .executeTakeFirst()
+
+    const assetDir = collision
+      ? getSafeFilepathSegment(insert.title, getDefaultSuffix(uuid))
+      : desired
+
+    await tr
+      .updateTable("book")
+      .set({ assetDir })
+      .where("uuid", "=", uuid)
+      .execute()
 
     if (relations.creators) {
       for (const creator of relations.creators) {
@@ -421,7 +442,12 @@ export async function createBook(
   return book
 }
 
-export function booksQuery(userId?: UUID) {
+type BooksQueryOptions = {
+  includeManifest?: boolean
+}
+
+export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
+  const includeManifest = options?.includeManifest ?? true
   return db
     .selectFrom("book")
     .selectAll("book")
@@ -525,7 +551,6 @@ export function booksQuery(userId?: UUID) {
             "collection.name",
             "collection.description",
             "collection.public",
-            "collection.importPath",
             "collection.createdAt",
             "collection.updatedAt",
           ])
@@ -574,9 +599,14 @@ export function booksQuery(userId?: UUID) {
             "ebook.uuid",
             "ebook.filepath",
             "ebook.missing",
+            "ebook.isEpub2",
             "ebook.createdAt",
             "ebook.updatedAt",
+            "ebook.fingerprint",
+            "ebook.pageCount",
+            "ebook.fileSize",
           ])
+          .$if(includeManifest, (eb) => eb.select(["ebook.manifest"]))
           .whereRef("ebook.bookUuid", "=", "book.uuid"),
       ).as("ebook"),
       jsonObjectFrom(
@@ -588,7 +618,11 @@ export function booksQuery(userId?: UUID) {
             "audiobook.missing",
             "audiobook.createdAt",
             "audiobook.updatedAt",
+            "audiobook.fingerprint",
+            "audiobook.duration",
+            "audiobook.fileSize",
           ])
+          .$if(includeManifest, (eb) => eb.select(["audiobook.manifest"]))
           .whereRef("audiobook.bookUuid", "=", "book.uuid"),
       ).as("audiobook"),
       jsonObjectFrom(
@@ -598,6 +632,7 @@ export function booksQuery(userId?: UUID) {
             "readaloud.uuid",
             "readaloud.filepath",
             "readaloud.missing",
+            "readaloud.isEpub2",
             "readaloud.status",
             "readaloud.currentStage",
             "readaloud.stageProgress",
@@ -605,7 +640,12 @@ export function booksQuery(userId?: UUID) {
             "readaloud.restartPending",
             "readaloud.createdAt",
             "readaloud.updatedAt",
+            "readaloud.fingerprint",
+            "readaloud.pageCount",
+            "readaloud.duration",
+            "readaloud.fileSize",
           ])
+          .$if(includeManifest, (eb) => eb.select(["readaloud.manifest"]))
           .whereRef("readaloud.bookUuid", "=", "book.uuid"),
       ).as("readaloud"),
     ])
@@ -680,8 +720,12 @@ export async function getNextQueuePosition() {
   return latestPosition + 1
 }
 
-export async function getBooks(bookUuids: UUID[] | null = null, userId?: UUID) {
-  const books = await booksQuery(userId)
+export async function getBooks(
+  bookUuids: UUID[] | null = null,
+  userId?: UUID,
+  options?: BooksQueryOptions,
+) {
+  const books = await booksQuery(userId, options)
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     .$if(!!bookUuids, (qb) => qb.where("book.uuid", "in", bookUuids!))
     .execute()
@@ -718,7 +762,15 @@ export async function getBookByAudiobookFilepathPrefix(
     .executeTakeFirst()
 }
 
-export async function deleteBook(bookUuid: UUID, tr?: Transaction<DB>) {
+export async function deleteBook(
+  bookUuid: UUID,
+  options?: {
+    preventReImport?: boolean
+  },
+  tr?: Transaction<DB>,
+) {
+  const preventReImport = options?.preventReImport ?? false
+
   const callback = async (tr: Transaction<DB>) => {
     await tr
       .deleteFrom("bookToCreator")
@@ -758,16 +810,67 @@ export async function deleteBook(bookUuid: UUID, tr?: Transaction<DB>) {
 
     await tr.deleteFrom("position").where("bookUuid", "=", bookUuid).execute()
 
+    if (!preventReImport) {
+      await tr
+        .deleteFrom("importRule")
+        .where("kind", "=", "ignore")
+        .where("bookUuid", "=", bookUuid)
+        .execute()
+    } else {
+      // preserve existing rules across the FK cascade
+      await tr
+        .updateTable("importRule")
+        .set({ source: "prevent-reimport", bookUuid: null })
+        .where("kind", "=", "ignore")
+        .where("bookUuid", "=", bookUuid)
+        .execute()
+
+      // reference-mode source files survive the delete, add a rule for them
+      const [ebook, audiobook, readaloud] = await Promise.all([
+        tr
+          .selectFrom("ebook")
+          .select("filepath")
+          .where("bookUuid", "=", bookUuid)
+          .executeTakeFirst(),
+        tr
+          .selectFrom("audiobook")
+          .select("filepath")
+          .where("bookUuid", "=", bookUuid)
+          .executeTakeFirst(),
+        tr
+          .selectFrom("readaloud")
+          .select("filepath")
+          .where("bookUuid", "=", bookUuid)
+          .executeTakeFirst(),
+      ])
+
+      const externalPaths = [
+        ebook?.filepath,
+        audiobook?.filepath,
+        readaloud?.filepath,
+      ].filter((p): p is string => p != null && !pathBelongsTo(ASSETS_DIR, p))
+
+      if (externalPaths.length) {
+        await tr
+          .insertInto("importRule")
+          .values(
+            externalPaths.map(
+              (path) =>
+                ({
+                  kind: "ignore",
+                  path,
+                  source: "prevent-reimport",
+                }) as const,
+            ),
+          )
+          .onConflict((oc) => oc.column("path").doNothing())
+          .execute()
+      }
+    }
+
     await tr.deleteFrom("readaloud").where("bookUuid", "=", bookUuid).execute()
     await tr.deleteFrom("audiobook").where("bookUuid", "=", bookUuid).execute()
     await tr.deleteFrom("ebook").where("bookUuid", "=", bookUuid).execute()
-    // Note: importSkipPath records are intentionally preserved so deleted books
-    // aren't re-imported. They're cleaned up by the scan when files no longer exist.
-    await tr
-      .updateTable("importSkipPath")
-      .set({ bookUuid: null })
-      .where("bookUuid", "=", bookUuid)
-      .execute()
 
     await tr.deleteFrom("book").where("uuid", "=", bookUuid).execute()
   }
@@ -783,6 +886,62 @@ export async function deleteBook(bookUuid: UUID, tr?: Transaction<DB>) {
     bookUuid,
     payload: undefined,
   })
+}
+
+/**
+ * Drops the row from the format table, returns the filepath that was removed
+ * so the caller can decide what to do with the file on disk.
+ */
+export async function removeBookFormat(
+  bookUuid: UUID,
+  format: "ebook" | "audiobook" | "readaloud",
+): Promise<string | null> {
+  const filepath = await db.transaction().execute(async (tr) => {
+    let existing: { filepath: string | null } | undefined
+    if (format === "ebook") {
+      existing = await tr
+        .selectFrom("ebook")
+        .select("filepath")
+        .where("bookUuid", "=", bookUuid)
+        .executeTakeFirst()
+      if (existing) {
+        await tr.deleteFrom("ebook").where("bookUuid", "=", bookUuid).execute()
+      }
+    } else if (format === "audiobook") {
+      existing = await tr
+        .selectFrom("audiobook")
+        .select("filepath")
+        .where("bookUuid", "=", bookUuid)
+        .executeTakeFirst()
+      if (existing) {
+        await tr
+          .deleteFrom("audiobook")
+          .where("bookUuid", "=", bookUuid)
+          .execute()
+      }
+    } else {
+      existing = await tr
+        .selectFrom("readaloud")
+        .select("filepath")
+        .where("bookUuid", "=", bookUuid)
+        .executeTakeFirst()
+      if (existing) {
+        await tr
+          .deleteFrom("readaloud")
+          .where("bookUuid", "=", bookUuid)
+          .execute()
+      }
+    }
+    return existing?.filepath ?? null
+  })
+
+  BookEvents.emit("message", {
+    type: "bookUpdated",
+    bookUuid,
+    payload: { [format]: null } as BookUpdatePayload,
+  })
+
+  return filepath
 }
 
 export type BookRelationsUpdate = {
@@ -802,7 +961,12 @@ export async function updateBook(
   update: BookUpdate | null,
   relations: BookRelationsUpdate = {},
   userId?: UUID,
-) {
+): Promise<BookWithRelations> {
+  // capture the prior state when title is about to change so we can move
+  // the asset folder afterwards.
+  const before =
+    update && update.title !== undefined ? await getBook(uuid, userId) : null
+
   await db.transaction().execute(async (tr) => {
     if (update && Object.keys(update).length) {
       await tr
@@ -1066,7 +1230,7 @@ export async function updateBook(
       } else {
         await tr
           .insertInto("ebook")
-          .values({ bookUuid: uuid, filepath: relations.ebook.filepath })
+          .values({ bookUuid: uuid, ...relations.ebook })
           .execute()
       }
     }
@@ -1087,7 +1251,7 @@ export async function updateBook(
       } else {
         await tr
           .insertInto("audiobook")
-          .values({ bookUuid: uuid, filepath: relations.audiobook.filepath })
+          .values({ bookUuid: uuid, ...relations.audiobook })
           .execute()
       }
     }
@@ -1139,7 +1303,7 @@ export async function updateBook(
         .execute()
 
       for (const bookUuid of relations.books) {
-        await deleteBook(bookUuid, tr)
+        await deleteBook(bookUuid, undefined, tr)
       }
     }
 
@@ -1153,9 +1317,17 @@ export async function updateBook(
     }
   })
 
-  const book = await getBook(uuid, userId)
+  let book = await getBook(uuid, userId)
 
   if (!book) throw new Error(`Failed to retrieve book with uuid ${uuid}`)
+
+  // move the asset folder when title actually changed. renameBookAssets is
+  // imported dynamically to break the books.ts <-> fs.ts cycle at module
+  // load; both files are loaded by the time updateBook ever runs.
+  if (before && before.title !== book.title) {
+    const { renameBookAssets } = await import("@/assets/fs")
+    book = await renameBookAssets(before, book)
+  }
 
   BookEvents.emit("message", {
     type: "bookUpdated",
@@ -1184,4 +1356,48 @@ export async function touchBook(uuid: UUID, userId?: UUID) {
   })
 
   return book
+}
+
+export type BookFormat = "ebook" | "audiobook" | "readaloud"
+
+/**
+ * marks a format as missing in the database when we discover at runtime
+ * that the underlying file no longer exists on disk.
+ */
+export async function markFormatMissing(
+  uuid: UUID,
+  format: BookFormat,
+): Promise<void> {
+  switch (format) {
+    case "ebook":
+      await db
+        .updateTable("ebook")
+        .set({ missing: true })
+        .where("bookUuid", "=", uuid)
+        .execute()
+      break
+    case "audiobook":
+      await db
+        .updateTable("audiobook")
+        .set({ missing: true })
+        .where("bookUuid", "=", uuid)
+        .execute()
+      break
+    case "readaloud":
+      await db
+        .updateTable("readaloud")
+        .set({ missing: true })
+        .where("bookUuid", "=", uuid)
+        .execute()
+      break
+  }
+
+  const book = await getBook(uuid)
+  if (book) {
+    BookEvents.emit("message", {
+      type: "bookUpdated",
+      bookUuid: uuid,
+      payload: book,
+    })
+  }
 }

@@ -1,13 +1,23 @@
 "use client"
 
-import { Button, Group, Stack, TextInput, px } from "@mantine/core"
+import {
+  Button,
+  Group,
+  NumberInput,
+  Stack,
+  Text,
+  TextInput,
+  px,
+} from "@mantine/core"
 import { DateInput } from "@mantine/dates"
 import { useForm } from "@mantine/form"
 import { useDisclosure } from "@mantine/hooks"
 import { useRef, useState } from "react"
 
+import { Label } from "@/app/(v3)/v3/_/components/ui/label"
 import { DeleteBookModal } from "@/components/books/modals/DeleteBookModal"
 import { SaveState } from "@/components/forms"
+import { formatTimeHuman } from "@/components/reader/preferenceItems/formatTime"
 import {
   type BookWithRelations,
   type CreatorRelation,
@@ -32,6 +42,90 @@ import { NarratorsInput } from "./NarratorsInput"
 import { SeriesInput } from "./SeriesInput"
 import { StatusInput } from "./StatusInput"
 import { TagsInput } from "./TagsInput"
+
+function DurationInput({
+  book,
+  value,
+  onChange,
+}: {
+  book: BookWithRelations
+  value: number | null
+  onChange: (value: number | null) => void
+}) {
+  const totalSeconds = value ?? 0
+
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = Math.round(totalSeconds % 60)
+
+  function update(h: number, m: number, s: number) {
+    const total = h * 3600 + m * 60 + s
+    onChange(total === 0 ? null : total)
+  }
+
+  const durationParts: string[] = []
+  if (book.audiobook) {
+    durationParts.push(
+      `audiobook (${book.audiobook.duration ? formatTimeHuman(book.audiobook.duration) : "unknown"})`,
+    )
+  }
+  if (book.readaloud) {
+    durationParts.push(
+      `readaloud (${book.readaloud.duration ? formatTimeHuman(book.readaloud.duration) : "unknown"})`,
+    )
+  }
+
+  const durationDescription = durationParts.length
+    ? `Custom duration. Overrides the value derived from the ${durationParts.join(" or ")} when set.`
+    : "Custom duration. No audiobook or readaloud attached to this book."
+
+  return (
+    <div className="flex flex-col">
+      <Label className="m-0 text-sm font-medium">Audiobook duration</Label>
+      <Text className="m-0 text-xs" c="dimmed">
+        {durationDescription}
+      </Text>
+
+      <Group grow align="flex-end">
+        <NumberInput
+          label="Hours"
+          min={0}
+          value={hours}
+          onChange={(val) => {
+            update(val === "" ? 0 : Number(val), minutes, seconds)
+          }}
+        />
+
+        <NumberInput
+          label="Minutes"
+          min={0}
+          max={59}
+          value={minutes}
+          onChange={(val) => {
+            update(hours, val === "" ? 0 : Number(val), seconds)
+          }}
+        />
+
+        <NumberInput
+          label="Seconds"
+          min={0}
+          max={59}
+          value={seconds}
+          onChange={(val) => {
+            update(hours, minutes, val === "" ? 0 : Number(val))
+          }}
+        />
+
+        <NumberInput
+          label="= Total Seconds"
+          value={totalSeconds}
+          readOnly
+          variant="filled"
+        />
+      </Group>
+    </div>
+  )
+}
 
 type Props = {
   book: BookWithRelations
@@ -73,6 +167,8 @@ export function BookEditForm({ book }: Props) {
       description: book.description,
       narrators: book.narrators.map((narrator) => narrator.name),
       tags: book.tags.map((tag) => tag.name),
+      duration: book.duration,
+      pageCount: book.pageCount,
       textCover: null as File | null,
       audioCover: null as File | null,
     },
@@ -186,6 +282,40 @@ export function BookEditForm({ book }: Props) {
               valueFormat="YYYY-MM-DD"
               {...form.getInputProps("publicationDate")}
             />
+
+            <NumberInput
+              className="m-0"
+              label="Page count"
+              description={(() => {
+                const parts: string[] = []
+                if (book.ebook) {
+                  parts.push(`ebook (${book.ebook.pageCount ?? "unknown"})`)
+                }
+                if (book.readaloud) {
+                  parts.push(
+                    `readaloud (${book.readaloud.pageCount ?? "unknown"})`,
+                  )
+                }
+
+                return parts.length
+                  ? `Custom page count. Overrides the value derived from the ${parts.join(" or ")} when set.`
+                  : "Custom page count. No ebook or readaloud attached to this book."
+              })()}
+              min={0}
+              value={form.values.pageCount ?? ""}
+              onChange={(val) => {
+                form.setFieldValue("pageCount", val === "" ? null : Number(val))
+              }}
+            />
+
+            <DurationInput
+              book={book}
+              value={form.values.duration}
+              onChange={(val) => {
+                form.setFieldValue("duration", val)
+              }}
+            />
+
             <NarratorsInput
               narrators={creators}
               {...form.getInputProps("narrators")}

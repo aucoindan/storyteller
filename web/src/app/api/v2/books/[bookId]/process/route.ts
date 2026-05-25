@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { withHasPermission } from "@/auth/auth"
-import { getBookUuid } from "@/database/books"
+import { getBook, getBookUuid } from "@/database/books"
 import { db } from "@/database/connection"
 import { env } from "@/env"
 import {
@@ -92,6 +92,28 @@ export const POST = withHasPermission<Params>("bookProcess")(async (
 
   const { bookId } = await context.params
   const bookUuid = await getBookUuid(bookId)
+
+  const book = await getBook(bookUuid)
+  if (!book) {
+    return NextResponse.json(
+      { message: `Could not find book with id ${bookId}` },
+      { status: 404 },
+    )
+  }
+
+  const ebookMissing = !book.ebook || book.ebook.missing
+  const audiobookMissing = !book.audiobook || book.audiobook.missing
+
+  if (ebookMissing || audiobookMissing) {
+    return NextResponse.json(
+      {
+        message:
+          "Cannot process book: both ebook and audiobook must be present and not missing.",
+      },
+      { status: 409 },
+    )
+  }
+
   const restartParam = url.searchParams.get("restart")
 
   let restart: RestartMode = false

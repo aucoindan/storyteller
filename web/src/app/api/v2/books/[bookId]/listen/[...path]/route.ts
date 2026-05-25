@@ -10,7 +10,7 @@ import { type NextRequest, after } from "next/server"
 import { getProcessedAudioFilepath } from "@/assets/paths"
 import { getTrackChapters, splitTrack } from "@/audio"
 import { withHasPermission } from "@/auth/auth"
-import { getBook } from "@/database/books"
+import { getBook, markFormatMissing } from "@/database/books"
 import { getSetting } from "@/database/settings"
 import { logger } from "@/logging"
 import {
@@ -84,6 +84,8 @@ export const GET = withHasPermission<Params>("bookRead")(async (
           (error.message.includes("ENOENT") ||
             error.message.includes("no such file"))
         ) {
+          after(() => markFormatMissing(bookId, "audiobook"))
+
           return Response.json(
             {
               error: "book_not_found",
@@ -127,6 +129,8 @@ export const GET = withHasPermission<Params>("bookRead")(async (
         (error.message.includes("ENOENT") ||
           error.message.includes("no such file"))
       ) {
+        after(() => markFormatMissing(bookId, "audiobook"))
+
         return Response.json(
           {
             error: "book_not_found",

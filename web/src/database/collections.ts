@@ -6,7 +6,6 @@ import {
 } from "kysely"
 import { jsonArrayFrom } from "kysely/helpers/sqlite"
 
-import { update as updateAutoimport } from "@/assets/autoimport/listen"
 import { BookEvents } from "@/events"
 import { type UUID } from "@/uuid"
 
@@ -91,13 +90,13 @@ export async function getCollections(userId?: UUID) {
 }
 
 export async function createCollection(
-  insert: NewCollection,
+  input: NewCollection,
   relations: { users?: UUID[] } = {},
 ) {
   return await db.transaction().execute(async (tr) => {
     const { uuid } = await tr
       .insertInto("collection")
-      .values(insert)
+      .values(input)
       .returning(["uuid as uuid"])
       .executeTakeFirstOrThrow()
 
@@ -121,17 +120,18 @@ export async function createCollection(
 
 export async function updateCollection(
   uuid: UUID,
-  update: CollectionUpdate,
+  input: CollectionUpdate,
   relations: { users?: UUID[] } = {},
 ) {
   const collection = await db.transaction().execute(async (tr) => {
-    if (Object.keys(update).length) {
+    if (Object.keys(input).length) {
       await tr
         .updateTable("collection")
-        .set(update)
+        .set(input)
         .where("uuid", "=", uuid)
         .execute()
     }
+
     const collection = await getCollection(uuid, undefined, tr)
 
     if (!collection.public && relations.users) {
@@ -153,7 +153,7 @@ export async function updateCollection(
 
     return collection
   })
-  await updateAutoimport(uuid)
+
   return collection
 }
 

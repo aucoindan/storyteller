@@ -3,7 +3,13 @@
 import { Box, Button, Group, Paper, Progress, Stack, Text } from "@mantine/core"
 
 import { usePermissions } from "@/hooks/usePermissions"
-import { useListBooksQuery, useProcessBookMutation } from "@/store/api"
+import {
+  useCancelScanMutation,
+  useGetScanStateQuery,
+  useListBooksQuery,
+  useProcessBookMutation,
+  useTriggerBookScanMutation,
+} from "@/store/api"
 import { type UUID } from "@/uuid"
 
 import { BookOptions } from "./BookOptions"
@@ -29,6 +35,14 @@ export function BookStatus({ bookUuid }: Props) {
   const permissions = usePermissions()
 
   const [processBook] = useProcessBookMutation()
+  const [triggerBookScan, { isLoading: isTriggeringScan }] =
+    useTriggerBookScanMutation()
+  const [cancelScan, { isLoading: isCancellingScan }] = useCancelScanMutation()
+
+  const { data: scanState } = useGetScanStateQuery(undefined, {
+    pollingInterval: 5_000,
+    skip: !permissions?.bookProcess,
+  })
 
   if (!book) return null
 
@@ -44,7 +58,12 @@ export function BookStatus({ bookUuid }: Props) {
     <Paper>
       <Group justify="space-between" wrap="nowrap" align="center">
         <BookOptions aligned={aligned} book={book} />
-        {book.readaloud || (book.ebook && book.audiobook) ? (
+
+        {book.readaloud ||
+        (book.ebook &&
+          !book.ebook.missing &&
+          book.audiobook &&
+          !book.audiobook.missing) ? (
           <Stack justify="space-between" className="grow">
             {book.readaloud?.status ? (
               book.readaloud.status === "QUEUED" ? (
@@ -78,8 +97,36 @@ export function BookStatus({ bookUuid }: Props) {
             )}
           </Stack>
         ) : (
-          // Just to keep the actions in the same place
           <Box />
+        )}
+
+        {permissions.bookProcess && (
+          <Group gap="xs">
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              loading={isTriggeringScan}
+              onClick={() => {
+                void triggerBookScan({ uuid: book.uuid, force: true })
+              }}
+            >
+              Scan
+            </Button>
+
+            {scanState?.running && (
+              <Button
+                variant="subtle"
+                color="red"
+                size="compact-sm"
+                loading={isCancellingScan}
+                onClick={() => {
+                  void cancelScan()
+                }}
+              >
+                Cancel scan
+              </Button>
+            )}
+          </Group>
         )}
       </Group>
     </Paper>

@@ -1,6 +1,7 @@
 import {
   type AttachedPic,
   type TrackInfo,
+  extractCoverArtData,
   getTrackMetadata,
   writeTrackMetadata,
 } from "./ffmpeg.ts"
@@ -19,6 +20,7 @@ function splitNames(names: string | undefined): string[] {
 
 export class AudiobookEntry {
   private info: TrackInfo | null = null
+  private coverArt: AttachedPic | null | undefined = undefined
 
   constructor(public filename: string) {}
 
@@ -96,14 +98,23 @@ export class AudiobookEntry {
   }
 
   async getCoverArt(): Promise<AttachedPic | null> {
+    if (this.coverArt !== undefined) return this.coverArt
+
     const info = await this.getInfo()
 
-    return info.attachedPic || null
+    if (!info.attachedPicMeta) {
+      this.coverArt = null
+      return null
+    }
+
+    const data = await extractCoverArtData(this.filename)
+    this.coverArt = { ...info.attachedPicMeta, data }
+
+    return this.coverArt
   }
 
-  async setCoverArt(picture: AttachedPic): Promise<void> {
-    const info = await this.getInfo()
-    info.attachedPic = picture
+  setCoverArt(picture: AttachedPic): void {
+    this.coverArt = picture
   }
 
   async getPublisher(): Promise<string | null> {
@@ -185,6 +196,16 @@ export class AudiobookEntry {
 
   async saveAndClose(): Promise<void> {
     const info = await this.getInfo()
-    await writeTrackMetadata(this.filename, info)
+
+    let attachedPic: AttachedPic | undefined
+
+    if (this.coverArt !== undefined) {
+      attachedPic = this.coverArt ?? undefined
+    } else if (info.attachedPicMeta) {
+      const data = await extractCoverArtData(this.filename)
+      attachedPic = { ...info.attachedPicMeta, data }
+    }
+
+    await writeTrackMetadata(this.filename, info, attachedPic)
   }
 }

@@ -2619,7 +2619,7 @@ Defined in:
 > `Promise`\<[`EpubInstanceFor`](#epubinstancefor)\<`A`\>\>
 
 Defined in:
-[epub/index.ts:3072](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3072)
+[epub/index.ts:3074](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3074)
 
 Construct a new EPUB on this factory's adapter, optionally seeded with the
 provided metadata. Requires a writable adapter that implements `initEmpty`
@@ -2645,7 +2645,18 @@ when the adapter is read-only or does not implement initEmpty
 
 ##### Call Signature
 
-> **from**(`source`, `options`): `Promise`\<[`EpubReader`](#epubreader)\>
+> **from**(`source`, `options`): `Promise`\<`Pick`\<[`Epub`](#epub), `"storage"`
+> \| `"getManifest"` \| `"getVersion"` \| `"getLayout"` \| `"getBaseDirection"`
+> \| `"getMetadata"` \| `"findMetadataItem"` \| `"findAllMetadataItems"` \|
+> `"getIdentifier"` \| `"getTitle"` \| `"getSubtitle"` \| `"getTitles"` \|
+> `"getLanguage"` \| `"getPublicationDate"` \| `"getModifiedDate"` \|
+> `"getDescription"` \| `"getType"` \| `"getCreators"` \| `"getContributors"` \|
+> `"getSubjects"` \| `"getCollections"` \| `"getPackageVocabularyPrefixes"` \|
+> `"getCoverImageItem"` \| `"getCoverImage"` \| `"getSpineItems"` \|
+> `"getNcxTableOfContents"` \| `"getGuideEntries"` \| `"getTableOfContents"` \|
+> `"getLandmarks"` \| `"getPageList"` \| `"resolveHref"` \| `"readFileContents"`
+> \| `"readItemContents"` \| `"readXhtmlItemContents"` \|
+> `"getItemArchiveLength"` \| `"discardAndClose"`\> & `Disposable` & `object`\>
 
 Defined in:
 [epub/index.ts:3025](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3025)
@@ -2661,7 +2672,18 @@ Open an existing EPUB through this factory's adapter
 
 ###### Returns
 
-`Promise`\<[`EpubReader`](#epubreader)\>
+`Promise`\<`Pick`\<[`Epub`](#epub), `"storage"` \| `"getManifest"` \|
+`"getVersion"` \| `"getLayout"` \| `"getBaseDirection"` \| `"getMetadata"` \|
+`"findMetadataItem"` \| `"findAllMetadataItems"` \| `"getIdentifier"` \|
+`"getTitle"` \| `"getSubtitle"` \| `"getTitles"` \| `"getLanguage"` \|
+`"getPublicationDate"` \| `"getModifiedDate"` \| `"getDescription"` \|
+`"getType"` \| `"getCreators"` \| `"getContributors"` \| `"getSubjects"` \|
+`"getCollections"` \| `"getPackageVocabularyPrefixes"` \| `"getCoverImageItem"`
+\| `"getCoverImage"` \| `"getSpineItems"` \| `"getNcxTableOfContents"` \|
+`"getGuideEntries"` \| `"getTableOfContents"` \| `"getLandmarks"` \|
+`"getPageList"` \| `"resolveHref"` \| `"readFileContents"` \|
+`"readItemContents"` \| `"readXhtmlItemContents"` \| `"getItemArchiveLength"` \|
+`"discardAndClose"`\> & `Disposable` & `object`\>
 
 ###### Throws
 
@@ -2670,7 +2692,7 @@ when the archive is not a valid EPUB 3
 ##### Call Signature
 
 > **from**(`source`, `options?`):
-> `Promise`\<[`EpubInstanceFor`](#epubinstancefor)\<`A`\>\>
+> `Promise`\<[`EpubInstanceFor`](#epubinstancefor)\<`A`\> & `object`\>
 
 Defined in:
 [epub/index.ts:3029](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3029)
@@ -2686,7 +2708,7 @@ Open an existing EPUB through this factory's adapter
 
 ###### Returns
 
-`Promise`\<[`EpubInstanceFor`](#epubinstancefor)\<`A`\>\>
+`Promise`\<[`EpubInstanceFor`](#epubinstancefor)\<`A`\> & `object`\>
 
 ###### Throws
 
@@ -2698,7 +2720,7 @@ when the archive is not a valid EPUB 3
 > `Promise`\<[`EpubInstanceFor`](#epubinstancefor)\<`A`\>\>
 
 Defined in:
-[epub/index.ts:3185](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3185)
+[epub/index.ts:3187](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3187)
 
 Upgrade an EPUB 2 publication to EPUB 3 in place using this factory's adapter,
 returning a new, valid Epub 3 instance.
@@ -4340,4 +4362,287 @@ Defined in:
 > `object`
 
 Defined in:
-[
+[epub/adapters/interface.ts:82](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/adapters/interface.ts#L82)
+
+### Type Parameters
+
+| Type Parameter |
+| -------------- |
+| `A`            |
+
+---
+
+## ElementName
+
+> **ElementName** =
+> \`$\{Letter \| Uppercase\<Letter\> \| QuestionMark\}$\{string\}\`
+
+Defined in:
+[epub/index.ts:82](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L82)
+
+A valid name for an XML element (must start with a letter)
+
+---
+
+## EpubInstanceFor\<A\>
+
+> **EpubInstanceFor**\<`A`\> = `A`\[`"capabilities"`\]\[`"writable"`\] _extends_
+> `true` ? [`Epub`](#epub) : [`EpubReader`](#epubreader)
+
+Defined in:
+[epub/index.ts:3006](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L3006)
+
+Resolves to [Epub](#epub) for writable adapters, [EpubReader](#epubreader) for
+read-only ones.
+
+The conditional pivots on `capabilities.writable`, which must be a literal
+`true`/`false` on the adapter class (use `as const`) for inference to work.
+
+### Type Parameters
+
+| Type Parameter                                                      |
+| ------------------------------------------------------------------- |
+| `A` _extends_ [`EpubStorageAdapterClass`](#epubstorageadapterclass) |
+
+---
+
+## EpubMetadata
+
+> **EpubMetadata** = [`MetadataEntry`](#metadataentry)[]
+
+Defined in:
+[epub/index.ts:119](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L119)
+
+---
+
+## EpubReader
+
+> **EpubReader** = `Pick`\<[`Epub`](#epub), `"storage"` \| `"getManifest"` \|
+> `"getVersion"` \| `"getLayout"` \| `"getBaseDirection"` \| `"getMetadata"` \|
+> `"findMetadataItem"` \| `"findAllMetadataItems"` \| `"getIdentifier"` \|
+> `"getTitle"` \| `"getSubtitle"` \| `"getTitles"` \| `"getLanguage"` \|
+> `"getPublicationDate"` \| `"getModifiedDate"` \| `"getDescription"` \|
+> `"getType"` \| `"getCreators"` \| `"getContributors"` \| `"getSubjects"` \|
+> `"getCollections"` \| `"getPackageVocabularyPrefixes"` \|
+> `"getCoverImageItem"` \| `"getCoverImage"` \| `"getSpineItems"` \|
+> `"getNcxTableOfContents"` \| `"getGuideEntries"` \| `"getTableOfContents"` \|
+> `"getLandmarks"` \| `"getPageList"` \| `"resolveHref"` \| `"readFileContents"`
+> \| `"readItemContents"` \| `"readXhtmlItemContents"` \|
+> `"getItemArchiveLength"` \| `"discardAndClose"`\> & `Disposable`
+
+Defined in:
+[epub/index.ts:190](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L190)
+
+Read-only view of an EPUB Returned by Epub.using(MemoryAdapter).from(...) and by
+Epub.from(path, { readonly: true })
+
+---
+
+## EpubStorageKind
+
+> **EpubStorageKind** = `"tmp-dir"` \| `"in-memory"` \| `string` & `object`
+
+Defined in:
+[epub/adapters/interface.ts:10](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/adapters/interface.ts#L10)
+
+Pluggable storage backend for an Epub instance
+
+Built-in adapters:
+
+- [TmpFsAdapter](#tmpfsadapter) extracts the archive to a tmp directory and
+  supports the full read/write/save/upgrade
+- [MemoryAdapter](#memoryadapter) keeps an in-memory zip handle and supports
+  reads only
+
+---
+
+## InMemoryEpubReader
+
+> **InMemoryEpubReader** = [`EpubReader`](#epubreader) & `object`
+
+Defined in:
+[epub/index.ts:235](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L235)
+
+Readonly Epub-instance backed by an in-memory zip handle Returned by
+`Epub.using(MemoryAdapter).from(...)`
+
+### Type Declaration
+
+#### storage
+
+> `readonly` **storage**: `"in-memory"`
+
+---
+
+## ManifestItem
+
+> **ManifestItem** = `object`
+
+Defined in:
+[epub/index.ts:103](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L103)
+
+### Properties
+
+#### fallback?
+
+> `optional` **fallback**: `string`
+
+Defined in:
+[epub/index.ts:107](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L107)
+
+#### href
+
+> **href**: `string`
+
+Defined in:
+[epub/index.ts:105](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L105)
+
+#### id
+
+> **id**: `string`
+
+Defined in:
+[epub/index.ts:104](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L104)
+
+#### mediaOverlay?
+
+> `optional` **mediaOverlay**: `string`
+
+Defined in:
+[epub/index.ts:108](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L108)
+
+#### mediaType?
+
+> `optional` **mediaType**: `string`
+
+Defined in:
+[epub/index.ts:106](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L106)
+
+#### properties?
+
+> `optional` **properties**: `string`[]
+
+Defined in:
+[epub/index.ts:109](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L109)
+
+---
+
+## MetadataEntry
+
+> **MetadataEntry** = `object`
+
+Defined in:
+[epub/index.ts:112](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L112)
+
+### Properties
+
+#### id?
+
+> `optional` **id**: `string`
+
+Defined in:
+[epub/index.ts:113](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L113)
+
+#### properties
+
+> **properties**: `Record`\<`string`, `string`\>
+
+Defined in:
+[epub/index.ts:115](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L115)
+
+#### type
+
+> **type**: [`ElementName`](#elementname)
+
+Defined in:
+[epub/index.ts:114](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L114)
+
+#### value
+
+> **value**: `string` \| `undefined`
+
+Defined in:
+[epub/index.ts:116](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L116)
+
+---
+
+## NavigationList
+
+> **NavigationList** = [`NavigationItem`](#navigationitem)[]
+
+Defined in:
+[epub/index.ts:163](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L163)
+
+---
+
+## PackageElement
+
+> **PackageElement** = [`XmlElement`](#xmlelement)\<`"package"`\>
+
+Defined in:
+[epub/index.ts:176](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L176)
+
+---
+
+## ParsedXml
+
+> **ParsedXml** = [`XmlNode`](#xmlnode)[]
+
+Defined in:
+[epub/index.ts:101](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L101)
+
+An XML structure
+
+---
+
+## XmlElement\<Name\>
+
+> **XmlElement**\<`Name`\> = `object` & `{ [key in Name]: ParsedXml }`
+
+Defined in:
+[epub/index.ts:88](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L88)
+
+An XML element
+
+### Type Declaration
+
+#### :@?
+
+> `optional` **:@**: `Record`\<`` `${PropertyPrefix}${string}` ``, `string`\>
+
+### Type Parameters
+
+| Type Parameter                                 | Default type                  |
+| ---------------------------------------------- | ----------------------------- |
+| `Name` _extends_ [`ElementName`](#elementname) | [`ElementName`](#elementname) |
+
+---
+
+## XmlNode
+
+> **XmlNode** = [`XmlElement`](#xmlelement) \| [`XmlTextNode`](#xmltextnode)
+
+Defined in:
+[epub/index.ts:98](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L98)
+
+A valid XML node. May be either an element or a text node.
+
+---
+
+## XmlTextNode
+
+> **XmlTextNode** = `object`
+
+Defined in:
+[epub/index.ts:95](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L95)
+
+A text node in an XML document
+
+### Properties
+
+#### #text
+
+> **#text**: `string`
+
+Defined in:
+[epub/index.ts:95](https://gitlab.com/storyteller-platform/storyteller/-/blob/main/epub/index.ts#L95)

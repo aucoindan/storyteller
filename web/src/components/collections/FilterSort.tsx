@@ -1,8 +1,11 @@
 import {
   Button,
+  Flex,
   Group,
   MultiSelect,
+  NumberInput,
   Stack,
+  Text,
   type TextInputProps,
 } from "@mantine/core"
 import { type Ref, useMemo } from "react"
@@ -186,6 +189,10 @@ export function FilterSort({
                   label: "Missing readaloud",
                   value: "ebook-audiobook-only",
                 },
+                {
+                  label: "Has missing files",
+                  value: "missing",
+                },
               ]}
               value={filters.bookTypes ?? []}
               onChange={(values) => {
@@ -209,6 +216,96 @@ export function FilterSort({
               }}
             />
           </Group>
+          <Group className="gap-3">
+            <Stack gap={2}>
+              <Text className="text-xs text-gray-500">File size (MB)</Text>
+              <Flex className="gap-1">
+                <NumberInput
+                  className="w-20"
+                  aria-label="Min file-size (MB)"
+                  placeholder="Min"
+                  value={filters.fileSize?.[0] || ""}
+                  onChange={(value) => {
+                    filters.onFileSizeChange([
+                      Number(value),
+                      filters.fileSize?.[1] ?? 0,
+                    ])
+                  }}
+                />
+                <NumberInput
+                  className="w-20"
+                  aria-label="Max file-size (MB)"
+                  placeholder="Max"
+                  value={filters.fileSize?.[1] || ""}
+                  onChange={(value) => {
+                    filters.onFileSizeChange([
+                      filters.fileSize?.[0] ?? 0,
+                      Number(value),
+                    ])
+                  }}
+                />
+              </Flex>
+            </Stack>
+            <Stack gap={2}>
+              <Text className="text-xs text-gray-500">Duration (min)</Text>
+              <Flex className="gap-1">
+                <NumberInput
+                  className="w-20"
+                  aria-label="Min duration (minutes)"
+                  placeholder="Min"
+                  value={filters.duration?.[0] || ""}
+                  onChange={(value) => {
+                    filters.onDurationChange([
+                      Number(value),
+                      filters.duration?.[1] ?? 0,
+                    ])
+                  }}
+                />
+                <NumberInput
+                  className="w-20"
+                  aria-label="Max duration (minutes)"
+                  placeholder="Max"
+                  value={filters.duration?.[1] || ""}
+                  onChange={(value) => {
+                    filters.onDurationChange([
+                      filters.duration?.[0] ?? 0,
+                      Number(value),
+                    ])
+                  }}
+                />
+              </Flex>
+            </Stack>
+            <Stack gap={2}>
+              <Text className="text-xs text-gray-500">Pages</Text>
+              <Flex className="gap-1">
+                <NumberInput
+                  className="w-20"
+                  aria-label="Min page count"
+                  placeholder="Min"
+                  value={filters.pageCount?.[0] || ""}
+                  onChange={(value) => {
+                    filters.onPageCountChange([
+                      Number(value),
+                      filters.pageCount?.[1] ?? 0,
+                    ])
+                  }}
+                />
+                <NumberInput
+                  className="w-20"
+                  aria-label="Max page count"
+                  placeholder="Max"
+                  value={filters.pageCount?.[1] || ""}
+                  onChange={(value) => {
+                    filters.onPageCountChange([
+                      filters.pageCount?.[0] ?? 0,
+                      Number(value),
+                    ])
+                  }}
+                />
+              </Flex>
+            </Stack>
+          </Group>
+
           <Group>
             <Button
               size="compact-sm"

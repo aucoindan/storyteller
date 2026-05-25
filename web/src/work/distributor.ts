@@ -1,10 +1,17 @@
-import { join } from "node:path"
+import { extname, join, resolve } from "node:path"
 import { cwd } from "node:process"
 import { MessageChannel } from "node:worker_threads"
 
 import { AsyncMutex } from "@esfx/async-mutex"
 import Piscina from "piscina"
 
+import { pathBelongsTo } from "@/assets/library/scanner/folder"
+import { filepathFolder, scan } from "@/assets/library/scanner/scan"
+import {
+  suppressPrefix,
+  unsuppressPrefix,
+} from "@/assets/library/scanner/write-intent"
+import { getReadaloudFilepath } from "@/assets/paths"
 import {
   type BookRelationsUpdate,
   type BookUpdate,
@@ -14,6 +21,7 @@ import {
   getNextQueuePosition,
   updateBook,
 } from "@/database/books"
+import { getSettings } from "@/database/settings"
 import { env } from "@/env"
 import { logger } from "@/logging"
 import type { UUID } from "@/uuid"
@@ -121,6 +129,44 @@ export async function startProcessing(bookUuid: UUID, restart: RestartMode) {
 
   controllers.set(bookUuid, abortController)
 
+  // same logic as in deleteBook, should probably be a helper function
+  const filePaths = [
+    book.ebook?.filepath,
+    book.audiobook?.filepath,
+    book.readaloud?.filepath,
+  ]
+    .filter((filepath) => filepath != undefined)
+    .map((filepath) => resolve(filepath))
+
+  // if one of the paths is a directory and contains the others, ignore the others, no point in adding them all
+  const dirs = filePaths.filter((dir) => !extname(dir))
+
+  const realFilePaths = filePaths.filter((path) => {
+    // basically no subpaths
+    return !dirs.some((dir) => pathBelongsTo(dir, path))
+  })
+
+  const toSupress = [...dirs, ...realFilePaths]
+
+  // predict the readaloud output path and suppress it before the worker spawns,
+  if (book.ebook?.filepath) {
+    try {
+      const settings = await getSettings()
+      const predictedReadaloudPath = getReadaloudFilepath(book, settings)
+      toSupress.push(predictedReadaloudPath)
+    } catch (err) {
+      logger.warn({
+        msg: "Failed to predict readaloud filepath for suppression",
+        bookUuid,
+        err,
+      })
+    }
+  }
+
+  const refreshSuppression = () => {
+    for (const fp of toSupress) suppressPrefix(fp)
+  }
+
   const { port1, port2 } = new MessageChannel()
 
   port2.on(
@@ -130,6 +176,15 @@ export async function startProcessing(bookUuid: UUID, restart: RestartMode) {
       update: BookUpdate | null
       relations: BookRelationsUpdate
     }) => {
+      // keep refreshing suppression to ensure the watcher ignores the create event
+      refreshSuppression()
+
+      // readaloud filepath may change during processing, keep suppressed
+      if (message.relations.readaloud?.filepath) {
+        const fp = message.relations.readaloud.filepath
+        toSupress.push(fp)
+      }
+
       const updated = await updateBook(
         bookUuid,
         message.update,
@@ -139,6 +194,8 @@ export async function startProcessing(bookUuid: UUID, restart: RestartMode) {
     },
   )
 
+  refreshSuppression()
+
   try {
     await alignmentPiscina.run(
       { bookUuid, restart: effectiveRestart, port: port1 } satisfies Parameters<
@@ -146,6 +203,29 @@ export async function startProcessing(bookUuid: UUID, restart: RestartMode) {
       >[0],
       { transferList: [port1], signal: abortController.signal },
     )
+
+    const book = await getBookOrThrow(bookUuid)
+    if (!book.readaloud?.filepath) {
+      throw new Error(
+        `Book ${book.title} (${bookUuid}) has no readaloud filepath after processing`,
+      )
+    }
+    await scan({
+      source: "readaloud-creation",
+      request: {
+        kind: "candidates",
+        candidates: [
+          {
+            filepath: book.readaloud.filepath,
+            format: "readaloud",
+            existingBook: book,
+            folder: filepathFolder(book.readaloud.filepath),
+          },
+        ],
+      },
+      options: { concurrency: 1 },
+      signal: AbortSignal.timeout(10000),
+    })
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       logger.info(`Processing for book ${bookUuid} aborted by user`)
@@ -175,6 +255,8 @@ export async function startProcessing(bookUuid: UUID, restart: RestartMode) {
     logger.error(`Processing for book ${bookUuid} failed unexpectedly`)
     logger.error(err)
   } finally {
+    for (const fp of toSupress) unsuppressPrefix(fp)
+
     if (controllers.has(bookUuid)) controllers.delete(bookUuid)
   }
 }

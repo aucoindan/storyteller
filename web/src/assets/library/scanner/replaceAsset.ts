@@ -1,0 +1,253 @@
+import { rm } from "node:fs/promises"
+
+import {
+  getInternalAudioDirectory,
+  getInternalBookDirectory,
+  getInternalEpubFilepath,
+  getInternalReadaloudFilepath,
+} from "@/assets/paths"
+import { type Book, type BookWithRelations, getBook } from "@/database/books"
+import { getSetting } from "@/database/settings"
+import {
+  type ImportMode,
+  type MetadataFieldOverrides,
+} from "@/database/settingsTypes"
+import { BookEvents } from "@/events"
+import { type UUID } from "@/uuid"
+
+import { pathBelongsTo } from "./folder"
+import { filepathFolder, scan } from "./scan"
+import { type Candidate, type ScanFormat } from "./types"
+import { suppressPrefix, unsuppressPrefix } from "./write-intent"
+
+async function clearInternalAssetForFormat(book: Book, format: ScanFormat) {
+  const assetDir = getInternalBookDirectory(book)
+  suppressPrefix(assetDir)
+  try {
+    if (format === "audiobook") {
+      const audioDir = getInternalAudioDirectory(book)
+      await rm(audioDir, {
+        recursive: true,
+        force: true,
+      })
+      return
+    }
+
+    const filepath =
+      format === "ebook"
+        ? getInternalEpubFilepath(book)
+        : getInternalReadaloudFilepath(book)
+    await rm(filepath, { force: true })
+  } finally {
+    unsuppressPrefix(assetDir)
+  }
+}
+
+export class ReplaceAssetInsideBookDirError extends Error {
+  constructor() {
+    super(
+      "Cannot replace from a path inside the book's asset folder. " +
+        "Pick a source outside the library, or remove the format first.",
+    )
+    this.name = "ReplaceAssetInsideBookDirError"
+  }
+}
+
+function assertSourceOutsideAssetDir(book: Book, filepath: string) {
+  const internalDir = getInternalBookDirectory(book)
+  if (pathBelongsTo(internalDir, filepath)) {
+    throw new ReplaceAssetInsideBookDirError()
+  }
+}
+
+export type ReplaceAssetOpts = {
+  book: BookWithRelations
+  filepath: string
+  format: ScanFormat
+  importMode?: ImportMode
+  metadataFieldOverrides?: MetadataFieldOverrides
+  signal: AbortSignal
+  userId?: UUID
+}
+
+function buildReplaceCandidate(
+  book: BookWithRelations,
+  filepath: string,
+  format: ScanFormat,
+  importMode: ImportMode,
+): Candidate {
+  return {
+    folder: filepathFolder(filepath),
+    format,
+    filepath,
+    existingBook: book,
+    importMode,
+  }
+}
+
+async function emitBookUpdated(
+  book: BookWithRelations,
+  userId: UUID | undefined,
+): Promise<BookWithRelations> {
+  const updated = await getBook(book.uuid, userId)
+  if (updated) {
+    BookEvents.emit("message", {
+      type: "bookUpdated",
+      bookUuid: book.uuid,
+      payload: updated,
+    })
+  }
+  return updated ?? book
+}
+
+/**
+ * replace (or add) a format on an existing book from a server-local path.
+ * thin wrapper around the scanner: build a Candidate with existingBook set
+ * and let ingest+pipeline do the rest.
+ */
+export async function replaceBookAsset(
+  opts: ReplaceAssetOpts,
+): Promise<BookWithRelations> {
+  const { book, filepath, format, metadataFieldOverrides, signal, userId } =
+    opts
+  const importMode = opts.importMode ?? (await getSetting("importMode"))
+
+  // guard before clearing: if the user picked a source inside the asset
+  // folder, clearing would delete it and the scan would find nothing.
+  assertSourceOutsideAssetDir(book, filepath)
+
+  // when replacing an existing format, wipe what's on disk first. for
+  // audiobook this prevents old + new tracks coexisting; for reference-mode
+  // replace it stops the internal asset from orphaning. no-op if the format
+  // isn't currently stored.
+  if (book[format]) {
+    const assetDir = getInternalBookDirectory(book)
+    suppressPrefix(assetDir)
+    await clearInternalAssetForFormat(book, format)
+  }
+
+  await scan({
+    source: "api",
+    request: {
+      kind: "candidates",
+      candidates: [buildReplaceCandidate(book, filepath, format, importMode)],
+    },
+    options: {
+      force: true,
+      importMode,
+      ...(metadataFieldOverrides && { metadataFieldOverrides }),
+    },
+    signal,
+  })
+
+  return emitBookUpdated(book, userId)
+}
+
+export type ReplaceAssetFromUploadOpts = {
+  book: BookWithRelations
+  uploadPath: string
+  format: ScanFormat
+  /** only used for audiobook uploads: the relative path within the audiobook directory */
+  relativePath?: string
+  metadataFieldOverrides?: MetadataFieldOverrides
+  signal: AbortSignal
+}
+
+/**
+ * scan an existing audiobook directory after one or more new tracks have been
+ * staged. used by both `replaceBookAssetFromUpload` (single-shot path) and
+ * the finalize endpoint that drains a partially-failed batch.
+ */
+export async function scanReplacedAudiobook(opts: {
+  book: BookWithRelations
+  metadataFieldOverrides?: MetadataFieldOverrides
+  signal: AbortSignal
+}): Promise<BookWithRelations> {
+  const audioDir = getInternalAudioDirectory(opts.book)
+
+  await scan({
+    source: "upload",
+    request: {
+      kind: "candidates",
+      candidates: [
+        {
+          folder: audioDir,
+          format: "audiobook",
+          filepath: audioDir,
+          existingBook: opts.book,
+        },
+      ],
+    },
+    options: {
+      force: true,
+      ...(opts.metadataFieldOverrides && {
+        metadataFieldOverrides: opts.metadataFieldOverrides,
+      }),
+    },
+    signal: opts.signal,
+  })
+  return emitBookUpdated(opts.book, undefined)
+}
+
+// TODO: this could likely be replaced by just scanning the upload batch directory
+// and updating the move mode to work with a bookUuidHint
+export async function replaceBookAssetFromUpload(
+  opts: ReplaceAssetFromUploadOpts,
+): Promise<BookWithRelations | null> {
+  const { book, uploadPath, format, metadataFieldOverrides, signal } = opts
+
+  await clearInternalAssetForFormat(book, format)
+
+  // if (format === "audiobook") {
+  //   const internalAudioDir = getInternalAudioDirectory(book)
+
+  //   // read all the files in the upload path dir
+  //   const uploadPathDir = dirname(uploadPath)
+  //   const files = await readdir(uploadPathDir)
+  //   if (files.length === 0) {
+  //     throw new Error("No files found in the upload path directory")
+  //   }
+
+  //   // suppress the prefix for the internal audio directory, otherwise too many triggers
+  //   await mkdir(getInternalAudioDirectory(book), { recursive: true })
+  //   for (const file of files) {
+  //     if (!isAudioFile(file)) {
+  //       continue
+  //     }
+  //     const src = join(uploadPathDir, file)
+  //     const dest = join(internalAudioDir, file)
+  //     await move(src, dest)
+  //   }
+
+  //   if (!book.audiobook) {
+  //     await updateBook(book.uuid, null, {
+  //       audiobook: {
+  //         filepath: internalAudioDir,
+  //         missing: false,
+  //       },
+  //     })
+  //   }
+
+  //   unsuppressPrefix(assetDir)
+
+  //   return scanReplacedAudiobook({ book, metadataFieldOverrides, signal })
+  // }
+
+  // ebook/readaloud: relocateIfNeeded overwrites the dest file, so the
+  // single-file case is fine without an explicit clear.
+  await scan({
+    source: "upload",
+    request: {
+      kind: "candidates",
+      candidates: [buildReplaceCandidate(book, uploadPath, format, "move")],
+    },
+    options: {
+      force: true,
+      importMode: "move",
+      ...(metadataFieldOverrides && { metadataFieldOverrides }),
+    },
+    signal,
+  })
+
+  return emitBookUpdated(book, undefined)
+}

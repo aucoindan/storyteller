@@ -4,10 +4,19 @@ import { MessageChannel } from "node:worker_threads"
 
 import Piscina, { transferableSymbol, valueSymbol } from "piscina"
 
+import {
+  suppressPrefix,
+  unsuppressPrefix,
+} from "@/assets/library/scanner/write-intent"
+import { getBook, updateBook } from "@/database/books"
 import { env } from "@/env"
+import { logger } from "@/logging"
 import type { UUID } from "@/uuid"
 
-import type writeMetadataToFiles from "./fileWriteWorker"
+import type {
+  FileWriteWorkerMessage,
+  WriteMetadataToFilesInput,
+} from "./fileWriteWorker"
 
 /**
  * Next.js app directory seems to have a bug where, in production,
@@ -80,11 +89,24 @@ export async function queueWritesToFiles(
 
   const { port1, port2 } = new MessageChannel()
 
-  port2.on("message", (event: { type: "started"; bookUuid: UUID }) => {
-    const index = fileWriteQueue.findIndex(
-      (bookUuid) => bookUuid === event.bookUuid,
-    )
-    fileWriteQueue.splice(index, 1)
+  port2.on("message", async (message: FileWriteWorkerMessage) => {
+    if (message.type === "started") {
+      const index = fileWriteQueue.findIndex(
+        (bookUuid) => bookUuid === message.bookUuid,
+      )
+      fileWriteQueue.splice(index, 1)
+      return
+    }
+
+    try {
+      await updateBook(message.bookUuid, null, message.relations)
+    } catch (e) {
+      logger.error({
+        err: e,
+        msg: `Failed to update book ${message.bookUuid} from file write worker`,
+      })
+    }
+    port2.postMessage({ requestId: message.requestId })
   })
 
   const transferableTextCover = textCover && {
@@ -123,13 +145,29 @@ export async function queueWritesToFiles(
     },
   }
 
-  await fileWritePiscina.run(
-    {
-      bookUuid,
-      textCover: transferableTextCover,
-      audioCover: transferableAudioCover,
-      port: port1,
-    } satisfies Parameters<typeof writeMetadataToFiles>[0],
-    { transferList: [port1] },
-  )
+  const book = await getBook(bookUuid)
+  const filepaths: string[] = []
+  if (book?.ebook?.filepath) filepaths.push(book.ebook.filepath)
+  if (book?.readaloud?.filepath) filepaths.push(book.readaloud.filepath)
+
+  const dirpaths: string[] = []
+  if (book?.audiobook?.filepath) dirpaths.push(book.audiobook.filepath)
+
+  for (const fp of filepaths) suppressPrefix(fp)
+  for (const dp of dirpaths) suppressPrefix(dp)
+
+  try {
+    await fileWritePiscina.run(
+      {
+        bookUuid,
+        textCover: transferableTextCover,
+        audioCover: transferableAudioCover,
+        port: port1,
+      } satisfies WriteMetadataToFilesInput,
+      { transferList: [port1] },
+    )
+  } finally {
+    for (const fp of filepaths) unsuppressPrefix(fp)
+    for (const dp of dirpaths) unsuppressPrefix(dp)
+  }
 }

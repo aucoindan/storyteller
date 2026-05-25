@@ -6,8 +6,13 @@ export async function register() {
   // this makes sure env is validated at startup
   // we don't import it "normally" as this may cause issues in the edge runtime if end up
   // adding extra imports to env.ts
-  const { env } = await import("@/env")
-  const { listen } = await import("./assets/autoimport/listen")
+  await import("@/env")
+  const { getWatcher } = await import(
+    "./assets/library/scanner/triggers/watcher"
+  )
+  const { getScheduler } = await import(
+    "./assets/library/scanner/triggers/scheduler"
+  )
   const { logger } = await import("./logging")
   const { migrate } = await import("./database/migrate")
   const { syncChangelog } = await import("./database/changelog")
@@ -18,15 +23,36 @@ export async function register() {
   logger.debug("Debug logging enabled")
 
   try {
+    const readiumService = getReadiumService()
+    await readiumService.start()
+    logger.info("Readium service initialized successfully")
+  } catch (err) {
+    logger.error(
+      "Failed to start Readium service: this will cause problems with the web reader and scanner",
+    )
+    logger.error(err)
+  }
+
+  try {
     await migrate()
   } catch (err) {
     logger.error("Failed to run database migrations — Aborting startup")
     throw err
   }
+
   try {
-    await listen()
+    const { syncConfigFileImportPaths } = await import("./database/settings")
+    await syncConfigFileImportPaths()
   } catch (err) {
-    logger.error("Failed to initiate filesystem listener")
+    logger.error("Failed to sync config file import paths")
+    logger.error(err)
+  }
+
+  try {
+    await getWatcher().start()
+    await getScheduler().refresh()
+  } catch (err) {
+    logger.error("Failed to initiate library watcher services")
     logger.error(err)
   }
 
@@ -37,13 +63,12 @@ export async function register() {
     logger.error(err)
   }
 
-  // TODO: make cron
-  const THIRTY_MINUTES = 30 * 60 * 1000
-  setInterval(() => {
+  const cron = await import("node-cron")
+  cron.schedule("*/30 * * * *", () => {
     syncChangelog().catch((err: unknown) => {
       logger.error({ msg: "Periodic changelog sync failed", err })
     })
-  }, THIRTY_MINUTES)
+  })
 
   try {
     const queue = await getQueuedBooks()
@@ -56,19 +81,6 @@ export async function register() {
     }
   } catch (err) {
     logger.error("Failed to restart processing queue")
-    logger.error(err)
-  }
-
-  if (!env.ENABLE_WEB_READER) {
-    return
-  }
-
-  try {
-    const readiumService = getReadiumService()
-    await readiumService.start()
-    logger.info("Readium service initialized successfully")
-  } catch (err) {
-    logger.error("Failed to start Readium service")
     logger.error(err)
   }
 }

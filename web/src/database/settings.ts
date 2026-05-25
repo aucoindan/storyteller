@@ -2,11 +2,17 @@ import { readFileSync } from "node:fs"
 
 import { ZodError } from "zod"
 
-import { update } from "@/assets/autoimport/listen"
+import { getScheduler } from "@/assets/library/scanner/triggers/scheduler"
 import { env } from "@/env"
+import { logger } from "@/logging"
 
 import { db } from "./connection"
-import { ConfigFileSchema, type Settings } from "./settingsTypes"
+import { createImportRule, getImportRules } from "./importRules"
+import {
+  ConfigFileSchema,
+  type ImportMode,
+  type Settings,
+} from "./settingsTypes"
 
 export function formatTranscriptionEngineDetails(settings: Settings) {
   let details = settings.transcriptionEngine ?? "whisper.cpp"
@@ -97,15 +103,22 @@ export function getConfigLockedKeys(): Set<keyof Settings> {
 
 export async function getSetting<Name extends keyof Settings>(name: Name) {
   const { settings: configSettings, keys } = loadConfigFile()
+
   if (keys.has(name)) {
     return configSettings[name] as Settings[Name]
   }
+
   const { valueJson } = await db
     .selectFrom("settings")
     .select(["value as valueJson"])
     .where("name", "=", name)
+    .orderBy("createdAt", "desc")
     .executeTakeFirstOrThrow()
-  return JSON.parse(valueJson) as Settings[Name]
+
+  const parsed: unknown =
+    typeof valueJson === "string" ? JSON.parse(valueJson) : valueJson
+
+  return parsed as Settings[Name]
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -113,24 +126,27 @@ export async function getSettings(): Promise<Settings> {
     .selectFrom("settings")
     .select(["name", "value"])
     .execute()
-  const dbSettings = rows.reduce(
-    (acc, row) => ({
+
+  const dbDesttings = rows.reduce((acc, row) => {
+    const name = row.name
+    const parsed =
+      typeof row.value === "string"
+        ? (JSON.parse(row.value) as Settings[keyof Settings])
+        : row.value
+    return {
       ...acc,
-      [row.name]:
-        // We configured Kysely to auto-parse JSON objects and arrays,
-        // so we need to guard against values that have already been parsed
-        typeof row.value === "string"
-          ? (JSON.parse(row.value) as Settings[keyof Settings])
-          : row.value,
-    }),
-    {},
-  ) as Settings
-  const result: Settings = {
-    ...dbSettings,
-    smtpSsl: dbSettings.smtpSsl ?? true,
-    smtpRejectUnauthorized: dbSettings.smtpRejectUnauthorized ?? true,
-  }
+      [name]: parsed,
+    }
+  }, {}) as Settings
+
   const { settings: configSettings } = loadConfigFile()
+
+  const result = {
+    ...dbDesttings,
+    smtpSsl: dbDesttings.smtpSsl ?? true,
+    smtpRejectUnauthorized: dbDesttings.smtpRejectUnauthorized ?? true,
+  }
+
   return { ...result, ...configSettings }
 }
 
@@ -140,37 +156,81 @@ export async function updateSettings(settings: Settings) {
 
   for (const [settingName, value] of Object.entries(settings)) {
     if (lockedKeys.has(settingName as keyof Settings)) continue
-    // if the same, don't update
-    if (
+
+    const unchanged =
       JSON.stringify(existingSettings[settingName as keyof Settings]) ===
       JSON.stringify(value)
-    ) {
-      continue
-    }
 
-    // if it does not exist in existing settings, create it
-    // this is nice, bc it allows us to recover from failed migrations of settings
-    if (!existingSettings[settingName as keyof Settings]) {
-      await db
-        .insertInto("settings")
-        .values({
-          name: settingName as keyof Settings,
-          value: JSON.stringify(value),
-        })
-        .execute()
-      continue
-    }
+    if (unchanged) continue
 
     await db
-      .updateTable("settings")
-      .set({
+      .insertInto("settings")
+      .values({
+        name: settingName as keyof Settings,
         value: JSON.stringify(value),
       })
-      .where("name", "=", settingName as keyof Settings)
+      .onConflict((oc) =>
+        oc.column("name").doUpdateSet({ value: JSON.stringify(value) }),
+      )
       .execute()
   }
-  await update(null)
+
+  await getScheduler().refresh()
 }
 
 // Validate and cache config file on startup (never re-read after this)
 loadConfigFile()
+
+type ConfigImportPathEntry = { path: string; importMode?: ImportMode | null }
+
+/**
+ * if the config file still has importPath entries, sync them to import rules.
+ * this is a deprecated compatibility path; users should migrate to configuring
+ * import rules through the ui.
+ */
+export async function syncConfigFileImportPaths() {
+  const configPath = env.STORYTELLER_CONFIG
+  if (!configPath) return
+
+  let rawConfig: Record<string, unknown>
+
+  try {
+    const { readFileSync } = await import("node:fs")
+    rawConfig = JSON.parse(readFileSync(configPath, "utf-8")) as Record<
+      string,
+      unknown
+    >
+  } catch {
+    return
+  }
+
+  const rawImportPath = rawConfig["importPath"]
+  if (!rawImportPath) return
+
+  logger.warn(
+    "config file contains 'importPath' which is deprecated. " +
+      "these entries have been synced to import rules. " +
+      "please remove 'importPath' from your config file and use the settings ui instead.",
+  )
+
+  const entries: ConfigImportPathEntry[] = Array.isArray(rawImportPath)
+    ? (rawImportPath as ConfigImportPathEntry[])
+    : typeof rawImportPath === "string"
+      ? [{ path: rawImportPath }]
+      : []
+
+  if (entries.length === 0) return
+
+  const existingRules = await getImportRules("watch")
+  const existingPaths = new Set(existingRules.map((r) => r.path))
+
+  for (const entry of entries) {
+    if (existingPaths.has(entry.path)) continue
+
+    await createImportRule({
+      kind: "watch",
+      path: entry.path,
+      importMode: entry.importMode ?? null,
+    })
+  }
+}

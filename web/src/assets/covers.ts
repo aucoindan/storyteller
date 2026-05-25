@@ -1,197 +1,114 @@
-import { mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, open, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, extname, join } from "node:path"
 
 import { extension, lookup } from "mime-types"
 
-import { Audiobook } from "@storyteller-platform/audiobook"
-import { Epub } from "@storyteller-platform/epub"
+import {
+  Audiobook,
+  type AudiobookInputs,
+} from "@storyteller-platform/audiobook"
+import {
+  Epub,
+  type EpubReader,
+  MemoryAdapter,
+} from "@storyteller-platform/epub"
 
 import { COVER_IMAGE_FILE_EXTENSIONS, isAudioFile } from "@/audio"
-import {
-  type Book,
-  type BookWithRelations,
-  getBookOrThrow,
-  touchBook,
-} from "@/database/books"
-import { type UUID } from "@/uuid"
+import { type Book, touchBook } from "@/database/books"
 
+import { deleteCachedCoverImagesByKind } from "./fs"
 import { getAudioCoverItem } from "./metadata"
 import { getAudiobookCoverDirectory, getEbookCoverDirectory } from "./paths"
 
-export type AudioFile = {
+export type CoverData = {
   filename: string
-  bare_filename: string
-  extension: string
+  mimeType: string
+  data: Uint8Array
 }
 
-export type AudioIndex = {
-  cover?: string
-  processed_files?: AudioFile[]
-}
+export type CoverKind = "ebook" | "audiobook"
 
-export async function getFirstCoverImage(directory: string) {
-  const entries = await readdir(directory, { recursive: true })
+/**
+ * either a path to open lazily, or an already-open reader owned by the caller.
+ * reader inputs are not disposed by these helpers.
+ */
+export type EpubCoverSource = string | EpubReader
+export type AudiobookCoverSource = string | Audiobook
 
-  const firstTrack = entries.find((entry) => isAudioFile(entry))
-  if (!firstTrack) return null
+async function readCoverFromEpub(epub: EpubReader): Promise<CoverData | null> {
+  const coverImageItem = await epub.getCoverImageItem()
+  if (!coverImageItem) return null
 
-  try {
-    using audiobook = await Audiobook.from(join(directory, firstTrack))
-    const coverImage = await audiobook.getCoverArt()
-    audiobook.discardAndClose()
-    if (!coverImage) return null
+  const data = await epub.getCoverImage()
+  if (!data) return null
 
-    return {
-      data: coverImage.data,
-      format: coverImage.mimeType,
-      audiofile: join(directory, firstTrack),
-    }
-  } catch {
-    return null
-  }
-}
-
-async function findValidAudioCoverFile(directory: string) {
-  const entries = await readdir(directory, { recursive: true })
-
-  let cover: null | string = null
-  let audioCover: null | string = null
-  let epub: null | string = null
-
-  for (const entry of entries) {
-    const ext = extname(entry)
-    const name = basename(entry, ext)
-    if (
-      name.toLowerCase() === "cover" &&
-      COVER_IMAGE_FILE_EXTENSIONS.includes(ext)
-    ) {
-      cover = join(directory, entry)
-    }
-    if (
-      name.toLowerCase() === "audio cover" &&
-      COVER_IMAGE_FILE_EXTENSIONS.includes(ext)
-    ) {
-      audioCover = join(directory, entry)
-    }
-    if (ext === ".epub") {
-      epub = entry
-    }
-  }
-
-  if (epub) return audioCover
-  return audioCover ?? cover
-}
-
-export async function getAudioCoverFilepath(book: BookWithRelations) {
-  const audioDirectory = book.audiobook?.filepath
-  if (!audioDirectory || book.audiobook?.missing) return null
-
-  const coverFile = await findValidAudioCoverFile(audioDirectory)
-
-  return coverFile
-}
-
-export async function persistCustomAudioCover(
-  bookUuid: UUID,
-  filename: string,
-  cover: Uint8Array,
-) {
-  const book = await getBookOrThrow(bookUuid)
-  const audioDirectory = book.audiobook?.filepath
-  if (!audioDirectory) return
-
-  const coverFile = await findValidAudioCoverFile(audioDirectory)
-  if (coverFile) {
-    await rm(join(audioDirectory, coverFile))
-  }
-
-  await writeFile(join(audioDirectory, filename), cover)
-}
-
-export async function getCustomAudioCover(book: BookWithRelations) {
-  const filepath = await getAudioCoverFilepath(book)
-  if (filepath === null) return null
-
-  const buffer = await readFile(filepath)
-  return new Uint8Array(buffer)
-}
-
-export async function getAudioCoverFromCustomFile(book: BookWithRelations) {
-  if (!book.audiobook || book.audiobook.missing) return null
-  const customCoverFilepath = await getAudioCoverFilepath(book)
-
-  if (!customCoverFilepath) return null
-  const file = await open(customCoverFilepath)
-  const stats = await file.stat()
-  const data = await file.readFile()
-  await file.close()
   return {
-    filename: basename(customCoverFilepath),
-    mimeType: lookup(customCoverFilepath) || "image/jpeg",
-    stats,
-    data,
+    filename: basename(coverImageItem.href),
+    mimeType:
+      coverImageItem.mediaType ?? (lookup(coverImageItem.href) || "image/jpeg"),
+    data: new Uint8Array(data),
   }
 }
 
-export async function getAudioCoverFromReadaloud(book: BookWithRelations) {
-  if (!book.readaloud?.filepath || book.readaloud.missing) return null
+export async function extractCoverFromEpub(
+  source: EpubCoverSource,
+): Promise<CoverData | null> {
+  if (typeof source !== "string") return readCoverFromEpub(source)
+  using epub = await Epub.using(MemoryAdapter).from(source)
+  return await readCoverFromEpub(epub)
+}
 
-  using epub = await Epub.from(book.readaloud.filepath)
-
+async function readAudioCoverFromReadaloud(
+  epub: EpubReader,
+): Promise<CoverData | null> {
   const coverImageItem = await getAudioCoverItem(epub)
-  if (!coverImageItem) {
-    epub.discardAndClose()
-    return null
-  }
+  if (!coverImageItem) return null
 
   const data = await epub.readItemContents(coverImageItem.id)
-  epub.discardAndClose()
-
-  const file = await open(book.readaloud.filepath)
-  const stats = await file.stat()
-  await file.close()
   return {
     filename: basename(coverImageItem.href),
     mimeType: coverImageItem.mediaType ?? "image/jpeg",
-    stats: stats,
-    data: Buffer.from(data),
+    data: new Uint8Array(data),
   }
 }
 
-export async function getAudioCoverFromReadaloudAudio(book: BookWithRelations) {
-  if (!book.readaloud?.filepath || book.readaloud.missing) return null
+/**
+ * extract the `storyteller:audio-cover-image` manifest item from a
+ * readaloud epub, if present.
+ */
+export async function extractAudioCoverFromReadaloud(
+  source: EpubCoverSource,
+): Promise<CoverData | null> {
+  if (typeof source !== "string") return readAudioCoverFromReadaloud(source)
+  using epub = await Epub.using(MemoryAdapter).from(source)
+  return await readAudioCoverFromReadaloud(epub)
+}
 
-  using epub = await Epub.from(book.readaloud.filepath)
-
+async function readAudioCoverFromReadaloudAudio(
+  epub: EpubReader,
+): Promise<CoverData | null> {
   const manifest = await epub.getManifest()
-  // TODO: Would be better to get the first audio file that
-  // actually corresponds to a media overlay
   const firstAudioItem = Object.values(manifest).find((item) =>
     item.mediaType?.startsWith("audio/"),
   )
   if (!firstAudioItem) return null
 
   const audio = await epub.readItemContents(firstAudioItem.id)
-
   const tmpAudioPath = join(tmpdir(), "storyteller", firstAudioItem.href)
 
   try {
     await mkdir(dirname(tmpAudioPath), { recursive: true })
     await writeFile(tmpAudioPath, audio)
+
     using audiobook = await Audiobook.from(tmpAudioPath)
     const coverArt = await audiobook.getCoverArt()
-    audiobook.discardAndClose()
     if (!coverArt) return null
 
-    const file = await open(book.readaloud.filepath)
-    const stats = await file.stat()
-    await file.close()
     return {
       filename: coverArt.name || `Cover.${extension(coverArt.mimeType)}`,
       mimeType: coverArt.mimeType,
-      stats,
-      data: Buffer.from(coverArt.data),
+      data: new Uint8Array(coverArt.data),
     }
   } finally {
     try {
@@ -202,162 +119,228 @@ export async function getAudioCoverFromReadaloudAudio(book: BookWithRelations) {
   }
 }
 
-export async function getAudioCoverFromAudiobook(book: BookWithRelations) {
-  if (!book.audiobook || book.audiobook.missing) return null
-  const directory = book.audiobook.filepath
+/**
+ * extract cover art from the first audio track embedded inside a readaloud
+ * epub. this is a last-resort fallback that writes the track to a tmpfile.
+ */
+export async function extractAudioCoverFromReadaloudAudio(
+  source: EpubCoverSource,
+): Promise<CoverData | null> {
+  if (typeof source !== "string") {
+    return readAudioCoverFromReadaloudAudio(source)
+  }
+  // dont use in mem here, that can get out of hand
+  using epub = await Epub.from(source)
+  return await readAudioCoverFromReadaloudAudio(epub)
+}
 
-  const entries = await readdir(directory, { recursive: true })
+/**
+ * look for a loose cover image file alongside audio tracks in a directory
+ * (e.g. `cover.jpg`, `audio cover.jpg`).
+ */
+export async function extractCoverFileFromAudioDir(
+  audioDir: string,
+): Promise<CoverData | null> {
+  const entries = await readdir(audioDir)
 
-  const firstCover = await Promise.any(
-    entries
-      .filter((entry) => isAudioFile(entry))
-      .map((relativeTrack) => join(directory, relativeTrack))
-      .map(async (path) => {
-        using audiobook = await Audiobook.from(path)
-        const coverArt = await audiobook.getCoverArt()
-        audiobook.discardAndClose()
-        if (!coverArt) throw new Error()
-        return { audiofile: path, image: coverArt }
-      }),
-  ).catch(() => null)
+  let cover: string | null = null
+  let audioCover: string | null = null
+  let hasEpub = false
 
-  if (!firstCover) return null
+  for (const entry of entries) {
+    const ext = extname(entry)
+    const name = basename(entry, ext)
 
-  const file = await open(firstCover.audiofile)
-  const stats = await file.stat()
+    if (
+      name.toLowerCase() === "cover" &&
+      COVER_IMAGE_FILE_EXTENSIONS.includes(ext)
+    ) {
+      cover = join(audioDir, entry)
+    }
+
+    if (
+      name.toLowerCase() === "audio cover" &&
+      COVER_IMAGE_FILE_EXTENSIONS.includes(ext)
+    ) {
+      audioCover = join(audioDir, entry)
+    }
+
+    if (ext === ".epub") {
+      hasEpub = true
+    }
+  }
+
+  // when an epub sits alongside audio, only honour an explicit "audio cover"
+  const filepath = hasEpub ? audioCover : audioCover ?? cover
+  if (!filepath) return null
+
+  const file = await open(filepath)
+  const data = await file.readFile()
   await file.close()
+
   return {
-    filename: `Cover.${extension(firstCover.image.mimeType)}`,
-    mimeType: firstCover.image.mimeType,
-    stats,
-    data: Buffer.from(firstCover.image.data),
+    filename: basename(filepath),
+    mimeType: lookup(filepath) || "image/jpeg",
+    data: new Uint8Array(data),
   }
 }
 
-export async function getAudioCover(book: BookWithRelations) {
-  const strategies = [
-    getAudioCoverFromReadaloud,
-    getAudioCoverFromReadaloudAudio,
-    getAudioCoverFromCustomFile,
-    getAudioCoverFromAudiobook,
-  ]
+async function readCoverFromAudiobook(
+  audiobook: Audiobook,
+): Promise<CoverData | null> {
+  const coverArt = await audiobook.getCoverArt()
+  if (!coverArt) return null
+  return {
+    filename: `Cover.${extension(coverArt.mimeType)}`,
+    mimeType: coverArt.mimeType,
+    data: new Uint8Array(coverArt.data),
+  }
+}
+
+/**
+ * extract embedded cover art from audiobook track metadata. tries each audio
+ * file in the directory until one yields a cover.
+ */
+export async function extractCoverFromAudioFiles(
+  source: AudiobookCoverSource,
+): Promise<CoverData | null> {
+  if (typeof source !== "string") return readCoverFromAudiobook(source)
+
+  const entries = await readdir(source)
+  const audioFiles = entries.filter((entry) => isAudioFile(entry))
+
+  using audiobook = await Audiobook.from(
+    ...(audioFiles.map((file) => join(source, file)) as AudiobookInputs),
+  )
+  return await readCoverFromAudiobook(audiobook)
+}
+
+function getCoverDirectory(book: Book, kind: CoverKind) {
+  return kind === "ebook"
+    ? getEbookCoverDirectory(book)
+    : getAudiobookCoverDirectory(book)
+}
+
+export async function getExtractedCover(book: Book, kind: CoverKind) {
+  const coverDir = getCoverDirectory(book, kind)
+
+  try {
+    const entries = await readdir(coverDir)
+    const coverEntry = entries.find((entry) =>
+      COVER_IMAGE_FILE_EXTENSIONS.includes(extname(entry)),
+    )
+    if (!coverEntry) return null
+
+    const file = await open(join(coverDir, coverEntry))
+    const stats = await file.stat()
+    const data = await file.readFile()
+    await file.close()
+
+    return {
+      filename: basename(coverEntry),
+      mimeType: lookup(coverEntry) || "image/jpeg",
+      stats,
+      data,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * write a cover to the cover directory and invalidate the
+ * resize cache for that kind.
+ */
+export async function persistCover(
+  book: Book,
+  kind: CoverKind,
+  cover: CoverData,
+) {
+  const coverDir = getCoverDirectory(book, kind)
+
+  const existing = await getExtractedCover(book, kind)
+  if (existing) {
+    await rm(join(coverDir, existing.filename))
+  }
+
+  await mkdir(coverDir, { recursive: true })
+  await writeFile(join(coverDir, cover.filename), cover.data)
+  await deleteCachedCoverImagesByKind(
+    book.uuid,
+    kind === "ebook" ? "text" : "audio",
+  )
+  await touchBook(book.uuid)
+}
+
+/**
+ * extract and persist an ebook cover. tries the readaloud epub first (it
+ * usually has the same cover as the ebook), then falls back to the plain epub.
+ */
+export async function extractAndPersistTextCover(
+  book: Book,
+  ebook: EpubCoverSource | null,
+  readaloud?: EpubCoverSource | null,
+): Promise<CoverData | null> {
+  const primary = readaloud ?? ebook
+  if (!primary) return null
+
+  const cover = await extractCoverFromEpub(primary)
+
+  // if the readaloud failed, try the plain epub
+  if (!cover && readaloud && ebook && readaloud !== ebook) {
+    const fallback = await extractCoverFromEpub(ebook)
+    if (fallback) {
+      await persistCover(book, "ebook", fallback)
+      return fallback
+    }
+  }
+
+  if (!cover) return null
+
+  await persistCover(book, "ebook", cover)
+  return cover
+}
+
+/**
+ * extract and persist an audiobook cover
+ *
+ * 1. readaloud epub `storyteller:audio-cover-image` manifest item
+ * 2. readaloud epub embedded audio track cover art
+ * 3. loose cover file alongside audio tracks (`Audio Cover.jpg` / `cover.jpg`)
+ * 4. embedded cover art in audiobook track metadata
+ */
+export async function extractAndPersistAudioCover(
+  book: Book,
+  audiobook: AudiobookCoverSource | null,
+  readaloud?: EpubCoverSource | null,
+  audiobookDir?: string | null,
+): Promise<CoverData | null> {
+  const strategies: (() => Promise<CoverData | null>)[] = []
+
+  if (readaloud) {
+    strategies.push(() => extractAudioCoverFromReadaloud(readaloud))
+    strategies.push(() => extractAudioCoverFromReadaloudAudio(readaloud))
+  }
+
+  // dir-based fallback needs a real directory path; an open Audiobook doesn't
+  // carry one, so callers can pass it explicitly.
+  const dirForLooseCover =
+    audiobookDir ?? (typeof audiobook === "string" ? audiobook : null)
+  if (dirForLooseCover) {
+    strategies.push(() => extractCoverFileFromAudioDir(dirForLooseCover))
+  }
+  if (audiobook) {
+    strategies.push(() => extractCoverFromAudioFiles(audiobook))
+  }
+
   for (const strategy of strategies) {
-    const cover = await strategy(book)
-    if (cover) return cover
+    const cover = await strategy()
+
+    if (cover) {
+      await persistCover(book, "audiobook", cover)
+      return cover
+    }
   }
+
   return null
-}
-
-export async function getEpubCover(book: BookWithRelations) {
-  const epubFilepath =
-    !book.readaloud?.missing && book.readaloud?.filepath
-      ? book.readaloud.filepath
-      : !book.ebook?.missing && book.ebook
-        ? book.ebook.filepath
-        : null
-
-  if (!epubFilepath) return null
-
-  if (!epubFilepath) return null
-  using epub = await Epub.from(epubFilepath)
-  const coverImageItem = await epub.getCoverImageItem()
-  if (!coverImageItem) return null
-  const data = await epub.getCoverImage()
-  if (!data) return null
-
-  const epubFile = await open(epubFilepath)
-  const stats = await epubFile.stat()
-  await epubFile.close()
-
-  return {
-    filename: basename(coverImageItem.href),
-    mimeType:
-      coverImageItem.mediaType ?? (lookup(coverImageItem.href) || "image/jpeg"),
-    data: Buffer.from(data) as Buffer,
-    stats,
-  }
-}
-
-export async function getExtractedEbookCover(book: Book) {
-  const coverDir = getEbookCoverDirectory(book)
-  try {
-    const entries = await readdir(coverDir)
-    const coverEntry = entries.find((entry) =>
-      COVER_IMAGE_FILE_EXTENSIONS.includes(extname(entry)),
-    )
-    if (!coverEntry) return null
-
-    const file = await open(join(coverDir, coverEntry))
-    const stats = await file.stat()
-    const data = await file.readFile()
-    await file.close()
-
-    const mimeType = lookup(coverEntry) || "image/jpeg"
-
-    return {
-      filename: basename(coverEntry),
-      mimeType,
-      stats,
-      data,
-    }
-  } catch {
-    return null
-  }
-}
-
-export async function getExtractedAudiobookCover(book: Book) {
-  const coverDir = getAudiobookCoverDirectory(book)
-  try {
-    const entries = await readdir(coverDir)
-    const coverEntry = entries.find((entry) =>
-      COVER_IMAGE_FILE_EXTENSIONS.includes(extname(entry)),
-    )
-    if (!coverEntry) return null
-
-    const file = await open(join(coverDir, coverEntry))
-    const stats = await file.stat()
-    const data = await file.readFile()
-    await file.close()
-
-    const mimeType = lookup(coverEntry) || "image/jpeg"
-
-    return {
-      filename: basename(coverEntry),
-      mimeType,
-      stats,
-      data,
-    }
-  } catch {
-    return null
-  }
-}
-
-export async function writeExtractedEbookCover(
-  book: Book,
-  filename: string,
-  data: Uint8Array,
-) {
-  const ebookCoverDir = getEbookCoverDirectory(book)
-  const existing = await getExtractedEbookCover(book)
-  if (existing) {
-    await rm(join(ebookCoverDir, existing.filename))
-  }
-  await mkdir(ebookCoverDir, { recursive: true })
-  await writeFile(join(ebookCoverDir, filename), data)
-  await touchBook(book.uuid)
-}
-
-export async function writeExtractedAudiobookCover(
-  book: Book,
-  filename: string,
-  data: Uint8Array,
-) {
-  const audiobookCoverDir = getAudiobookCoverDirectory(book)
-  const existing = await getExtractedAudiobookCover(book)
-  if (existing) {
-    await rm(join(audiobookCoverDir, existing.filename))
-  }
-  await mkdir(audiobookCoverDir, { recursive: true })
-  await writeFile(join(audiobookCoverDir, filename), data)
-  await touchBook(book.uuid)
 }

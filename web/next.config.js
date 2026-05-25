@@ -51,6 +51,8 @@ const nextConfig = {
     "pino-pretty",
     "onnxruntime-node",
     "@node-rs/crc32",
+    "@node-rs/xxhash",
+    "@parcel/watcher",
     "@reflink/reflink",
   ],
   output: "standalone",

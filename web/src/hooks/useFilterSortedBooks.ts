@@ -17,6 +17,9 @@ export type BookSortKey =
   | "align-time"
   | "create-time"
   | "publish-date"
+  | "file-size"
+  | "page-count"
+  | "duration"
 export type SortDirection = "asc" | "desc"
 export type BookSort = [BookSortKey, SortDirection]
 
@@ -63,6 +66,7 @@ export type BookType =
   | "audiobook-only"
   | "readaloud"
   | "ebook-audiobook-only"
+  | "missing"
 
 export interface FilterSortOptions {
   onSearchChange: (value: string) => void
@@ -85,6 +89,12 @@ export interface FilterSortOptions {
     onAuthorsChange: (values: UUID[] | null) => void
     bookTypes: BookType[] | null
     onBookTypesChange: (values: BookType[] | null) => void
+    fileSize: number[] | null
+    onFileSizeChange: (values: number[] | null) => void
+    duration: number[] | null
+    onDurationChange: (values: number[] | null) => void
+    pageCount: number[] | null
+    onPageCountChange: (values: number[] | null) => void
     reset: () => void
   }
 }
@@ -99,6 +109,113 @@ export function safeCreateLocale(book?: BookWithRelations, fallback = "en") {
     )
     return new Intl.Locale(fallback)
   }
+}
+
+function assetFileSize(
+  asset: { fileSize: number | null; missing: boolean | null } | null,
+): number | null {
+  if (!asset || asset.missing || asset.fileSize == null || asset.fileSize <= 0)
+    return null
+  return asset.fileSize
+}
+
+export function getBookFileSizeMB(
+  book: BookWithRelations,
+  bookTypes: BookType[] | null,
+): number | null {
+  if (bookTypes?.length === 1) {
+    const [type] = bookTypes
+    const sizeOf = (
+      asset: { fileSize: number | null; missing: boolean | null } | null,
+    ) => {
+      const s = assetFileSize(asset)
+      return s != null ? s / (1024 * 1024) : null
+    }
+    if (type === "ebook" || type === "ebook-only") return sizeOf(book.ebook)
+    if (type === "audiobook" || type === "audiobook-only")
+      return sizeOf(book.audiobook)
+    if (type === "readaloud") return sizeOf(book.readaloud)
+  }
+
+  const sizes = [
+    assetFileSize(book.ebook),
+    assetFileSize(book.audiobook),
+    assetFileSize(book.readaloud),
+  ].filter((s): s is number => s !== null)
+
+  if (!sizes.length) return null
+  return Math.max(...sizes) / (1024 * 1024)
+}
+
+export function getBookDurationMinutes(book: BookWithRelations): number | null {
+  if (book.duration != null && book.duration > 0) {
+    return book.duration / 60
+  }
+
+  const audiobook =
+    book.audiobook && !book.audiobook.missing ? book.audiobook : null
+  const readaloud =
+    book.readaloud && !book.readaloud.missing ? book.readaloud : null
+
+  const seconds = audiobook?.duration ?? readaloud?.duration ?? null
+  if (seconds == null || seconds <= 0) return null
+  return seconds / 60
+}
+
+export function getBookPageCount(book: BookWithRelations): number | null {
+  if (book.pageCount != null && book.pageCount > 0) {
+    return book.pageCount
+  }
+
+  const ebook = book.ebook && !book.ebook.missing ? book.ebook : null
+  const readaloud =
+    book.readaloud && !book.readaloud.missing ? book.readaloud : null
+
+  const pages = ebook?.pageCount ?? readaloud?.pageCount ?? null
+  if (pages == null || pages <= 0) return null
+  return pages
+}
+
+function isValidBound(value: number | undefined): value is number {
+  return value != null && Number.isFinite(value) && value > 0
+}
+
+export function cleanRangeParam(values: number[] | null): string[] | null {
+  if (!values?.some((v) => v > 0)) return null
+  return values.map((v) => (v > 0 ? v.toString() : ""))
+}
+
+export function matchesRange(
+  value: number | null,
+  range: number[] | null,
+): boolean {
+  if (!range) return true
+  const [min, max] = range
+  const hasMin = isValidBound(min)
+  const hasMax = isValidBound(max)
+  if (!hasMin && !hasMax) return true
+  if (value === null) return false
+  if (hasMin && value < min) return false
+  if (hasMax && value > max) return false
+  return true
+}
+
+// null values always sort to the end regardless of sort direction.
+// takes the original a/b (not swapped) so null handling is direction-independent.
+export function sortByMetric(
+  a: BookWithRelations,
+  b: BookWithRelations,
+  getMetric: (book: BookWithRelations) => number | null,
+  direction: SortDirection,
+  fallback: number,
+): number {
+  const aVal = getMetric(a)
+  const bVal = getMetric(b)
+  if (aVal === null && bVal === null) return fallback
+  if (aVal === null) return 1
+  if (bVal === null) return -1
+  const diff = direction === "asc" ? aVal - bVal : bVal - aVal
+  return diff || fallback
 }
 
 export function useFilterSortedBooks(books: BookWithRelations[]): {
@@ -177,13 +294,21 @@ export function useFilterSortedBooks(books: BookWithRelations[]): {
     | BookType[]
     | null
 
+  const fileSize = searchParams.get("fileSize")?.split(",").map(Number) ?? null
+  const duration = searchParams.get("duration")?.split(",").map(Number) ?? null
+  const pageCount =
+    searchParams.get("pageCount")?.split(",").map(Number) ?? null
+
   const filtersActive = !!(
     collections ||
     tags ||
     series ||
     bookTypes ||
     authors ||
-    statuses
+    statuses ||
+    fileSize ||
+    duration ||
+    pageCount
   )
 
   const [showFilters, setShowFilters] = useState(false)
@@ -250,15 +375,38 @@ export function useFilterSortedBooks(books: BookWithRelations[]): {
                     book.ebook && book.audiobook && !book.readaloud?.filepath
                   )
                 }
+                case "missing": {
+                  return (
+                    book.ebook?.missing ||
+                    book.audiobook?.missing ||
+                    book.readaloud?.missing
+                  )
+                }
               }
             })
           ) {
             return false
           }
         }
+        if (!matchesRange(getBookFileSizeMB(book, bookTypes), fileSize))
+          return false
+        if (!matchesRange(getBookDurationMinutes(book), duration)) return false
+        if (!matchesRange(getBookPageCount(book), pageCount)) return false
+
         return true
       }),
-    [authors, bookTypes, collections, searched, series, statuses, tags],
+    [
+      authors,
+      bookTypes,
+      collections,
+      duration,
+      fileSize,
+      pageCount,
+      searched,
+      series,
+      statuses,
+      tags,
+    ],
   )
 
   const sorted = useMemo(
@@ -322,9 +470,24 @@ export function useFilterSortedBooks(books: BookWithRelations[]): {
           case "publish-date": {
             return pubSort
           }
+          case "file-size": {
+            return sortByMetric(
+              a,
+              b,
+              (book) => getBookFileSizeMB(book, bookTypes),
+              sort[1],
+              pubSort,
+            )
+          }
+          case "page-count": {
+            return sortByMetric(a, b, getBookPageCount, sort[1], pubSort)
+          }
+          case "duration": {
+            return sortByMetric(a, b, getBookDurationMinutes, sort[1], pubSort)
+          }
         }
       }),
-    [filtered, sort],
+    [bookTypes, filtered, sort],
   )
 
   return {
@@ -373,6 +536,18 @@ export function useFilterSortedBooks(books: BookWithRelations[]): {
           onBookTypesChange: (values) => {
             setSearchParam("bookTypes", values)
           },
+          fileSize,
+          onFileSizeChange: (values) => {
+            setSearchParam("fileSize", cleanRangeParam(values))
+          },
+          duration,
+          onDurationChange: (values) => {
+            setSearchParam("duration", cleanRangeParam(values))
+          },
+          pageCount,
+          onPageCountChange: (values) => {
+            setSearchParam("pageCount", cleanRangeParam(values))
+          },
           reset: clearSearchParams,
         }),
         [
@@ -386,6 +561,9 @@ export function useFilterSortedBooks(books: BookWithRelations[]): {
           showFilters,
           statuses,
           tags,
+          fileSize,
+          duration,
+          pageCount,
         ],
       ),
     },

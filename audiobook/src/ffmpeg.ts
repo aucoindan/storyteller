@@ -187,12 +187,15 @@ export type ChapterInfo = {
 
 export type TrackInfo = Awaited<ReturnType<typeof getTrackMetadata>>
 
-export type AttachedPic = {
-  data: Uint8Array
+export type AttachedPicMeta = {
   mimeType: string
   kind: "coverFront" | "coverBack" | "unknown"
   name?: string | undefined
   description?: string | undefined
+}
+
+export type AttachedPic = AttachedPicMeta & {
+  data: Uint8Array
 }
 
 function lookup(codecName: "mjpeg" | "jpeg" | "png" | "bmp" | "gif") {
@@ -220,15 +223,6 @@ export async function getTrackMetadata(path: string) {
 
   const { chapters, streams, format } = JSON.parse(stdout) as FfprobeOutput
 
-  let id3v2Version: 3 | 4 | null = null
-  if (extname(path).toLowerCase() === ".mp3") {
-    const { stderr: id3v2VersionOut } = await execPromise(
-      `ffprobe -i ${quotePath(path)} -v debug`,
-    )
-    const id3v2VersionMatch = id3v2VersionOut.match(/id3v2 ver:(3|4)/)
-    id3v2Version = (id3v2VersionMatch?.[1] as 3 | 4 | undefined) ?? null
-  }
-
   const attachedPicStream = streams.find(
     (
       stream,
@@ -237,31 +231,17 @@ export async function getTrackMetadata(path: string) {
       { disposition: { attached_pic: 1 } }
     > => !!stream.disposition.attached_pic,
   )
-  const attachedPic: AttachedPic | undefined = attachedPicStream && {
-    name: attachedPicStream.tags?.title,
-    mimeType: lookup(attachedPicStream.codec_name),
-    kind: "coverFront",
-    description: attachedPicStream.tags?.comment,
-    data: await execCmdBuffer("ffmpeg", [
-      "-nostdin",
-      "-i",
-      path,
-      "-map",
-      "0:v",
-      "-c:v",
-      "copy",
-      "-vframes",
-      "1",
-      "-f",
-      "image2",
-      "-update",
-      "1",
-      "pipe:1",
-    ]),
-  }
+
+  const attachedPicMeta: AttachedPicMeta | undefined = attachedPicStream
+    ? {
+        name: attachedPicStream.tags?.title,
+        mimeType: lookup(attachedPicStream.codec_name),
+        kind: "coverFront",
+        description: attachedPicStream.tags?.comment,
+      }
+    : undefined
 
   return {
-    id3v2Version,
     duration: parseFloat(format.duration),
     bitRate:
       format.bit_rate !== undefined
@@ -289,8 +269,27 @@ export async function getTrackMetadata(path: string) {
           title: chapter.tags.title,
         }) satisfies ChapterInfo,
     ),
-    attachedPic,
+    attachedPicMeta,
   }
+}
+
+export async function extractCoverArtData(path: string): Promise<Uint8Array> {
+  return execCmdBuffer("ffmpeg", [
+    "-nostdin",
+    "-i",
+    path,
+    "-map",
+    "0:v",
+    "-c:v",
+    "copy",
+    "-vframes",
+    "1",
+    "-f",
+    "image2",
+    "-update",
+    "1",
+    "pipe:1",
+  ])
 }
 
 function escapeFfmetadata(str: string): string {
@@ -302,14 +301,27 @@ function escapeFfmetadata(str: string): string {
     .replaceAll(/\n/g, "\\n")
 }
 
-export async function writeTrackMetadata(path: string, trackInfo: TrackInfo) {
-  const { tags: metadata, id3v2Version, chapters, attachedPic } = trackInfo
+export async function writeTrackMetadata(
+  path: string,
+  trackInfo: TrackInfo,
+  attachedPic?: AttachedPic,
+) {
+  const { tags: metadata, chapters } = trackInfo
 
   const args: string[] = []
   const metadataArgs: string[] = []
 
-  if (id3v2Version) {
-    metadataArgs.push(`-id3v2_version ${id3v2Version}`)
+  if (extname(path).toLowerCase() === ".mp3") {
+    const { stderr } = await execPromise(
+      `ffprobe -i ${quotePath(path)} -v debug`,
+    )
+
+    const match = stderr.match(/id3v2 ver:(3|4)/)
+    const id3v2Version = (match?.[1] as "3" | "4" | undefined) ?? null
+
+    if (id3v2Version) {
+      metadataArgs.push(`-id3v2_version ${id3v2Version}`)
+    }
   }
 
   if (metadata.title) {

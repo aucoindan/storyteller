@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path"
 
 import { hasPermission, nextAuth } from "@/auth/auth"
 import { db } from "@/database/connection"
-import { getSettings } from "@/database/settings"
+import { getWatchRules } from "@/database/importRules"
 import { ASSETS_DIR, DATA_DIR } from "@/directories"
 
 type SuggestedImportPathResult = {
@@ -24,21 +24,14 @@ export async function getSuggestedImportPathAction(): Promise<SuggestedImportPat
   const dataDir = DATA_DIR.replace(/([^/])$/, "$1/")
   const assetsDir = ASSETS_DIR.replace(/([^/])$/, "$1/")
 
-  const settings = await getSettings()
-  const collections = await db
-    .selectFrom("collection")
-    .select(["importPath"])
-    .where("importPath", "is not", null)
-    .execute()
-
+  const watchRules = await getWatchRules()
   const resolvedAssetsDir = resolve(assetsDir)
 
   const excludedPaths = [
     ASSETS_DIR,
     resolvedAssetsDir,
-    settings.importPath,
-    ...collections.map((c) => c.importPath),
-  ].filter((p): p is string => p !== null)
+    ...watchRules.map((r) => r.path),
+  ]
 
   const recentBook = await db
     .selectFrom("book")
@@ -57,9 +50,11 @@ export async function getSuggestedImportPathAction(): Promise<SuggestedImportPat
       ) =>
         eb.and([
           eb(column, "is not", null),
-          ...excludedPaths.map((excluded) =>
-            eb.not(eb(column, "like", `${escapeLike(excluded)}%`)),
-          ),
+          ...excludedPaths
+            .filter(Boolean)
+            .map((excluded) =>
+              eb.not(eb(column, "like", `${escapeLike(excluded)}%`)),
+            ),
         ])
 
       return eb.or([

@@ -19,6 +19,7 @@ import { MergeBooksItem } from "./actionMenuItems/MergeBooksItem"
 import { RemoveBooksFromCollectionsItem } from "./actionMenuItems/RemoveBooksFromCollectionsItem"
 import { RemoveBooksFromSeriesItem } from "./actionMenuItems/RemoveBooksFromSeriesItem"
 import { RemoveTagsFromBooksItem } from "./actionMenuItems/RemoveTagsFromBooksItem"
+import { ScanBooksItem } from "./actionMenuItems/ScanBooksItem"
 import { UpdateReadingStatusItem } from "./actionMenuItems/UpdateReadingStatusItem"
 import { UpgradeEpubItem } from "./actionMenuItems/UpgradeEpubItem"
 
@@ -84,6 +85,7 @@ export function ActionMenu({ selected, onClear }: Props) {
           {!!permissions?.bookUpdate && (
             <UpgradeEpubItem selected={selected} onCommit={onCommit} />
           )}
+          {!!permissions?.bookProcess && <ScanBooksItem selected={selected} />}
           {!!permissions?.bookProcess && (
             <BeginProcessingItem selected={selected} />
           )}

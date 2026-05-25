@@ -4,6 +4,7 @@ import {
   ActionIcon,
   Alert,
   Anchor,
+  Badge,
   Box,
   Button,
   Checkbox,
@@ -11,6 +12,7 @@ import {
   Fieldset,
   Group,
   List,
+  Modal,
   MultiSelect,
   NativeSelect,
   NumberInput,
@@ -18,27 +20,53 @@ import {
   Select,
   Stack,
   Switch,
+  Tabs,
   Text,
   TextInput,
 } from "@mantine/core"
 import { useForm } from "@mantine/form"
-import { IconFlame, IconLock, IconPlus, IconTrash } from "@tabler/icons-react"
-import { useRef, useState } from "react"
+import {
+  IconFlame,
+  IconLock,
+  IconPlus,
+  IconSearch,
+  IconTrash,
+} from "@tabler/icons-react"
+import { useMemo, useRef, useState } from "react"
 
 import type { Settings } from "@/apiModels"
+import {
+  cronExpressionToMinutes,
+  minutesToCronExpression,
+} from "@/assets/library/scanner/triggers/cron"
 import { type Providers } from "@/auth/providers"
-import { ImportPathInput } from "@/components/ImportPathInput"
+import { ServerFileBrowser } from "@/components/books/modals/ServerFileBrowser"
 import {
   ADMIN_PERMISSIONS,
   BASIC_PERMISSIONS,
   PERMISSIONS_VALUES,
 } from "@/components/users/CreateInviteForm"
 import {
+  type ImportRuleSource,
+  type ImportRuleWithCollections,
+} from "@/database/importRules"
+import { usePermissions } from "@/hooks/usePermissions"
+import {
+  useCancelScanMutation,
+  useCreateImportRuleMutation,
+  useDeleteImportRulesMutation,
+  useGetImportRulesQuery,
   useGetMaxUploadChunkSizeQuery,
+  useGetScanStateQuery,
+  useListCollectionsQuery,
+  useTriggerScanMutation,
+  useUpdateImportRuleMutation,
   useUpdateSettingsMutation,
 } from "@/store/api"
+import { type UUID } from "@/uuid"
 
 import { AuthProviderInput } from "./AuthProviderInput"
+import { MetadataFieldOverridesEditor } from "./MetadataFieldOverridesEditor"
 
 interface Props {
   settings: Settings
@@ -55,6 +83,832 @@ function safeUrl(base: string, path: string) {
   }
 }
 
+const IMPORT_MODE_OPTIONS = [
+  { value: "", label: "Use default" },
+  { value: "reference", label: "Reference in place" },
+  { value: "copy", label: "Copy to library" },
+  { value: "move", label: "Move to library" },
+  { value: "hardlink", label: "Hard link to library" },
+]
+
+const AUTO_SOURCE_LABELS: Record<Exclude<ImportRuleSource, "user">, string> = {
+  "import-relocate": "Relocated",
+  "import-backup": "Backup copy",
+  "prevent-reimport": "Re-import prevention",
+}
+
+function WatchRuleCard({
+  rule,
+  collections,
+  selected,
+  onToggle,
+  onDelete,
+}: {
+  rule: ImportRuleWithCollections
+  collections: { uuid: UUID; name: string }[]
+  selected: boolean
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  const [updateRule] = useUpdateImportRuleMutation()
+  const [editingPath, setEditingPath] = useState(false)
+
+  return (
+    <Box className="rounded border border-gray-200 p-3 dark:border-neutral-700">
+      <Group gap="sm" wrap="nowrap" align="flex-start">
+        <Checkbox
+          className="mt-2"
+          checked={selected}
+          onChange={onToggle}
+          size="sm"
+        />
+
+        <Stack gap="xs" className="min-w-0 flex-1">
+          {editingPath ? (
+            <div className="max-h-80 overflow-hidden">
+              <ServerFileBrowser
+                directoriesOnly
+                startPath={rule.path}
+                onSelect={(folder) => {
+                  void updateRule({ uuid: rule.uuid, path: folder })
+                  setEditingPath(false)
+                }}
+              />
+            </div>
+          ) : (
+            <Button
+              variant="subtle"
+              className="min-w-0 self-start"
+              classNames={{ inner: "justify-start" }}
+              onClick={() => {
+                setEditingPath(true)
+              }}
+            >
+              <Text className="truncate text-sm" title={rule.path}>
+                {rule.path}
+              </Text>
+            </Button>
+          )}
+
+          <Group gap="sm" wrap="wrap">
+            <NativeSelect
+              size="sm"
+              className="w-[180px]"
+              value={rule.importMode ?? ""}
+              onChange={(e) => {
+                const mode = e.currentTarget.value || null
+                void updateRule({ uuid: rule.uuid, importMode: mode })
+              }}
+            >
+              {IMPORT_MODE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </NativeSelect>
+
+            <MultiSelect
+              size="xs"
+              className="min-w-[200px] flex-1"
+              placeholder="No collection"
+              data={collections.map((c) => ({
+                value: c.uuid,
+                label: c.name,
+              }))}
+              value={rule.collections.map((c) => c.uuid)}
+              onChange={(uuids) => {
+                void updateRule({
+                  uuid: rule.uuid,
+                  collectionUuids: uuids as UUID[],
+                })
+              }}
+            />
+          </Group>
+        </Stack>
+
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          aria-label="Delete rule"
+          onClick={onDelete}
+        >
+          <IconTrash size={14} />
+        </ActionIcon>
+      </Group>
+    </Box>
+  )
+}
+
+function IgnoreRuleRow({
+  rule,
+  selected,
+  onToggle,
+  onDelete,
+}: {
+  rule: ImportRuleWithCollections
+  selected: boolean
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  return (
+    <Group
+      gap="sm"
+      wrap="nowrap"
+      className="rounded border border-gray-200 px-3 py-2 dark:border-neutral-700"
+    >
+      <Checkbox checked={selected} onChange={onToggle} size="sm" />
+      <Text className="min-w-0 flex-1 truncate text-sm" title={rule.path}>
+        {rule.path}
+      </Text>
+      <ActionIcon
+        variant="subtle"
+        color="red"
+        aria-label="Delete rule"
+        onClick={onDelete}
+      >
+        <IconTrash size={14} />
+      </ActionIcon>
+    </Group>
+  )
+}
+
+function AutoIgnoreRuleRow({
+  rule,
+  selected,
+  onToggle,
+}: {
+  rule: ImportRuleWithCollections
+  selected: boolean
+  onToggle: () => void
+}) {
+  const sourceLabel =
+    rule.source !== "user" ? AUTO_SOURCE_LABELS[rule.source] : "Auto"
+
+  return (
+    <Group
+      gap="sm"
+      wrap="nowrap"
+      align="flex-start"
+      className="rounded border border-gray-200 px-3 py-2 dark:border-neutral-700"
+      title={`uuid: ${rule.uuid}${rule.bookUuid ? `\nbook: ${rule.bookUuid}` : ""}`}
+    >
+      <Checkbox
+        className="mt-1"
+        checked={selected}
+        onChange={onToggle}
+        size="sm"
+      />
+      <Stack gap={2} className="min-w-0 flex-1">
+        <Text className="truncate text-sm" title={rule.path}>
+          {rule.path}
+        </Text>
+        <Group gap="xs" wrap="nowrap">
+          <Badge size="xs" variant="light">
+            {sourceLabel}
+          </Badge>
+          {rule.bookTitle ? (
+            <Text
+              className="truncate text-xs opacity-70"
+              title={rule.bookTitle}
+            >
+              {rule.bookTitle}
+            </Text>
+          ) : (
+            <Text className="text-xs opacity-40">no linked book</Text>
+          )}
+        </Group>
+      </Stack>
+    </Group>
+  )
+}
+
+function AddRuleModal({
+  opened,
+  onClose,
+  kind,
+  rules,
+  collections,
+}: {
+  opened: boolean
+  onClose: () => void
+  kind: "watch" | "ignore"
+  rules: ImportRuleWithCollections[]
+  collections: { uuid: UUID; name: string }[]
+}) {
+  const [createRule, { isLoading }] = useCreateImportRuleMutation()
+  const [path, setPath] = useState("")
+  const [importMode, setImportMode] = useState<string>("")
+  const [collectionUuids, setCollectionUuids] = useState<UUID[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  function reset() {
+    setPath("")
+    setImportMode("")
+    setCollectionUuids([])
+    setError(null)
+  }
+
+  function handleClose() {
+    reset()
+    onClose()
+  }
+
+  async function handleSubmit() {
+    const trimmed = path.trim()
+    if (!trimmed) {
+      setError("Pick a folder first.")
+      return
+    }
+
+    if (kind === "watch") {
+      const existingWatch = rules.find(
+        (r) => r.kind === "watch" && r.path === trimmed,
+      )
+      if (existingWatch) {
+        setError("A watch rule already exists for this path.")
+        return
+      }
+    }
+
+    try {
+      await createRule({
+        kind,
+        path: trimmed,
+        ...(kind === "watch" && importMode && { importMode }),
+        ...(kind === "watch" &&
+          collectionUuids.length > 0 && { collectionUuids }),
+      }).unwrap()
+      handleClose()
+    } catch (err) {
+      const message =
+        err && typeof err === "object" && "data" in err
+          ? (err as { data?: { error?: string } }).data?.error
+          : undefined
+      setError(message ?? "Failed to create rule.")
+    }
+  }
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title={kind === "watch" ? "Add watch rule" : "Add ignore rule"}
+      centered
+      size="xl"
+    >
+      <Stack>
+        <Text size="sm" className="opacity-70">
+          {kind === "watch"
+            ? "Storyteller will scan this folder for new books."
+            : "Storyteller will skip this path during scans."}
+        </Text>
+
+        <Box>
+          <Text size="sm" fw={500} mb={4}>
+            Folder
+          </Text>
+          <div className="max-h-80 overflow-hidden">
+            <ServerFileBrowser
+              directoriesOnly
+              startPath={path || "/"}
+              onSelect={(folder) => {
+                setPath(folder)
+                if (error) setError(null)
+              }}
+            />
+          </div>
+          {path && (
+            <Text size="xs" className="opacity-70" mt="xs">
+              Selected: <Code>{path}</Code>
+            </Text>
+          )}
+        </Box>
+
+        {kind === "watch" && (
+          <>
+            <NativeSelect
+              label="Import mode"
+              value={importMode}
+              onChange={(e) => {
+                setImportMode(e.currentTarget.value)
+              }}
+            >
+              {IMPORT_MODE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </NativeSelect>
+
+            {collections.length > 0 && (
+              <MultiSelect
+                label="Add new books to collections"
+                placeholder="No collection"
+                data={collections.map((c) => ({
+                  value: c.uuid,
+                  label: c.name,
+                }))}
+                value={collectionUuids}
+                onChange={(uuids) => {
+                  setCollectionUuids(uuids as UUID[])
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {error && (
+          <Text size="sm" c="red">
+            {error}
+          </Text>
+        )}
+
+        <Group justify="flex-end">
+          <Button variant="subtle" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={isLoading}
+            disabled={!path.trim()}
+            onClick={() => {
+              void handleSubmit()
+            }}
+          >
+            Add rule
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
+function TabHeader({
+  addLabel,
+  onAdd,
+  searchPlaceholder,
+  searchValue,
+  onSearchChange,
+  selectedCount,
+  selectableCount,
+  allSelected,
+  isDeleting,
+  onSelectAll,
+  onDeleteSelected,
+  onClearSelection,
+}: {
+  addLabel?: string
+  onAdd?: () => void
+  searchPlaceholder: string
+  searchValue: string
+  onSearchChange: (value: string) => void
+  selectedCount: number
+  selectableCount: number
+  allSelected: boolean
+  isDeleting: boolean
+  onSelectAll: () => void
+  onDeleteSelected: () => void
+  onClearSelection: () => void
+}) {
+  return (
+    <Group gap="xs" wrap="wrap">
+      <TextInput
+        size="sm"
+        className="min-w-[220px] flex-1"
+        placeholder={searchPlaceholder}
+        leftSection={<IconSearch size={14} />}
+        value={searchValue}
+        onChange={(e) => {
+          onSearchChange(e.currentTarget.value)
+        }}
+      />
+
+      {addLabel && onAdd && (
+        <Button
+          variant="subtle"
+          size="compact-md"
+          leftSection={<IconPlus size={14} />}
+          onClick={onAdd}
+        >
+          {addLabel}
+        </Button>
+      )}
+
+      <Button
+        variant="subtle"
+        size="compact-md"
+        disabled={selectableCount === 0 || allSelected}
+        onClick={onSelectAll}
+      >
+        Select all
+      </Button>
+
+      <Button
+        variant="subtle"
+        size="compact-md"
+        disabled={selectedCount === 0}
+        onClick={onClearSelection}
+      >
+        Clear
+      </Button>
+
+      {selectedCount > 0 && (
+        <Button
+          variant="light"
+          color="red"
+          size="compact-md"
+          leftSection={<IconTrash size={14} />}
+          loading={isDeleting}
+          onClick={onDeleteSelected}
+        >
+          Delete {selectedCount}
+        </Button>
+      )}
+    </Group>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <Box className="rounded border border-dashed border-gray-200 px-4 py-8 text-center dark:border-neutral-700">
+      <Text size="sm" className="opacity-70">
+        {message}
+      </Text>
+    </Box>
+  )
+}
+
+function ImportRulesSection({
+  importMode,
+  onImportModeChange,
+  isLocked,
+}: {
+  importMode: string
+  onImportModeChange: (mode: string) => void
+  isLocked: boolean
+}) {
+  const { data: rules = [] } = useGetImportRulesQuery()
+  const { data: collections = [] } = useListCollectionsQuery()
+  const [deleteRules, { isLoading: isDeleting }] =
+    useDeleteImportRulesMutation()
+
+  const [activeTab, setActiveTab] = useState<"watch" | "ignore" | "auto">(
+    "watch",
+  )
+  const [searchByTab, setSearchByTab] = useState<{
+    watch: string
+    ignore: string
+    auto: string
+  }>({ watch: "", ignore: "", auto: "" })
+  const [autoPage, setAutoPage] = useState(1)
+  const [selectedUuids, setSelectedUuids] = useState<Set<UUID>>(new Set())
+  const [addModalKind, setAddModalKind] = useState<"watch" | "ignore" | null>(
+    null,
+  )
+
+  const { watchRules, userIgnoreRules, autoIgnoreRules } = useMemo(() => {
+    const watch: ImportRuleWithCollections[] = []
+    const userIgnore: ImportRuleWithCollections[] = []
+    const autoIgnore: ImportRuleWithCollections[] = []
+    for (const r of rules) {
+      if (r.kind === "watch") watch.push(r)
+      else if (r.source === "user") userIgnore.push(r)
+      else autoIgnore.push(r)
+    }
+    return {
+      watchRules: watch,
+      userIgnoreRules: userIgnore,
+      autoIgnoreRules: autoIgnore,
+    }
+  }, [rules])
+
+  function filterByPath(list: ImportRuleWithCollections[], q: string) {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return list
+    return list.filter((r) => r.path.toLowerCase().includes(needle))
+  }
+
+  function filterAuto(list: ImportRuleWithCollections[], q: string) {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return list
+    return list.filter(
+      (r) =>
+        r.path.toLowerCase().includes(needle) ||
+        (r.bookTitle?.toLowerCase().includes(needle) ?? false),
+    )
+  }
+
+  const filteredWatch = filterByPath(watchRules, searchByTab.watch)
+  const filteredIgnore = filterByPath(userIgnoreRules, searchByTab.ignore)
+  const filteredAuto = filterAuto(autoIgnoreRules, searchByTab.auto)
+
+  const watchSelectable = filteredWatch.map((r) => r.uuid)
+  const ignoreSelectable = filteredIgnore.map((r) => r.uuid)
+  const autoSelectable = filteredAuto.map((r) => r.uuid)
+
+  function toggleSelected(uuid: UUID) {
+    setSelectedUuids((prev) => {
+      const next = new Set(prev)
+      if (next.has(uuid)) {
+        next.delete(uuid)
+      } else {
+        next.add(uuid)
+      }
+      return next
+    })
+  }
+
+  function deleteOne(uuid: UUID) {
+    void deleteRules({ uuids: [uuid] })
+    setSelectedUuids((prev) => {
+      if (!prev.has(uuid)) return prev
+      const next = new Set(prev)
+      next.delete(uuid)
+      return next
+    })
+  }
+
+  function handleDeleteSelected() {
+    if (selectedUuids.size === 0) return
+    void deleteRules({ uuids: [...selectedUuids] })
+    setSelectedUuids(new Set())
+  }
+
+  function selectAllUuids(uuids: UUID[]) {
+    setSelectedUuids(new Set(uuids))
+  }
+
+  function allUuidsSelected(uuids: UUID[]) {
+    if (uuids.length === 0) return false
+    return uuids.every((u) => selectedUuids.has(u))
+  }
+
+  function setTabSearch(tab: "watch" | "ignore" | "auto", value: string) {
+    setSearchByTab((prev) => ({ ...prev, [tab]: value }))
+    if (tab === "auto") setAutoPage(1)
+  }
+
+  const AUTO_PAGE_SIZE = 200
+  const autoPageCount = Math.max(
+    1,
+    Math.ceil(filteredAuto.length / AUTO_PAGE_SIZE),
+  )
+  const clampedAutoPage = Math.min(autoPage, autoPageCount)
+  const autoStart = (clampedAutoPage - 1) * AUTO_PAGE_SIZE
+  const visibleAuto = filteredAuto.slice(autoStart, autoStart + AUTO_PAGE_SIZE)
+  const showAutoPagination = filteredAuto.length > AUTO_PAGE_SIZE
+
+  return (
+    <Fieldset legend="Import rules" disabled={isLocked}>
+      <Stack>
+        <Text className="text-sm text-black opacity-70 dark:text-white">
+          Configure which folders Storyteller watches for new books, and which
+          paths to skip during scans.
+        </Text>
+
+        <NativeSelect
+          label="Default import mode"
+          description="How to handle files found in import directories. Individual rules can override this."
+          value={importMode}
+          onChange={(e) => {
+            onImportModeChange(e.currentTarget.value)
+          }}
+        >
+          <option value="reference">Reference in place</option>
+          <option value="copy">Copy to library</option>
+          <option value="move">Move to library</option>
+          <option value="hardlink">Hard link to library</option>
+        </NativeSelect>
+
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            if (!value) return
+            setActiveTab(value as "watch" | "ignore" | "auto")
+            setSelectedUuids(new Set())
+          }}
+        >
+          <Tabs.List>
+            <Tabs.Tab value="watch">
+              Watch <Badge size="xs">{watchRules.length}</Badge>
+            </Tabs.Tab>
+            <Tabs.Tab value="ignore">
+              Ignore <Badge size="xs">{userIgnoreRules.length}</Badge>
+            </Tabs.Tab>
+            <Tabs.Tab value="auto">
+              Auto-ignore <Badge size="xs">{autoIgnoreRules.length}</Badge>
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="watch" pt="md">
+            <Stack gap="sm">
+              <TabHeader
+                addLabel="Add watch rule"
+                onAdd={() => {
+                  setAddModalKind("watch")
+                }}
+                searchPlaceholder="Search watch rules…"
+                searchValue={searchByTab.watch}
+                onSearchChange={(v) => {
+                  setTabSearch("watch", v)
+                }}
+                selectedCount={selectedUuids.size}
+                selectableCount={watchSelectable.length}
+                allSelected={allUuidsSelected(watchSelectable)}
+                isDeleting={isDeleting}
+                onSelectAll={() => {
+                  selectAllUuids(watchSelectable)
+                }}
+                onDeleteSelected={handleDeleteSelected}
+                onClearSelection={() => {
+                  setSelectedUuids(new Set())
+                }}
+              />
+
+              {filteredWatch.length === 0 ? (
+                <EmptyState
+                  message={
+                    watchRules.length === 0
+                      ? "No watch rules yet. Add a folder to scan."
+                      : "No watch rules match your search."
+                  }
+                />
+              ) : (
+                <Stack gap="xs">
+                  {filteredWatch.map((rule) => (
+                    <WatchRuleCard
+                      key={rule.uuid}
+                      rule={rule}
+                      collections={collections}
+                      selected={selectedUuids.has(rule.uuid)}
+                      onToggle={() => {
+                        toggleSelected(rule.uuid)
+                      }}
+                      onDelete={() => {
+                        deleteOne(rule.uuid)
+                      }}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="ignore" pt="md">
+            <Stack gap="sm">
+              <TabHeader
+                addLabel="Add ignore rule"
+                onAdd={() => {
+                  setAddModalKind("ignore")
+                }}
+                searchPlaceholder="Search ignore rules…"
+                searchValue={searchByTab.ignore}
+                onSearchChange={(v) => {
+                  setTabSearch("ignore", v)
+                }}
+                selectedCount={selectedUuids.size}
+                selectableCount={ignoreSelectable.length}
+                allSelected={allUuidsSelected(ignoreSelectable)}
+                isDeleting={isDeleting}
+                onSelectAll={() => {
+                  selectAllUuids(ignoreSelectable)
+                }}
+                onDeleteSelected={handleDeleteSelected}
+                onClearSelection={() => {
+                  setSelectedUuids(new Set())
+                }}
+              />
+
+              {filteredIgnore.length === 0 ? (
+                <EmptyState
+                  message={
+                    userIgnoreRules.length === 0
+                      ? "No ignore rules. Add a path to skip during scans."
+                      : "No ignore rules match your search."
+                  }
+                />
+              ) : (
+                <Stack gap="xs">
+                  {filteredIgnore.map((rule) => (
+                    <IgnoreRuleRow
+                      key={rule.uuid}
+                      rule={rule}
+                      selected={selectedUuids.has(rule.uuid)}
+                      onToggle={() => {
+                        toggleSelected(rule.uuid)
+                      }}
+                      onDelete={() => {
+                        deleteOne(rule.uuid)
+                      }}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="auto" pt="md">
+            <Stack gap="sm">
+              <Text size="xs" className="opacity-70">
+                Auto-ignore rules are added by Storyteller when books are
+                relocated, backed up, or removed with re-import prevention. If a
+                book isn&apos;t importing, search here for its path or title.
+              </Text>
+
+              <TabHeader
+                searchPlaceholder="Search by path or book title…"
+                searchValue={searchByTab.auto}
+                onSearchChange={(v) => {
+                  setTabSearch("auto", v)
+                }}
+                selectedCount={selectedUuids.size}
+                selectableCount={autoSelectable.length}
+                allSelected={allUuidsSelected(autoSelectable)}
+                isDeleting={isDeleting}
+                onSelectAll={() => {
+                  selectAllUuids(autoSelectable)
+                }}
+                onDeleteSelected={handleDeleteSelected}
+                onClearSelection={() => {
+                  setSelectedUuids(new Set())
+                }}
+              />
+
+              {filteredAuto.length === 0 ? (
+                <EmptyState
+                  message={
+                    autoIgnoreRules.length === 0
+                      ? "No auto-ignore rules."
+                      : "No auto-ignore rules match your search."
+                  }
+                />
+              ) : (
+                <>
+                  <Text size="xs" className="opacity-70">
+                    {showAutoPagination
+                      ? `Showing ${autoStart + 1}–${autoStart + visibleAuto.length} of ${filteredAuto.length}.`
+                      : `Showing ${filteredAuto.length} of ${autoIgnoreRules.length}.`}
+                  </Text>
+                  <Stack gap="xs">
+                    {visibleAuto.map((rule) => (
+                      <AutoIgnoreRuleRow
+                        key={rule.uuid}
+                        rule={rule}
+                        selected={selectedUuids.has(rule.uuid)}
+                        onToggle={() => {
+                          toggleSelected(rule.uuid)
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                  {showAutoPagination && (
+                    <Group justify="space-between" gap="xs">
+                      <Button
+                        variant="default"
+                        size="compact-sm"
+                        disabled={clampedAutoPage <= 1}
+                        onClick={() => {
+                          setAutoPage(clampedAutoPage - 1)
+                        }}
+                      >
+                        Previous
+                      </Button>
+                      <Text size="xs" className="opacity-70">
+                        Page {clampedAutoPage} of {autoPageCount}
+                      </Text>
+                      <Button
+                        variant="default"
+                        size="compact-sm"
+                        disabled={clampedAutoPage >= autoPageCount}
+                        onClick={() => {
+                          setAutoPage(clampedAutoPage + 1)
+                        }}
+                      >
+                        Next
+                      </Button>
+                    </Group>
+                  )}
+                </>
+              )}
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
+      </Stack>
+
+      {addModalKind && (
+        <AddRuleModal
+          opened={true}
+          onClose={() => {
+            setAddModalKind(null)
+          }}
+          kind={addModalKind}
+          rules={rules}
+          collections={collections}
+        />
+      )}
+    </Fieldset>
+  )
+}
+
 export function SettingsForm({
   settings,
   authUrl,
@@ -66,10 +920,18 @@ export function SettingsForm({
   const isAnyLocked = (...keys: (keyof Settings)[]) => keys.some(isLocked)
   const [saved, setSaved] = useState(false)
   const clearSavedTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const permissions = usePermissions()
 
   const { data: maxUploadChunkSize } = useGetMaxUploadChunkSizeQuery()
+  const { data: scanState } = useGetScanStateQuery(undefined, {
+    pollingInterval: 5_000,
+    skip: !permissions?.bookProcess,
+  })
 
   const [updateSettings] = useUpdateSettingsMutation()
+  const [triggerScan, { isLoading: isTriggeringScan }] =
+    useTriggerScanMutation()
+  const [cancelScan, { isLoading: isCancellingScan }] = useCancelScanMutation()
 
   const initialValues: Settings = {
     smtpHost: settings.smtpHost,
@@ -110,7 +972,6 @@ export function SettingsForm({
     parallelTranscodes: settings.parallelTranscodes,
     authProviders: settings.authProviders,
     disablePasswordLogin: settings.disablePasswordLogin,
-    importPath: settings.importPath,
     importMode: settings.importMode,
     readaloudLocationType: settings.readaloudLocationType,
     readaloudLocation: settings.readaloudLocation,
@@ -118,6 +979,8 @@ export function SettingsForm({
       maxUploadChunkSize?.maxUploadChunkSize ?? settings.maxUploadChunkSize,
     opdsEnabled: settings.opdsEnabled,
     opdsPageSize: settings.opdsPageSize,
+    scanCronExpression: settings.scanCronExpression ?? null,
+    metadataFieldOverrides: settings.metadataFieldOverrides,
     epub2ImportStrategy: settings.epub2ImportStrategy,
     epub2BackupSuffix: settings.epub2BackupSuffix,
   }
@@ -186,37 +1049,135 @@ export function SettingsForm({
           disabled={isLocked("webUrl")}
         />
       </Fieldset>
-      <ImportPathInput
-        {...form.getInputProps("importPath")}
-        disabled={isLocked("importPath")}
+      <ImportRulesSection
+        importMode={state.importMode}
+        onImportModeChange={(mode) => {
+          form.setFieldValue(
+            "importMode",
+            mode as "reference" | "copy" | "move" | "hardlink",
+          )
+        }}
+        isLocked={isLocked("importMode")}
+      />
+      <Fieldset
+        legend="Library scanning"
+        disabled={isAnyLocked("scanCronExpression", "metadataFieldOverrides")}
       >
-        <Text className="text-sm text-black opacity-70 dark:text-white">
-          Storyteller can be configured to automatically import book files from
-          a specific directory.
-        </Text>
-        <Text className="text-sm text-black opacity-70 dark:text-white">
-          When enabled, Storyteller will set up a filesystem watcher for the
-          directory. When any files are added or modified within the directory,
-          Storyteller will scan for new book files, and automatically import any
-          that it finds.
-        </Text>
-        <Text className="text-sm text-black opacity-70 dark:text-white">
-          Book files found in this directory will not be automatically added to
-          a collection. You can also configure collection-specific automatic
-          import in the settings for that collection.
-        </Text>
-        <NativeSelect
-          label="Import mode"
-          description="How to handle files found in import directories. Also applies to collections."
-          {...form.getInputProps("importMode")}
-          disabled={isLocked("importMode")}
-        >
-          <option value="reference">Reference in place</option>
-          <option value="copy">Copy to library</option>
-          <option value="move">Move to library</option>
-          <option value="hardlink">Hard link to library</option>
-        </NativeSelect>
-      </ImportPathInput>
+        <Stack>
+          <Text className="text-sm opacity-70 dark:text-white">
+            Scan your library for new files and changes. Scans check all tracked
+            books and import paths for additions, removals, and modified files.
+          </Text>
+
+          {permissions?.bookProcess && (
+            <Group>
+              <Button
+                variant="outline"
+                loading={isTriggeringScan}
+                onClick={() => {
+                  void triggerScan({ force: true })
+                }}
+                disabled={Boolean(scanState?.running)}
+              >
+                Scan library
+              </Button>
+              <Text className="text-xs opacity-60">
+                Re-reads all import paths and book metadata, even if files
+                haven&apos;t changed since the last scan.
+              </Text>
+            </Group>
+          )}
+
+          {permissions?.bookProcess && scanState?.running && (
+            <Group align="center" gap="sm">
+              <Text className="text-sm opacity-70 dark:text-white">
+                Scan in progress ({scanState.source ?? "unknown"})
+              </Text>
+
+              <Button
+                variant="subtle"
+                color="red"
+                size="compact-sm"
+                loading={isCancellingScan}
+                onClick={() => {
+                  void cancelScan()
+                }}
+              >
+                Cancel
+              </Button>
+            </Group>
+          )}
+
+          <Switch
+            label="Run scans on a schedule"
+            checked={!!state.scanCronExpression}
+            onChange={(event) => {
+              if (!event.currentTarget.checked) {
+                form.setFieldValue("scanCronExpression", null)
+                return
+              }
+
+              form.setFieldValue(
+                "scanCronExpression",
+                minutesToCronExpression(1440),
+              )
+            }}
+          />
+
+          {!!state.scanCronExpression && (
+            <>
+              <NumberInput
+                label="Scan interval (minutes)"
+                min={1}
+                value={cronExpressionToMinutes(state.scanCronExpression) ?? ""}
+                onChange={(val) => {
+                  if (val === "") return
+
+                  const minutes = Number(val)
+                  if (minutes > 0) {
+                    form.setFieldValue(
+                      "scanCronExpression",
+                      minutesToCronExpression(minutes),
+                    )
+                  }
+                }}
+              />
+
+              <TextInput
+                label="Or use a cron expression"
+                description={
+                  <>
+                    Standard cron syntax (minute hour day month weekday).{" "}
+                    <Anchor
+                      href="https://crontab.guru/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="sm"
+                    >
+                      Cron expression reference
+                    </Anchor>
+                  </>
+                }
+                placeholder="0 */4 * * *"
+                value={state.scanCronExpression}
+                onChange={(event) => {
+                  const val = event.currentTarget.value
+                  form.setFieldValue("scanCronExpression", val || null)
+                }}
+              />
+            </>
+          )}
+
+          <MetadataFieldOverridesEditor
+            value={state.metadataFieldOverrides}
+            onChange={(overrides) => {
+              form.setFieldValue("metadataFieldOverrides", overrides)
+            }}
+            description="Controls how Storyteller handles metadata changes in existing book files made outside of Storyteller during scans. If you manage your books with other tools (e.g. Calibre, Audiobookshelf) and want those changes reflected in Storyteller, consider using always override. The default (fill empty) is suitable for most users. For example, when importing the book it didn't have a description, so that field was empty. When scanning the book again, we now see it has a description, so when 'fill empty' is used, the description found in the .epub will be used."
+          />
+        </Stack>
+      </Fieldset>
+
       <Fieldset
         legend="EPUB 2 handling"
         disabled={isAnyLocked("epub2ImportStrategy", "epub2BackupSuffix")}

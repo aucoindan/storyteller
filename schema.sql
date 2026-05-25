@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS "migration" (
+CREATE TABLE "migration" (
   id INTEGER PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   hash TEXT NOT NULL,
@@ -16,7 +16,7 @@ WHERE
 
 END;
 
-CREATE TABLE IF NOT EXISTS "book" (
+CREATE TABLE "book" (
   uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
   title TEXT NOT NULL,
   /* Maintain the old integer ids to avoid breaking changes */
@@ -30,8 +30,10 @@ CREATE TABLE IF NOT EXISTS "book" (
   aligned_with TEXT,
   description TEXT,
   rating REAL,
-  suffix TEXT NOT NULL DEFAULT '',
-  subtitle TEXT
+  subtitle TEXT,
+  "duration" real,
+  "page_count" integer,
+  asset_dir TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TRIGGER book_update_trigger AFTER
@@ -44,7 +46,7 @@ WHERE
 
 END;
 
-CREATE TABLE IF NOT EXISTS "user_permission" (
+CREATE TABLE "user_permission" (
   uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
   id INTEGER,
   book_create BOOLEAN NOT NULL DEFAULT 0,
@@ -77,7 +79,7 @@ WHERE
 
 END;
 
-CREATE TABLE IF NOT EXISTS "settings" (
+CREATE TABLE "settings" (
   uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
   id INTEGER,
   name TEXT NOT NULL,
@@ -96,7 +98,7 @@ WHERE
 
 END;
 
-CREATE TABLE IF NOT EXISTS "token_revokation" (
+CREATE TABLE "token_revokation" (
   token TEXT PRIMARY KEY NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -130,7 +132,7 @@ WHERE
 
 END;
 
-CREATE TABLE IF NOT EXISTS "user" (
+CREATE TABLE "user" (
   id TEXT PRIMARY KEY DEFAULT (uuid ()),
   user_permission_uuid TEXT NOT NULL,
   username TEXT,
@@ -266,7 +268,7 @@ WHERE
 
 END;
 
-CREATE TABLE IF NOT EXISTS "readaloud" (
+CREATE TABLE "readaloud" (
   uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
   book_uuid TEXT NOT NULL REFERENCES book (uuid),
   filepath TEXT,
@@ -277,7 +279,13 @@ CREATE TABLE IF NOT EXISTS "readaloud" (
   current_stage TEXT,
   stage_progress INTEGER NOT NULL DEFAULT 0,
   queue_position INTEGER,
-  restart_pending INTEGER
+  restart_pending INTEGER,
+  "manifest" jsonb,
+  "page_count" integer,
+  is_epub2 BOOLEAN NOT NULL DEFAULT FALSE,
+  "duration" real,
+  "file_size" integer,
+  "fingerprint" text
 );
 
 CREATE TRIGGER aligned_book_update_trigger AFTER
@@ -296,7 +304,12 @@ CREATE TABLE ebook (
   filepath TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  missing INTEGER NOT NULL DEFAULT 0
+  missing INTEGER NOT NULL DEFAULT 0,
+  "manifest" jsonb,
+  "page_count" integer,
+  is_epub2 BOOLEAN NOT NULL DEFAULT FALSE,
+  "file_size" integer,
+  "fingerprint" text
 );
 
 CREATE TRIGGER ebook_update_trigger AFTER
@@ -315,7 +328,11 @@ CREATE TABLE audiobook (
   filepath TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  missing INTEGER NOT NULL DEFAULT 0
+  missing INTEGER NOT NULL DEFAULT 0,
+  "manifest" jsonb,
+  "duration" real,
+  "file_size" integer,
+  "fingerprint" text
 );
 
 CREATE TRIGGER audiobook_update_trigger AFTER
@@ -357,26 +374,6 @@ CREATE TABLE tag (
 CREATE TRIGGER tag_update_trigger AFTER
 UPDATE ON "tag" FOR EACH ROW BEGIN
 UPDATE "tag"
-SET
-  updated_at = CURRENT_TIMESTAMP
-WHERE
-  uuid = OLD.uuid;
-
-END;
-
-CREATE TABLE collection (
-  uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
-  name TEXT NOT NULL UNIQUE,
-  public BOOLEAN NOT NULL DEFAULT 0,
-  description TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  import_path TEXT DEFAULT NULL
-);
-
-CREATE TRIGGER collection_update_trigger AFTER
-UPDATE ON "collection" FOR EACH ROW BEGIN
-UPDATE "collection"
 SET
   updated_at = CURRENT_TIMESTAMP
 WHERE
@@ -469,18 +466,6 @@ CREATE INDEX idx_audiobook_book ON audiobook (book_uuid);
 
 CREATE INDEX idx_readaloud_book ON readaloud (book_uuid);
 
-CREATE TABLE IF NOT EXISTS "processing_task" (
-  uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
-  id INTEGER,
-  type TEXT NOT NULL,
-  book_uuid TEXT NOT NULL,
-  status TEXT NOT NULL,
-  progress REAL NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (book_uuid) REFERENCES book (uuid)
-);
-
 CREATE TABLE device_authorization (
   id TEXT PRIMARY KEY DEFAULT (uuid ()),
   device_code TEXT NOT NULL UNIQUE,
@@ -507,11 +492,6 @@ WHERE
 
 END;
 
-CREATE TABLE import_skip_path (
-  book_uuid TEXT REFERENCES book (uuid),
-  filepath TEXT PRIMARY KEY
-);
-
 CREATE TABLE changelog (
   uuid text PRIMARY KEY DEFAULT (uuid ()),
   tag_name text NOT NULL UNIQUE,
@@ -524,3 +504,70 @@ CREATE TABLE changelog (
 );
 
 CREATE INDEX idx_changelog_component_released_at ON changelog (component, released_at DESC);
+
+CREATE UNIQUE INDEX idx_settings_name ON settings (name);
+
+CREATE TABLE "collection" (
+  uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
+  name TEXT NOT NULL UNIQUE,
+  public BOOLEAN NOT NULL DEFAULT 0,
+  description TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER collection_update_trigger AFTER
+UPDATE ON "collection" FOR EACH ROW BEGIN
+UPDATE "collection"
+SET
+  updated_at = CURRENT_TIMESTAMP
+WHERE
+  uuid = OLD.uuid;
+
+END;
+
+CREATE TABLE import_rule_to_collection_new (
+  import_rule_uuid TEXT NOT NULL REFERENCES import_rule (uuid) ON DELETE CASCADE,
+  collection_uuid TEXT NOT NULL REFERENCES collection (uuid) ON DELETE CASCADE,
+  PRIMARY KEY (import_rule_uuid, collection_uuid)
+);
+
+CREATE TABLE import_rule (
+  uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
+  kind TEXT NOT NULL CHECK (kind IN ('watch', 'ignore')),
+  path TEXT NOT NULL,
+  import_mode TEXT DEFAULT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  source TEXT NOT NULL DEFAULT 'user' CHECK (
+    source IN (
+      'user',
+      'import-relocate',
+      'import-backup',
+      'prevent-reimport'
+    )
+  ),
+  book_uuid TEXT DEFAULT NULL REFERENCES book (uuid) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX idx_import_rule_path ON import_rule (path);
+
+CREATE TRIGGER import_rule_update_trigger AFTER
+UPDATE ON "import_rule" FOR EACH ROW BEGIN
+UPDATE "import_rule"
+SET
+  updated_at = CURRENT_TIMESTAMP
+WHERE
+  uuid = OLD.uuid;
+
+END;
+
+CREATE TABLE import_rule_to_collection (
+  import_rule_uuid TEXT NOT NULL REFERENCES import_rule (uuid) ON DELETE CASCADE,
+  collection_uuid TEXT NOT NULL REFERENCES collection (uuid) ON DELETE CASCADE,
+  PRIMARY KEY (import_rule_uuid, collection_uuid)
+);
+
+CREATE INDEX idx_import_rule_book_uuid ON import_rule (book_uuid);
+
+CREATE UNIQUE INDEX idx_book_asset_dir ON book (asset_dir);

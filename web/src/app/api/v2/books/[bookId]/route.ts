@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
 
-import {
-  writeExtractedAudiobookCover,
-  writeExtractedEbookCover,
-} from "@/assets/covers"
-import { deleteAssets, renameBookAssets } from "@/assets/fs"
+import { type CoverData, persistCover } from "@/assets/covers"
+import { deleteAssets } from "@/assets/fs"
 import { withHasPermission } from "@/auth/auth"
 import {
   type CreatorRelation,
@@ -63,6 +60,8 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
   const subtitle = getField<string | null>(formData, "subtitle") ?? null
   const description = getField<string | null>(formData, "description") ?? null
   const rating = getField<number | null>(formData, "rating") ?? null
+  const pageCount = getField<number | null>(formData, "pageCount") ?? null
+  const duration = getField<number | null>(formData, "duration") ?? null
 
   const publicationDate =
     getField<string | null>(formData, "publicationDate") ?? null
@@ -137,7 +136,7 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
     return Response.json({ message: `Could not find book with id ${bookUuid}` })
   }
 
-  let updated = await updateBook(
+  const updated = await updateBook(
     bookUuid,
     {
       // We already confirmed that these are non-null above, if they're in
@@ -149,6 +148,8 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
       ...(fields.has("description") && { description }),
       ...(fields.has("rating") && { rating }),
       ...(fields.has("publicationDate") && { publicationDate }),
+      ...(fields.has("pageCount") && { pageCount }),
+      ...(fields.has("duration") && { duration }),
     },
     {
       ...(fields.has("creators") && { creators }),
@@ -163,23 +164,18 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
     request.auth.user.id,
   )
 
-  updated = await renameBookAssets(book, updated)
-
   const textCover = formData.get("textCover")?.valueOf() as File | undefined
   const audioCover = formData.get("audioCover")?.valueOf() as File | undefined
 
   if (textCover) {
-    await writeExtractedEbookCover(
-      updated,
-      textCover.name,
-      await textCover.bytes(),
-    )
+    await persistCover(updated, "ebook", await coverDataFromFile(textCover))
   }
+
   if (audioCover) {
-    await writeExtractedAudiobookCover(
+    await persistCover(
       updated,
-      audioCover.name,
-      await audioCover.bytes(),
+      "audiobook",
+      await coverDataFromFile(audioCover),
     )
   }
 
@@ -187,6 +183,14 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
 
   return NextResponse.json(updated)
 })
+
+async function coverDataFromFile(file: File): Promise<CoverData> {
+  return {
+    filename: file.name,
+    mimeType: file.type || "image/jpeg",
+    data: await file.bytes(),
+  }
+}
 
 /**
  * @summary Get metadata for a book
@@ -227,12 +231,11 @@ export const DELETE = withHasPermission<Params>("bookDelete")(async (
     )
   }
 
-  const includeAssets = request.nextUrl.searchParams.get("includeAssets")
+  const preventReImport =
+    request.nextUrl.searchParams.get("preventReImport") === "true"
 
-  await deleteBook(book.uuid)
-  if (includeAssets) {
-    await deleteAssets(book, { all: includeAssets === "all" })
-  }
+  await deleteBook(book.uuid, { preventReImport })
+  await deleteAssets(book)
 
   return new Response(null, { status: 204 })
 })

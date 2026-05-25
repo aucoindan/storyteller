@@ -51,7 +51,7 @@ export class Audiobook {
   private extractPath: string | undefined = undefined
   private isZip: boolean
 
-  private constructor(...inputs: AudiobookInputs) {
+  private constructor(inputs: AudiobookInputs) {
     this.inputs = inputs
 
     const [first] = this.inputs
@@ -61,7 +61,7 @@ export class Audiobook {
   }
 
   static async from(...inputs: AudiobookInputs) {
-    const audiobook = new Audiobook(...inputs)
+    const audiobook = new Audiobook(inputs)
     audiobook.entries = await audiobook.getEntries()
     return audiobook
   }
@@ -85,9 +85,7 @@ export class Audiobook {
 
         for await (const entry of zipfile) {
           if (entry.filename.endsWith("/")) {
-            // Directory file names end with '/'.
-            // Note that entries for directories themselves are optional.
-            // An entry's fileName implicitly requires its parent directories to exist.
+            // directory entries are skipped; parent dirs are created implicitly
           } else {
             entries.push(entry.filename)
             const readStream = await entry.openReadStream()
@@ -128,7 +126,7 @@ export class Audiobook {
   }
 
   protected async setValue(
-    setter: (entry: AudiobookEntry) => Promise<void>,
+    setter: (entry: AudiobookEntry) => void | Promise<void>,
   ): Promise<void> {
     for (const entry of this.entries) {
       await setter(entry)
@@ -210,7 +208,9 @@ export class Audiobook {
   async setCoverArt(picture: AttachedPic): Promise<void> {
     this.metadata.coverArt = picture
 
-    await this.setValue((entry) => entry.setCoverArt(picture))
+    await this.setValue((entry) => {
+      entry.setCoverArt(picture)
+    })
   }
 
   async getPublisher(): Promise<string | null> {

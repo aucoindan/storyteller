@@ -19,9 +19,16 @@ import { getFileChunks } from "@storyteller-platform/fs"
 
 import { isAudioFile } from "@/audio"
 import { type Book, type BookWithRelations, updateBook } from "@/database/books"
+import { db } from "@/database/connection"
+import { ASSETS_DIR } from "@/directories"
 import { logger } from "@/logging"
 import { type UUID } from "@/uuid"
 
+import { pathBelongsTo } from "./library/scanner/folder"
+import {
+  suppressPrefix,
+  unsuppressPrefix,
+} from "./library/scanner/write-intent"
 import {
   getCachedCoverImageDirectory,
   getCoverImageCacheDirectory,
@@ -37,6 +44,32 @@ import {
   getSafeFilepathSegment,
   getTranscriptionsFilepath,
 } from "./paths"
+
+/**
+ * Reserve a unique on-disk directory for this book. checks the DB for
+ * asset_dir collisions (rather than relying on filesystem EEXIST) and
+ * bumps to a uuid-derived suffix when needed.
+ */
+export async function reserveBookDirectory(
+  book: BookWithRelations,
+): Promise<BookWithRelations> {
+  const desired = getSafeFilepathSegment(book.title)
+
+  const collision = await db
+    .selectFrom("book")
+    .select(["uuid"])
+    .where("assetDir", "=", desired)
+    .where("uuid", "!=", book.uuid)
+    .executeTakeFirst()
+
+  const folder = collision
+    ? getSafeFilepathSegment(book.title, getDefaultSuffix(book.uuid))
+    : desired
+
+  const updated = await updateBook(book.uuid, { assetDir: folder })
+  await mkdir(getInternalBookDirectory(updated), { recursive: true })
+  return updated
+}
 
 export async function move(source: string, destination: string) {
   await cp(source, destination, { recursive: true })
@@ -102,27 +135,27 @@ export async function getProcessedAudioFiles(book: Book) {
 export async function renameBookAssets(
   book: BookWithRelations,
   updated: BookWithRelations,
-) {
+): Promise<BookWithRelations> {
   if (book.title !== updated.title) {
-    try {
-      await move(
-        getInternalBookDirectory(book),
-        getInternalBookDirectory(updated),
-      )
-    } catch (e) {
-      if (
-        e instanceof Error &&
-        "code" in e &&
-        (e.code === "EEXIST" || e.code === "ENOTEMPTY")
-      ) {
-        updated = await updateBook(updated.uuid, {
-          suffix: getDefaultSuffix(updated.uuid),
-        })
-        return renameBookAssets(book, updated)
-      }
+    const desired = getSafeFilepathSegment(updated.title)
 
-      throw e
-    }
+    const collision = await db
+      .selectFrom("book")
+      .select(["uuid"])
+      .where("assetDir", "=", desired)
+      .where("uuid", "!=", updated.uuid)
+      .executeTakeFirst()
+
+    const newFolder = collision
+      ? getSafeFilepathSegment(updated.title, getDefaultSuffix(updated.uuid))
+      : desired
+
+    updated = await updateBook(updated.uuid, { assetDir: newFolder })
+
+    const oldDir = getInternalBookDirectory(book)
+    const newDir = getInternalBookDirectory(updated)
+    await move(oldDir, newDir)
+
     if (updated.ebook?.filepath === getInternalEpubFilepath(book)) {
       await move(
         join(
@@ -162,32 +195,20 @@ export async function renameBookAssets(
 }
 
 export async function persistEpub(
-  book: Book,
+  book: BookWithRelations,
   tmpPath: string,
   aligned?: boolean,
 ) {
+  const reserved = await reserveBookDirectory(book)
   const filepath = aligned
-    ? getInternalReadaloudFilepath(book)
-    : getInternalEpubFilepath(book)
-
-  try {
-    await mkdir(getInternalBookDirectory(book))
-  } catch (e) {
-    if (e instanceof Error && "code" in e && e.code === "EEXIST") {
-      book = await updateBook(book.uuid, {
-        suffix: getDefaultSuffix(book.uuid),
-      })
-      return persistEpub(book, tmpPath, aligned)
-    }
-
-    throw e
-  }
+    ? getInternalReadaloudFilepath(reserved)
+    : getInternalEpubFilepath(reserved)
 
   const directory = dirname(filepath)
   await mkdir(directory, { recursive: true })
   await move(tmpPath, filepath)
 
-  return updateBook(book.uuid, null, {
+  return updateBook(reserved.uuid, null, {
     ...(aligned
       ? {
           readaloud: {
@@ -205,26 +226,14 @@ export async function persistAudio(
   tmpPath: string,
   relativePath: string,
 ) {
-  const filepath = getInternalOriginalAudioFilepath(book, relativePath)
-
-  try {
-    await mkdir(getInternalBookDirectory(book))
-  } catch (e) {
-    if (e instanceof Error && "code" in e && e.code === "EEXIST") {
-      book = await updateBook(book.uuid, {
-        suffix: getDefaultSuffix(book.uuid),
-      })
-      return persistAudio(book, tmpPath, relativePath)
-    }
-
-    throw e
-  }
+  const reserved = await reserveBookDirectory(book)
+  const filepath = getInternalOriginalAudioFilepath(reserved, relativePath)
 
   const directory = dirname(filepath)
   await mkdir(directory, { recursive: true })
   await move(tmpPath, filepath)
 
-  const updated = await updateBook(book.uuid, null, {
+  const updated = await updateBook(reserved.uuid, null, {
     audiobook: { filepath: directory },
   })
   return updated
@@ -255,56 +264,77 @@ export async function originalAudioExists(book: BookWithRelations) {
 }
 
 export async function deleteProcessed(book: BookWithRelations) {
-  await rm(getProcessedAudioFilepath(book), {
-    recursive: true,
-    force: true,
-  })
-  await rm(getTranscriptionsFilepath(book), {
-    recursive: true,
-    force: true,
-  })
+  await deleteProcessedAudio(book)
+  await deleteTranscriptions(book)
 }
 
 export async function deleteTranscriptions(book: BookWithRelations) {
+  const transcriptionsDir = getTranscriptionsFilepath(book)
+  suppressPrefix(transcriptionsDir)
   await rm(getTranscriptionsFilepath(book), {
     recursive: true,
     force: true,
   })
+  unsuppressPrefix(transcriptionsDir)
 }
 
 export async function deleteProcessedAudio(book: BookWithRelations) {
-  await rm(getProcessedAudioFilepath(book), {
+  const processedAudioDir = getProcessedAudioFilepath(book)
+  suppressPrefix(processedAudioDir)
+  await rm(processedAudioDir, {
     recursive: true,
     force: true,
   })
+  unsuppressPrefix(processedAudioDir)
 }
 
 export async function deleteOriginals(book: BookWithRelations) {
   if (book.ebook) {
+    suppressPrefix(book.ebook.filepath)
     await rm(book.ebook.filepath, { force: true })
+    unsuppressPrefix(book.ebook.filepath)
   }
   if (book.audiobook) {
+    suppressPrefix(book.audiobook.filepath)
     await rm(book.audiobook.filepath, {
       recursive: true,
       force: true,
     })
+    unsuppressPrefix(book.audiobook.filepath)
   }
 }
 
-export async function deleteAssets(
-  book: BookWithRelations,
-  { all }: { all?: boolean } = {},
-) {
-  if (!all) {
-    await deleteProcessed(book)
-    return
+/**
+ * Library-owned assets are deleted. Reference-mode
+ * source files (ebook/audiobook outside ASSETS_DIR) are left on disk.
+ */
+export async function deleteAssets(book: BookWithRelations) {
+  const bookDir = getInternalBookDirectory(book)
+  suppressPrefix(bookDir)
+  await rm(bookDir, { recursive: true, force: true })
+  unsuppressPrefix(bookDir)
+
+  if (
+    book.readaloud?.filepath &&
+    pathBelongsTo(ASSETS_DIR, book.readaloud.filepath)
+  ) {
+    suppressPrefix(book.readaloud.filepath)
+    await rm(book.readaloud.filepath, { force: true })
+    unsuppressPrefix(book.readaloud.filepath)
   }
 
-  await rm(getInternalBookDirectory(book), { recursive: true, force: true })
-  if (book.readaloud?.filepath) {
-    await rm(book.readaloud.filepath)
+  if (book.ebook && pathBelongsTo(ASSETS_DIR, book.ebook.filepath)) {
+    suppressPrefix(book.ebook.filepath)
+    await rm(book.ebook.filepath, { force: true })
+    unsuppressPrefix(book.ebook.filepath)
   }
-  await deleteOriginals(book)
+  if (book.audiobook && pathBelongsTo(ASSETS_DIR, book.audiobook.filepath)) {
+    suppressPrefix(book.audiobook.filepath)
+    await rm(book.audiobook.filepath, { recursive: true, force: true })
+    unsuppressPrefix(book.audiobook.filepath)
+  }
+
+  await deleteCachedCoverImages(book.uuid)
 }
 
 const cachedCoverImageLocks = new Map<string, AsyncMutex>()
@@ -370,6 +400,14 @@ export async function writeCachedCoverImage(
 
 export async function deleteCachedCoverImages(uuid: UUID) {
   const dir = getCoverImageCacheDirectory(uuid)
+  await rm(dir, { recursive: true, force: true })
+}
+
+export async function deleteCachedCoverImagesByKind(
+  uuid: UUID,
+  kind: "text" | "audio",
+) {
+  const dir = join(getCoverImageCacheDirectory(uuid), kind)
   await rm(dir, { recursive: true, force: true })
 }
 

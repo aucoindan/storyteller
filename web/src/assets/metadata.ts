@@ -8,10 +8,10 @@ import {
   type AudiobookInputs,
   getAttachedImageFromPath,
 } from "@storyteller-platform/audiobook"
-import { type Epub } from "@storyteller-platform/epub"
+import { type Epub, type EpubReader } from "@storyteller-platform/epub"
 
 import { isAudioFile } from "@/audio"
-import { isRole } from "@/components/books/edit/marcRelators"
+import { type Role, isRole } from "@/components/books/edit/marcRelators"
 import {
   type Book,
   type BookRelationsUpdate,
@@ -19,90 +19,233 @@ import {
   type BookWithRelations,
   type CreatorRelation,
 } from "@/database/books"
+import {
+  type MetadataField,
+  type MetadataFieldMode,
+  type MetadataFieldOverrides,
+} from "@/database/settingsTypes"
 import { logger } from "@/logging"
 
-import { persistCustomAudioCover } from "./covers"
+import { persistCover } from "./covers"
 import { getProcessedAudioFiles } from "./fs"
-import { getProcessedAudioFilepath } from "./paths"
+import { getAudiobookCoverDirectory, getProcessedAudioFilepath } from "./paths"
 
-export function keepMissingMetadata(book: Book, incoming: BookUpdate | null) {
-  if (!incoming) return null
-
-  const keep: BookUpdate = {}
-  if (book.title === "" && incoming.title) {
-    keep.title = incoming.title
-  }
-  if (book.description === null && incoming.description) {
-    keep.description = incoming.description
-  }
-  if (book.language === null && incoming.language) {
-    keep.language = incoming.language
-  }
-  if (book.publicationDate === null && incoming.publicationDate) {
-    keep.publicationDate = incoming.publicationDate
-  }
-  if (book.alignedAt === null && incoming.alignedAt) {
-    keep.alignedAt = incoming.alignedAt
-  }
-  if (
-    book.alignedByStorytellerVersion === null &&
-    incoming.alignedByStorytellerVersion
-  ) {
-    keep.alignedByStorytellerVersion = incoming.alignedByStorytellerVersion
-  }
-  if (book.alignedWith === null && incoming.alignedWith) {
-    keep.alignedWith = incoming.alignedWith
-  }
-  return keep
+type ScalarFieldMapping = {
+  field: MetadataField
+  key: keyof BookUpdate
+  isEmpty: (book: Book) => boolean
 }
 
-export function keepMissingRelations(
-  book: BookWithRelations,
-  incoming: BookRelationsUpdate,
-) {
-  const keep: BookRelationsUpdate = {}
-  const incomingAuthors = incoming.creators?.filter(
-    (creator) => creator.role === "aut",
-  )
-  const incomingNarrators = incoming.creators?.filter(
-    (creator) => creator.role === "nrt",
-  )
-  const incomingCreators = incoming.creators?.filter(
-    (creator) => creator.role !== "aut" && creator.role !== "nrt",
-  )
+const SCALAR_FIELDS = [
+  { field: "title", key: "title", isEmpty: (b) => b.title === "" },
+  { field: "subtitle", key: "subtitle", isEmpty: (b) => b.subtitle === null },
+  {
+    field: "description",
+    key: "description",
+    isEmpty: (b) => b.description === null,
+  },
+  { field: "language", key: "language", isEmpty: (b) => b.language === null },
+  {
+    field: "publicationDate",
+    key: "publicationDate",
+    isEmpty: (b) => b.publicationDate === null,
+  },
+] as const satisfies ScalarFieldMapping[]
 
-  keep.creators = []
-
-  if (book.authors.length === 0 && incomingAuthors?.length) {
-    keep.creators.push(...incomingAuthors)
-  } else {
-    keep.creators.push(
-      ...book.authors.map((author) => ({ ...author, role: "aut" as const })),
-    )
+function shouldIncludeScalar(
+  mode: MetadataFieldMode,
+  isEmpty: boolean,
+): boolean {
+  switch (mode) {
+    case "skip":
+      return false
+    case "always":
+      return true
+    default:
+      return isEmpty
   }
-  if (book.narrators.length === 0 && incomingNarrators?.length) {
-    keep.creators.push(...incomingNarrators)
-  } else {
-    keep.creators.push(
-      ...book.narrators.map((author) => ({ ...author, role: "nrt" as const })),
-    )
-  }
-  if (book.creators.length === 0 && incomingCreators?.length) {
-    keep.creators.push(...incomingCreators)
-  } else {
-    keep.creators.push(...book.creators)
-  }
-  if (book.series.length === 0 && incoming.series?.length) {
-    keep.series = incoming.series
-  }
-  if (book.tags.length === 0 && incoming.tags?.length) {
-    keep.tags = incoming.tags
-  }
-
-  return keep
 }
 
-export async function getMetadataFromEpub(epub: Epub): Promise<{
+// merge unions current and extracted, keyed by `keyOf`. extracted items with
+// a key that already exists in current are dropped (we never edit a tag to
+// rename it, we just add new ones). always overwrites; skip drops the field.
+function applyListOverride<C, X>(
+  mode: MetadataFieldMode,
+  current: C[],
+  extracted: X[] | undefined,
+  keyOfCurrent: (item: C) => string,
+  keyOfExtracted: (item: X) => string,
+  toExtracted: (item: C) => X,
+): X[] | null {
+  const nothingToDo = !extracted?.length && !current.length
+  if (mode === "skip" || nothingToDo) {
+    return null
+  }
+
+  if (mode === "always") {
+    return extracted ?? null
+  }
+
+  const seen = new Set<string>()
+  const out: X[] = []
+
+  for (const item of current) {
+    const k = keyOfCurrent(item)
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(toExtracted(item))
+  }
+
+  for (const item of extracted ?? []) {
+    const k = keyOfExtracted(item)
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(item)
+  }
+
+  return out
+}
+
+function creatorKey(name: string, role: string): string {
+  return `${role}::${name}`
+}
+
+type StoredAuthor = BookWithRelations["authors"][number]
+type StoredOtherCreator = BookWithRelations["creators"][number]
+
+function authorToRelation(c: StoredAuthor, role: Role): CreatorRelation {
+  return { name: c.name, role, fileAs: c.fileAs || c.name }
+}
+
+function otherToRelation(c: StoredOtherCreator): CreatorRelation {
+  return {
+    name: c.name,
+    role: c.role || "oth",
+    fileAs: c.fileAs || c.name,
+  }
+}
+
+export function applyFieldOverrides(
+  overrides: MetadataFieldOverrides,
+  current: BookWithRelations,
+  extracted: BookUpdate | null,
+  extractedRelations: BookRelationsUpdate,
+): { metadataUpdate: BookUpdate | null; relationUpdate: BookRelationsUpdate } {
+  let metadataUpdate: BookUpdate | null = null
+
+  // scalar book fields
+  if (extracted) {
+    for (const { field, key, isEmpty } of SCALAR_FIELDS) {
+      const mode = overrides[field]
+      const value = extracted[key]
+
+      if (value !== undefined && shouldIncludeScalar(mode, isEmpty(current))) {
+        metadataUpdate ??= {}
+        ;(metadataUpdate as Record<string, unknown>)[key] = value
+      }
+    }
+  }
+
+  // alignment fields are always read from the file
+  if (extracted) {
+    if (extracted.alignedAt !== undefined) {
+      metadataUpdate ??= {}
+      metadataUpdate.alignedAt = extracted.alignedAt
+    }
+
+    if (extracted.alignedByStorytellerVersion !== undefined) {
+      metadataUpdate ??= {}
+      metadataUpdate.alignedByStorytellerVersion =
+        extracted.alignedByStorytellerVersion
+    }
+
+    if (extracted.alignedWith !== undefined) {
+      metadataUpdate ??= {}
+      metadataUpdate.alignedWith = extracted.alignedWith
+    }
+  }
+
+  const relationUpdate: BookRelationsUpdate = {}
+
+  const incomingAuthors =
+    extractedRelations.creators?.filter((c) => c.role === "aut") ?? []
+  const incomingNarrators =
+    extractedRelations.creators?.filter((c) => c.role === "nrt") ?? []
+  const incomingOtherCreators =
+    extractedRelations.creators?.filter(
+      (c) => c.role !== "aut" && c.role !== "nrt",
+    ) ?? []
+
+  const mergedAuthors = applyListOverride(
+    overrides.authors,
+    current.authors,
+    incomingAuthors,
+    (c) => creatorKey(c.name, "aut"),
+    (c) => creatorKey(c.name, "aut"),
+    (c) => authorToRelation(c, "aut"),
+  )
+  const mergedNarrators = applyListOverride(
+    overrides.narrators,
+    current.narrators,
+    incomingNarrators,
+    (c) => creatorKey(c.name, "nrt"),
+    (c) => creatorKey(c.name, "nrt"),
+    (c) => authorToRelation(c, "nrt"),
+  )
+  const mergedOthers = applyListOverride(
+    overrides.creators,
+    current.creators,
+    incomingOtherCreators,
+    (c) => creatorKey(c.name, c.role ?? ""),
+    (c) => creatorKey(c.name, c.role ?? ""),
+    (c) => otherToRelation(c),
+  )
+
+  const anyCreatorPatch =
+    mergedAuthors !== null || mergedNarrators !== null || mergedOthers !== null
+  if (anyCreatorPatch) {
+    const next: CreatorRelation[] = [
+      ...(mergedAuthors ??
+        current.authors.map((c) => authorToRelation(c, "aut"))),
+      ...(mergedNarrators ??
+        current.narrators.map((c) => authorToRelation(c, "nrt"))),
+      ...(mergedOthers ?? current.creators.map((c) => otherToRelation(c))),
+    ]
+    relationUpdate.creators = next
+  }
+
+  const mergedSeries = applyListOverride(
+    overrides.series,
+    current.series,
+    extractedRelations.series,
+    (s) => s.name,
+    (s) => s.name,
+    (s) => ({
+      name: s.name,
+      featured: s.featured,
+      ...(s.position !== null && { position: s.position }),
+    }),
+  )
+  if (mergedSeries !== null) {
+    relationUpdate.series = mergedSeries
+  }
+
+  const mergedTags = applyListOverride(
+    overrides.tags,
+    current.tags,
+    extractedRelations.tags,
+    (t) => t.name,
+    (t) => t,
+    (t) => t.name,
+  )
+  if (mergedTags !== null) {
+    relationUpdate.tags = mergedTags
+  }
+
+  return { metadataUpdate, relationUpdate }
+}
+
+export async function getMetadataFromEpub(epub: EpubReader): Promise<{
   update: BookUpdate | null
   relations: BookRelationsUpdate
 }> {
@@ -212,8 +355,6 @@ export async function getMetadataFromEpub(epub: Epub): Promise<{
     }
   }
 
-  epub.discardAndClose()
-
   return {
     update,
     relations: {
@@ -268,7 +409,7 @@ export async function getMetadataFromAudiobook(audiobook: Audiobook) {
   }
 }
 
-export async function getAudioCoverItem(epub: Epub) {
+export async function getAudioCoverItem(epub: EpubReader) {
   const manifest = await epub.getManifest()
   return Object.values(manifest).find((item) =>
     item.properties?.includes("stoyteller:audio-cover-image"),
@@ -561,11 +702,16 @@ export async function writeMetadataToAudiobook(
   let coverPath: null | string = null
   if (cover) {
     const ext = extname(cover.name) || extension(cover.type) || ".jpeg"
-    const arrayBuffer = await cover.arrayBuffer()
-    const data = new Uint8Array(arrayBuffer)
-    await persistCustomAudioCover(book.uuid, `Audio Cover${ext}`, data)
+    const filename = `Audio Cover${ext}`
+    const data = new Uint8Array(await cover.arrayBuffer())
 
-    coverPath = join(book.audiobook.filepath, `Audio Cover${ext}`)
+    await persistCover(book, "audiobook", {
+      filename,
+      mimeType: cover.type || "image/jpeg",
+      data,
+    })
+
+    coverPath = join(getAudiobookCoverDirectory(book), filename)
   }
 
   try {
@@ -589,7 +735,7 @@ export async function writeMetadataToAudiobook(
     }
   } catch (e) {
     logger.error(
-      `Failed to write metadata to audiobook ${book.title} ${book.suffix}, skipping`,
+      `Failed to write metadata to audiobook ${book.title} ${book.assetDir}, skipping`,
     )
     logger.error(e)
   }

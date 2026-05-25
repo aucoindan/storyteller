@@ -3025,15 +3025,17 @@ export class EpubFactory<A extends EpubStorageAdapterClass> {
   from(
     source: string | Uint8Array,
     options: FromOptions & { readonly: true } & AdapterOptions<A>,
-  ): Promise<EpubReader>
+  ): Promise<EpubReader & { storage: A["kind"] }>
   from(
     source: string | Uint8Array,
     options?: FromOptions & AdapterOptions<A>,
-  ): Promise<EpubInstanceFor<A>>
+  ): Promise<EpubInstanceFor<A> & { storage: A["kind"] }>
   async from(
     source: string | Uint8Array,
     options: FromOptions = {},
-  ): Promise<Epub | EpubReader> {
+  ): Promise<
+    (Epub & { storage: A["kind"] }) | (EpubReader & { storage: A["kind"] })
+  > {
     const adapter = await this.adapterClass.init(
       source,
       options as AdapterOptions<A>,

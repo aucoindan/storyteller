@@ -7,6 +7,7 @@ import { Readable } from "node:stream"
 
 import contentDisposition from "content-disposition"
 import { lookup } from "mime-types"
+import { after } from "next/server"
 import { ZipFile } from "yazl"
 
 import {
@@ -15,11 +16,17 @@ import {
 } from "@storyteller-platform/audiobook"
 import { Epub } from "@storyteller-platform/epub"
 
-import { getAudioCover } from "@/assets/covers"
+import { getExtractedCover } from "@/assets/covers"
 import { computeFileHash } from "@/assets/fs"
 import { isAudioFile, isZipArchive } from "@/audio"
 import { withHasPermission } from "@/auth/auth"
-import { type BookWithRelations, getBook, getBookUuid } from "@/database/books"
+import {
+  type BookFormat,
+  type BookWithRelations,
+  getBook,
+  getBookUuid,
+  markFormatMissing,
+} from "@/database/books"
 import { logger } from "@/logging"
 
 type Params = Promise<{
@@ -100,7 +107,7 @@ async function getFilepath(
       ) as AudiobookInputs),
     )
 
-    const audiocover = await getAudioCover(book)
+    const audiocover = await getExtractedCover(book, "audiobook")
     if (audiocover) {
       zipfile.addBuffer(audiocover.data, audiocover.filename)
     }
@@ -216,7 +223,17 @@ export const GET = withHasPermission<Params>("bookRead", {
     .replaceAll(/\p{Diacritic}/gu, "")
     .replaceAll(/[^a-zA-Z0-9-_.~!#$&'()*+,/:;=?@[\] ]/gu, "")
 
-  const filepath = await getFilepath(book, format, rpf)
+  let filepath: string | null
+  try {
+    filepath = await getFilepath(book, format, rpf)
+  } catch {
+    after(() => markFormatMissing(bookUuid, format as BookFormat))
+
+    return Response.json(
+      { message: `Could not open ${format} for book with id ${bookId}` },
+      { status: 404 },
+    )
+  }
 
   if (!filepath) {
     return Response.json(
@@ -229,6 +246,8 @@ export const GET = withHasPermission<Params>("bookRead", {
   try {
     file = await open(filepath)
   } catch {
+    after(() => markFormatMissing(bookUuid, format as BookFormat))
+
     return Response.json(
       { message: `Could not open ${format} for book with id ${bookId}` },
       { status: 404 },
