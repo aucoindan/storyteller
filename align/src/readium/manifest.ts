@@ -135,10 +135,23 @@ export async function generateReadiumManifest(
 
   const vocab = await epub.getPackageVocabularyPrefixes()
 
-  const duration = epubMetadata.find(
-    ({ properties }) => properties["property"] === "media:duration",
-  )?.value
-  const durationMs = duration !== undefined ? clockvalue(duration) : undefined
+  let duration: number | undefined = undefined
+  const refinesDurationMap = new Map<string, number>()
+
+  for (const dur of epubMetadata) {
+    if (dur.properties["property"] !== "media:duration") continue
+
+    if (!dur.properties["refines"]) {
+      duration = dur.value ? clockvalue(dur.value) / 1000 : undefined
+      continue
+    }
+
+    const value = dur.value ? clockvalue(dur.value) / 1000 : undefined
+
+    if (value) {
+      refinesDurationMap.set(dur.properties["refines"], value)
+    }
+  }
 
   const otherMetadata = epubMetadata
     .filter(
@@ -188,8 +201,8 @@ export async function generateReadiumManifest(
       readingProgression:
         dir === "ltr" ? ReadingProgression.ltr : ReadingProgression.rtl,
     }),
-    // TODO: is this meant to be in milliseconds (as here) or seconds?
-    ...(durationMs !== undefined && { duration: durationMs }),
+    // it's seconds
+    ...(duration !== undefined && { duration }),
     ...(numberOfPages !== undefined && { numberOfPages }),
     otherMetadata: Object.fromEntries(otherMetadata),
   })
@@ -259,21 +272,17 @@ export async function generateReadiumManifest(
       const mediaOverlayItem = epubManifest[item.id]
       if (!mediaOverlayItem) return link
 
-      const refinedBy = epubMetadata.find(
-        ({ properties }) =>
-          properties["property"] === "media:duration" &&
-          properties["refines"] === `#${mediaOverlayItem.id}`,
-      )
+      const duration =
+        refinesDurationMap.get(`#${item.mediaOverlay}`) ||
+        refinesDurationMap.get(`#${mediaOverlayItem.id}`)
 
-      if (!refinedBy?.value) return link
-
-      const itemDuration = clockvalue(refinedBy.value)
+      if (!duration) return link
 
       return new Link({
         href: link.href,
         type: link.mediaType.string,
         ...(link.properties && { properties: link.properties }),
-        duration: itemDuration,
+        duration,
       })
     }),
   )
