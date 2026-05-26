@@ -7,6 +7,7 @@ publish-mobile:
         /^mobile-v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|experimental|dev|test|preview)(?:\.\d+)?)?$/'
   script:
     - echo $EXPO_ASC_API_KEY_BASE64 | base64 -d > $EXPO_ASC_API_KEY_PATH
+    - npm i -g corepack
     - yarn
     - yarn workspace @storyteller-platform/mobile dlx eas-cli@latest build
       --profile production -p all --auto-submit --no-wait --non-interactive

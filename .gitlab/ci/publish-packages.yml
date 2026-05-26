@@ -23,6 +23,7 @@ publish-fs:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/fs
     - yarn workspace @storyteller-platform/fs npm publish --tag="$TAG"
 
@@ -95,6 +96,7 @@ publish-epub:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/epub
     - yarn workspace @storyteller-platform/epub npm publish --tag="$TAG"
 
@@ -167,6 +169,7 @@ publish-audiobook:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/audiobook
     - yarn workspace @storyteller-platform/audiobook npm publish --tag="$TAG"
 
@@ -239,6 +242,7 @@ publish-path:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/path
     - yarn workspace @storyteller-platform/path npm publish --tag="$TAG"
 
@@ -311,6 +315,7 @@ publish-ghost-story:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/ghost-story
     - yarn workspace @storyteller-platform/ghost-story npm publish --tag="$TAG"
 
@@ -365,6 +370,7 @@ release-ghost-story:
         '$CI_COMMIT_TAG =~
         /^align-v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|experimental|dev|test|preview)(?:\.\d+)?)?$/'
   script:
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align compile
     - |
@@ -488,6 +494,7 @@ publish-align-sea-windows-x64:
       node --version
       yarn --version
   script:
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align compile
     - |
@@ -552,6 +559,7 @@ publish-align:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align npm publish --tag="$TAG"
 
@@ -621,6 +629,7 @@ release-align:
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
     - rustc --version
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - export PATH="$HOME/.cargo/bin:$PATH"
@@ -645,6 +654,7 @@ release-align:
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
     - rustc --version
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - export PATH="$HOME/.cargo/bin:$PATH"
@@ -675,6 +685,7 @@ release-align:
     - rm rustup.sh
     - source "$HOME/.cargo/env"
     - rustc --version
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - source "$HOME/.cargo/env"
@@ -711,6 +722,7 @@ release-align:
       $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
       rustup default stable-msvc
       rustc --version
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - |
@@ -835,6 +847,7 @@ publish-okmain:
     - sh rustup.sh -y --profile minimal --default-toolchain stable
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
+    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
     - ls -lah okmain/*.node
     - mkdir -p okmain/artifacts

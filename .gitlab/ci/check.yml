@@ -7,6 +7,7 @@ check:
         ($CI_PIPELINE_SOURCE == "merge_request_event" || ($CI_COMMIT_BRANCH ==
         "main" && $CI_COMMIT_TAG == null))
   script:
+    - npm i -g corepack
     - yarn
     - yarn workspace @storyteller-platform/align build
     - yarn check
@@ -31,6 +32,7 @@ check-docs:
       changes:
         - docs/**/*
   script:
+    - npm i -g corepack
     - yarn
     - yarn build:docs
 
@@ -45,6 +47,7 @@ test-web:
       changes:
         - web/**/*
   script:
+    - npm i -g corepack
     - yarn
     - yarn test:web
 
@@ -61,6 +64,7 @@ test-epub:
   script:
     # install java
     - apt update && apt install -y --no-install-recommends openjdk-17-jdk
+    - npm i -g corepack
     - yarn
     - yarn test:epub
 
@@ -75,6 +79,7 @@ test-audiobook:
       changes:
         - audiobook/**/*
   script:
+    - npm i -g corepack
     - yarn
     - yarn test:audiobook
 
@@ -89,5 +94,6 @@ test-align:
       changes:
         - align/**/*
   script:
+    - npm i -g corepack
     - yarn
     - yarn test:align
