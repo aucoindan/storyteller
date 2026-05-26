@@ -3,10 +3,7 @@ const config = {
   "*.{js,jsx,ts,tsx}": "yarn eslint --fix",
   "*.{js,jsx,ts,tsx,json}": ["yarn prettier --write", () => "yarn check:types"],
   "*.{md,yaml,yml,json,sql}": "yarn prettier --write",
-  "web/migrations/*.sql": [
-    "./scripts/dump-schema.sh",
-    () => "yarn prettier --write schema.sql",
-  ],
+  "web/migrations/*.sql": ["./scripts/dump-schema.sh"],
   "epub/*": () => [
     "yarn workspace @storyteller-platform/epub readme",
     "git add epub/README.md",

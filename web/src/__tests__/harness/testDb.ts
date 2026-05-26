@@ -4,45 +4,15 @@ import { join } from "node:path"
 import { cwd } from "node:process"
 
 import Db, { type Database } from "better-sqlite3"
-import {
-  CamelCasePlugin,
-  Kysely,
-  ParseJSONResultsPlugin,
-  SqliteDialect,
-} from "kysely"
+import type { Kysely } from "kysely"
 
 import { getSafeFilepathSegment } from "@/assets/paths"
 import { replaceDatabase } from "@/database/connection"
-import { BooleanPlugin } from "@/database/plugins/booleanPlugin"
-import { DatePlugin } from "@/database/plugins/datePlugin"
+import { createKyselyDb } from "@/database/factory"
 import type { DB } from "@/database/schema"
 import type { Settings } from "@/database/settingsTypes"
 
 const SCHEMA_PATH = join(cwd(), "..", "schema.sql")
-
-const BOOLEAN_FIELDS = [
-  "bookCreate",
-  "bookDelete",
-  "bookDownload",
-  "bookList",
-  "bookProcess",
-  "bookRead",
-  "bookUpdate",
-  "collectionCreate",
-  "featured",
-  "inviteDelete",
-  "inviteList",
-  "isDefault",
-  "missing",
-  "public",
-  "settingsUpdate",
-  "userCreate",
-  "userDelete",
-  "userList",
-  "userRead",
-  "userUpdate",
-  "restartPending",
-] as const
 
 const DEFAULT_SETTINGS: Settings = {
   smtpHost: "",
@@ -103,18 +73,6 @@ const DEFAULT_SETTINGS: Settings = {
     series: "merge",
     tags: "merge",
   },
-}
-
-function createKyselyInstance(sqlite: Database): Kysely<DB> {
-  return new Kysely<DB>({
-    dialect: new SqliteDialect({ database: sqlite }),
-    plugins: [
-      new CamelCasePlugin(),
-      new ParseJSONResultsPlugin(),
-      new DatePlugin(),
-      new BooleanPlugin<DB>({ fields: [...BOOLEAN_FIELDS] }),
-    ],
-  })
 }
 
 function registerUuidFunction(sqlite: Database) {
@@ -181,8 +139,7 @@ export function setupTestDb(
   seedSettings(sqlite, settingsOverrides)
   seedStatuses(sqlite)
 
-  const testDb = createKyselyInstance(sqlite)
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+  const testDb: Kysely<DB> = createKyselyDb(sqlite)
   replaceDatabase(testDb)
 
   return {

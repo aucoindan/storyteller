@@ -3,20 +3,14 @@ import { join } from "node:path"
 import { cwd } from "node:process"
 
 import Db, { type Database } from "better-sqlite3"
-import {
-  CamelCasePlugin,
-  Kysely,
-  ParseJSONResultsPlugin,
-  SqliteDialect,
-} from "kysely"
+import type { Kysely } from "kysely"
 import { PHASE_PRODUCTION_BUILD } from "next/constants.js"
 
 import { DB_DIR } from "@/directories"
 import { env } from "@/env"
 import { logger } from "@/logging"
 
-import { BooleanPlugin } from "./plugins/booleanPlugin"
-import { DatePlugin } from "./plugins/datePlugin"
+import { createKyselyDb } from "./factory"
 import type { DB } from "./schema"
 
 const SKIP_INIT =
@@ -48,45 +42,7 @@ if (!SKIP_INIT) {
 
 export let db: Kysely<DB> = SKIP_INIT
   ? (null as unknown as Kysely<DB>)
-  : new Kysely<DB>({
-      log(event) {
-        if (event.level === "error") {
-          logger.error(event.query.sql)
-          logger.error(event.error)
-        }
-      },
-      dialect: new SqliteDialect({ database: sqlite }),
-      plugins: [
-        new CamelCasePlugin(),
-        new ParseJSONResultsPlugin(),
-        new DatePlugin(),
-        new BooleanPlugin<DB>({
-          fields: [
-            "bookCreate",
-            "bookDelete",
-            "bookDownload",
-            "bookList",
-            "bookProcess",
-            "bookRead",
-            "bookUpdate",
-            "collectionCreate",
-            "featured",
-            "inviteDelete",
-            "inviteList",
-            "isDefault",
-            "missing",
-            "public",
-            "settingsUpdate",
-            "userCreate",
-            "userDelete",
-            "userList",
-            "userRead",
-            "userUpdate",
-            "restartPending",
-          ],
-        }),
-      ],
-    })
+  : createKyselyDb(sqlite)
 
 function createDatabase() {
   return new Db(

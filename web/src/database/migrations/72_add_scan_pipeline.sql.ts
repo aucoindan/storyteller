@@ -96,7 +96,7 @@ async function cronExpressionSettings(trx: typeof db) {
       .insertInto("settings")
       .values({
         name: "scanCronExpression",
-        value: JSON.stringify(minutesToCronExpression(60 * 60 * 24)),
+        value: JSON.stringify(minutesToCronExpression(60 * 24)),
       })
       .execute()
   }

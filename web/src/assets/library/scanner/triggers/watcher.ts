@@ -317,6 +317,7 @@ export class Watcher {
                 importMode: importMode ?? undefined,
               },
             ],
+            includeOrphanedBooks: true,
           },
           options: { concurrency: 2 },
           signal: controller.signal,

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-yarn workspace @storyteller-platform/web db:dump-schema
+yarn workspace @storyteller-platform/web db:dump
 
-yarn prettier --write schema.sql
-
-git add schema.sql
+git add schema.sql web/src/database/schema.ts

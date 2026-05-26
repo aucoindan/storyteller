@@ -1,4 +1,4 @@
-import { type BookWithRelations, getBook, getBooks } from "@/database/books"
+import { type BookWithRelations, getBooks } from "@/database/books"
 import { getWatchRules } from "@/database/importRules"
 import { getSetting } from "@/database/settings"
 import { type ImportMode } from "@/database/settingsTypes"
@@ -11,7 +11,12 @@ import {
   type ScanOptions,
   type ScanSource,
 } from "./ctx"
-import { canonicalizePath, listBookCandidates, walkFolders } from "./folder"
+import {
+  canonicalizePath,
+  listBookCandidates,
+  pathBelongsTo,
+  walkFolders,
+} from "./folder"
 import { ingestCandidate } from "./ingest"
 import { reportDelta, snapshot } from "./memoryReport"
 import { scanAudiobook } from "./pipelines/scanAudiobook"
@@ -26,6 +31,7 @@ export type ScanRequest =
   | {
       kind: "roots"
       roots: { path: string; collections?: UUID[]; importMode?: ImportMode }[]
+      includeOrphanedBooks?: boolean
     }
   | { kind: "candidates"; candidates: Candidate[] }
   | { kind: "books"; bookUuids: UUID[] }
@@ -70,11 +76,7 @@ function dedupeCandidates(candidates: Candidate[]): Candidate[] {
   return [...seen.values()]
 }
 
-async function candidatesFromExistingBook(
-  bookUuid: UUID,
-): Promise<Candidate[]> {
-  const book = await getBook(bookUuid)
-  if (!book) return []
+function candidatesFromExistingBook(book: BookWithRelations): Candidate[] {
   const out: Candidate[] = []
   // existing-book candidates skip relocate (paths are typically already
   // internal or the user originally chose reference mode), so we don't stamp
@@ -87,6 +89,7 @@ async function candidatesFromExistingBook(
       existingBook: book,
     })
   }
+
   if (book.readaloud?.filepath) {
     out.push({
       folder: filepathFolder(book.readaloud.filepath),
@@ -95,6 +98,7 @@ async function candidatesFromExistingBook(
       existingBook: book,
     })
   }
+
   if (book.audiobook?.filepath) {
     out.push({
       folder: book.audiobook.filepath,
@@ -103,6 +107,7 @@ async function candidatesFromExistingBook(
       existingBook: book,
     })
   }
+
   return out
 }
 
@@ -118,9 +123,10 @@ async function materializeCandidates(
 
   if (request.kind === "books") {
     const all: Candidate[] = []
-    for (const bookUuid of request.bookUuids) {
+    const books = await getBooks(request.bookUuids)
+    for (const book of books) {
       if (ctx.signal.aborted) break
-      all.push(...(await candidatesFromExistingBook(bookUuid)))
+      all.push(...candidatesFromExistingBook(book))
     }
     return all
   }
@@ -129,9 +135,6 @@ async function materializeCandidates(
   if (ctx.signal.aborted) return []
 
   if (request.kind === "folders") {
-    // folders requests come from a single watcher flush, so options.importMode
-    // identifies the rule. stamp every candidate so relocate honors it even
-    // if defaultImportMode happens to differ.
     const all: Candidate[] = []
     for (const folder of request.folders) {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -150,12 +153,21 @@ async function materializeCandidates(
     return all
   }
 
-  // kind: "roots"
+  // kind: "roots". this is a manual/scheduled scan
   const all: Candidate[] = []
-  for (const root of request.roots) {
+
+  const canonicalRoots = await Promise.all(
+    request.roots.map((r) => canonicalizePath(r.path)),
+  )
+
+  for (let i = 0; i < request.roots.length; i++) {
+    const root = request.roots[i]
+    const canonicalRoot = canonicalRoots[i]
+    if (!root || !canonicalRoot) continue
+
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (ctx.signal.aborted) break
-    const canonicalRoot = await canonicalizePath(root.path)
+
     const folders = await walkFolders({ root: canonicalRoot, books }, ctx)
     for (const folder of folders) {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -174,6 +186,23 @@ async function materializeCandidates(
       all.push(...candidates)
     }
   }
+
+  // get all the other books (asset folders, manually imported)
+  if (request.includeOrphanedBooks) {
+    for (const book of books) {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (ctx.signal.aborted) break
+
+      const bookCandidates = candidatesFromExistingBook(book)
+      // maybe don't rescan books? but its possible that book is both imported and referenced
+      const orphaned = bookCandidates.filter(
+        (c) => !canonicalRoots.some((root) => pathBelongsTo(root, c.filepath)),
+      )
+
+      all.push(...orphaned)
+    }
+  }
+
   return all
 }
 
@@ -217,7 +246,7 @@ export async function scan(opts: {
   })
 
   const baseOptions: ScanOptions = {
-    concurrency: 1, // defaultConcurrency(opts.source),
+    concurrency: defaultConcurrency(opts.source),
     ...(opts.options ?? {}),
   }
 
@@ -282,7 +311,7 @@ export async function scanLibrary(opts: {
 
   return scan({
     source: opts.source,
-    request: { kind: "roots", roots },
+    request: { kind: "roots", roots, includeOrphanedBooks: true },
     options: opts.options ?? {},
     signal: opts.signal,
   })
