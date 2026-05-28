@@ -31,6 +31,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "expo-router",
       "expo-secure-store",
       [
+        "expo-media-library",
+        {
+          photosPermission:
+            "Allow Storyteller to save book covers to your photo library.",
+          savePhotosPermission:
+            "Allow Storyteller to save book covers to your photo library.",
+        },
+      ],
+      [
         "expo-build-properties",
         {
           ios: {
