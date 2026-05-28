@@ -52,7 +52,9 @@ data class Props(
     var lineHeight: Double?,
     var paragraphSpacing: Double?,
     var fontSize: Double?,
-    var textAlign: TextAlign?
+    var textAlign: TextAlign?,
+    var marginLeft: Int?,
+    var marginRight: Int?
 )
 
 
@@ -70,7 +72,9 @@ data class FinalizedProps(
     var lineHeight: Double,
     var paragraphSpacing: Double,
     var fontSize: Double,
-    var textAlign: TextAlign
+    var textAlign: TextAlign,
+    var marginLeft: Int,
+    var marginRight: Int
 )
 
 
@@ -166,6 +170,8 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         paragraphSpacing = null,
         fontSize = null,
         textAlign = null,
+        marginLeft = null,
+        marginRight = null,
     )
     var props: FinalizedProps? = null
 
@@ -193,6 +199,8 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                     ?: oldProps?.paragraphSpacing ?: 0.5,
                 fontSize = pendingProps.fontSize ?: oldProps?.fontSize ?: 1.0,
                 textAlign = pendingProps.textAlign ?: oldProps?.textAlign ?: TextAlign.JUSTIFY,
+                marginLeft = pendingProps.marginLeft ?: oldProps?.marginLeft ?: 0,
+                marginRight = pendingProps.marginRight ?: oldProps?.marginRight ?: 0
             )
 
         props = finalProps
@@ -206,6 +214,14 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
         if (finalProps.locator != navigator?.currentLocator && finalProps.locator != null) {
             go(finalProps.locator!!)
+        }
+
+        if (finalProps.marginLeft != oldProps?.marginLeft) {
+            setCssVar("--st-padding-left", "${finalProps.marginLeft}px")
+        }
+
+        if (finalProps.marginRight != oldProps?.marginRight) {
+            setCssVar("--st-padding-right", "${finalProps.marginRight}px")
         }
 
         if (finalProps.isPlaying && finalProps.locator != null) {
@@ -314,6 +330,20 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
         if (current === this) {
             current = null
+        }
+    }
+
+    private fun setCssVar(name: String, value: String) {
+        val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
+
+        activity?.lifecycleScope?.launch {
+            navigator?.evaluateJavascript(
+                """
+                (function() {
+                  document.body.style.setProperty('${name}', '${value}')
+                })();
+            """.trimIndent()
+            )
         }
     }
 
@@ -664,8 +694,14 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                     const proportion = visibleWidth / totalWidth;
                     return { crossesPage: overflowsRight, proportionOnCurrentPage: proportion };
                 };
+                
+                document.body.firstElementChild.style.paddingLeft = "var(--st-padding-left)";
+                document.body.firstElementChild.style.paddingRight = "var(--st-padding-right)";
                 """.trimIndent()
             )
+
+            setCssVar("--st-padding-left", "${props?.marginLeft ?: 0}px")
+            setCssVar("--st-padding-right", "${props?.marginRight ?: 0}px")
         }
 
         return this

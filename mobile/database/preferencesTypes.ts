@@ -42,6 +42,8 @@ export const defaultPreferences: Preferences = {
       vertical: 1.0,
       horizontal: 1.0,
     },
+    marginLeft: 0,
+    marginRight: 0,
     columns: "auto",
     animation: true,
   },
@@ -77,6 +79,8 @@ type LayoutPreferences = {
     vertical: number
     horizontal: number
   }
+  marginLeft?: number
+  marginRight?: number
   columns: 1 | 2 | "auto"
   animation: boolean
   // scroll: boolean

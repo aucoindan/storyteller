@@ -31,6 +31,8 @@ struct Props {
     var paragraphSpacing: Double?
     var fontSize: Double?
     var textAlign: TextAlignment?
+    var marginLeft: Int?
+    var marginRight: Int?
 }
 
 struct FinalizedProps {
@@ -48,6 +50,8 @@ struct FinalizedProps {
     var paragraphSpacing: Double
     var fontSize: Double
     var textAlign: TextAlignment
+    var marginLeft: Int
+    var marginRight: Int
 }
 
 class EPUBView: ExpoView {
@@ -87,7 +91,9 @@ class EPUBView: ExpoView {
             lineHeight: pendingProps.lineHeight ?? oldProps?.lineHeight ?? 1.4,
             paragraphSpacing: pendingProps.paragraphSpacing ?? oldProps?.paragraphSpacing ?? 0.5,
             fontSize: pendingProps.fontSize ?? oldProps?.fontSize ?? 1.0,
-            textAlign: pendingProps.textAlign ?? oldProps?.textAlign ?? TextAlignment.justify
+            textAlign: pendingProps.textAlign ?? oldProps?.textAlign ?? TextAlignment.justify,
+            marginLeft: pendingProps.marginLeft ?? oldProps?.marginLeft ?? 0,
+            marginRight: pendingProps.marginRight ?? oldProps?.marginRight ?? 0
         )
 
         props = finalProps
@@ -99,6 +105,14 @@ class EPUBView: ExpoView {
 
         if finalProps.locator != navigator?.currentLocation, let locator = finalProps.locator {
             go(locator: locator)
+        }
+
+        if finalProps.marginLeft != oldProps?.marginLeft {
+            setCssVar("--st-padding-left", "\(finalProps.marginLeft)")
+        }
+
+        if finalProps.marginRight != oldProps?.marginRight {
+            setCssVar("--st-padding-right", "\(finalProps.marginRight)")
         }
 
         if props!.isPlaying, let locator = finalProps.locator {
@@ -220,6 +234,7 @@ class EPUBView: ExpoView {
         navigator.delegate = self
         addSubview(navigator.view)
         self.navigator = navigator
+
         self.decorateHighlights()
         self.navigator?.observeDecorationInteractions(inGroup: "highlights") { [weak self] event in
             guard let rect = event.rect else {
@@ -242,6 +257,19 @@ class EPUBView: ExpoView {
         }
     }
 
+    func setCssVar(_ name: String, _ value: string) {
+        guard let epubNav = navigator else {
+            return
+        }
+        Task {
+            await epubNav.evaluateJavascript("""
+                (function() {
+                    document.body.style.setProperty('\(name)', '\(value)')
+                })();
+            """)
+        }
+    }
+
     func emitCurrentLocator() async {
         guard let epubNav = navigator else {
             return
@@ -256,7 +284,7 @@ class EPUBView: ExpoView {
                 $0.otherLocations["cssSelector"] = f.locations.cssSelector
             })
         }
-        
+
         Task {
             var result = await props?.locator?.locations.fragments.first.asyncMap({
                 await epubNav.evaluateJavaScript("""
@@ -273,13 +301,13 @@ class EPUBView: ExpoView {
                             const maxScreenX = window.orientation === 0 || window.orientation == 180
                                     ? screen.width
                                     : screen.height;
-                    
+
                             function snapOffset(offset) {
                                 const value = offset + 1;
-                    
+
                                 return value - (value % maxScreenX);
                             }
-                    
+
                             const documentWidth = document.scrollingElement.scrollWidth;
                             const currentPageStart = snapOffset(documentWidth * \(currentLocator.locations.progression ?? 0.0));
                             const currentPageEnd = currentPageStart + maxScreenX;
@@ -307,7 +335,7 @@ class EPUBView: ExpoView {
                     self.onLocatorChange(merged?.json ?? currentLocator.json)
                     return
                 }
-                
+
                 // If the locator specified by the prop is still on the page,
                 // we still need to emit if we're adding fragments that we didn't
                 // have initially
@@ -582,7 +610,7 @@ extension EPUBView: EPUBNavigatorDelegate {
             }, {
                 threshold: [0],
             })
-        
+
             document.addEventListener('click', (event) => {
                 if (event.clientX <= window.innerWidth * 0.2) {
                     window.webkit.messageHandlers.storytellerNavPrev.postMessage(null);
@@ -673,6 +701,9 @@ extension EPUBView: EPUBNavigatorDelegate {
                 const proportion = visibleWidth / totalWidth;
                 return { crossesPage: overflowsRight, proportionOnCurrentPage: proportion };
             }
+
+            document.body.firstElementChild.style.paddingLeft = "var(--st-padding-left)";
+            document.body.firstElementChild.style.paddingRight = "var(--st-padding-right)";
         """
 
         userContentController.addUserScript(WKUserScript(source: scriptSource, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
@@ -681,6 +712,9 @@ extension EPUBView: EPUBNavigatorDelegate {
         userContentController.add(self, name: "storytellerNavNext")
         userContentController.add(self, name: "storytellerMiddleTouch")
         userContentController.add(self, name: "storytellerSelectionCleared")
+
+        setCssVar("--st-padding-left", "\(props!.marginLeft ?? 0)px")
+        setCssVar("--st-padding-right", "\(props!.marginRight ?? 0)px")
     }
 
     func navigator(_ navigator: ReadiumNavigator.Navigator, presentError error: ReadiumNavigator.NavigatorError) {

@@ -233,12 +233,12 @@ class ReadiumModule : Module(), Listener {
 
             AsyncFunction("goForward") { view: EpubView ->
                 val navigator = view.navigator ?: return@AsyncFunction
-                navigator.goForward(animated = false)
+                navigator.goForward(animated = true)
             }
 
             AsyncFunction("goBackward") { view: EpubView ->
                 val navigator = view.navigator ?: return@AsyncFunction
-                navigator.goBackward(animated = false)
+                navigator.goBackward(animated = true)
             }
 
             AsyncFunction("getFragmentPageProportion") Coroutine { view: EpubView, fragmentId: String ->
@@ -301,6 +301,14 @@ class ReadiumModule : Module(), Listener {
 
             Prop("fontScale") { view: EpubView, prop: Double ->
                 view.pendingProps.fontSize = prop
+            }
+
+            Prop("marginLeft") { view: EpubView, prop: Int ->
+                view.pendingProps.marginLeft = prop
+            }
+
+            Prop("marginRight") { view: EpubView, prop: Int ->
+                view.pendingProps.marginRight = prop
             }
 
             Prop("lineHeight") { view: EpubView, prop: Double ->

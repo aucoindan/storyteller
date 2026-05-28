@@ -250,6 +250,8 @@ export type EPUBViewProps = {
   fontFamily?: string | undefined
   readaloudColor?: string | undefined
   customFonts?: CustomFont[] | undefined
+  marginLeft?: number | undefined
+  marginRight?: number | undefined
   onHighlightTap?: (
     event: NativeSyntheticEvent<{ decoration: UUID; x: number; y: number }>,
   ) => void

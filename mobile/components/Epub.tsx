@@ -177,6 +177,8 @@ export function Epub({ book, format, locator }: Props) {
           lineHeight={preferences?.typography?.lineHeight}
           textAlign={preferences?.typography?.alignment}
           fontFamily={preferences?.typography?.fontFamily}
+          marginLeft={preferences?.layout.marginLeft}
+          marginRight={preferences?.layout.marginRight}
           readaloudColor={preferences?.readaloudColor}
           colorTheme={{ foreground, background }}
           customFonts={customFonts?.map((font) => ({

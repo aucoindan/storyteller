@@ -306,6 +306,14 @@ public class ReadiumModule: Module {
                 view.pendingProps.fontFamily = FontFamily(rawValue: prop)
             }
 
+            Prop("marginLeft") { (view: EPUBView, prop: Int?) in
+                view.pendingProps.marginLeft = prop
+            }
+
+            Prop("marginRight") { (view: EPUBView, prop: Int?) in
+                view.pendingProps.marginRight = prop
+            }
+
             OnViewDidUpdateProps {(view: EPUBView) in
                 view.finalizeProps()
             }
