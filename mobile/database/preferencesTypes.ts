@@ -47,6 +47,7 @@ export const defaultPreferences: Preferences = {
     columns: "auto",
     animation: true,
   },
+  floatingToolbar: false,
   readaloudColor: "yellow",
   customFonts: [],
   automaticRewind: {
@@ -129,4 +130,5 @@ export interface Preferences {
   hideStatusbar: HideStatusbarPreferences
   automaticRewind: AutomaticRewindPreferences
   logLevel: "debug" | "info" | "error"
+  floatingToolbar: boolean
 }

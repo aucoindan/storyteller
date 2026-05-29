@@ -9,6 +9,7 @@ import { type Bookmark } from "@/database/bookmarks"
 import { type BookWithRelations } from "@/database/books"
 import { deepEquals } from "@/deepEquals"
 import { useColorTheme } from "@/hooks/useColorTheme"
+import { cn } from "@/lib/utils"
 import { EPUBView } from "@/modules/readium"
 import {
   type EPUBViewRef,
@@ -112,6 +113,8 @@ export function Epub({ book, format, locator }: Props) {
 
   const isPlaying = useAppSelector(getIsPlaying)
 
+  const floatingToolbar = preferences?.floatingToolbar
+
   useEffect(() => {
     const listener = DeviceEventEmitter.addListener(
       "storyteller:keydown",
@@ -138,9 +141,12 @@ export function Epub({ book, format, locator }: Props) {
   return (
     <View className="bg-background flex-1">
       <Tabs.Screen options={{ tabBarStyle: { display: "none" } }} />
-      <HideableView hidden={!preferences?.showReaderUi}>
+      <HideableView hidden={!preferences?.showReaderUi} className="relative">
         <Group
-          className="z-3 flex-row items-center justify-between px-4"
+          className={cn("px-sticky z-3 flex-row items-center justify-between", {
+            "bg-background border-b-foreground absolute right-0 left-0 border-b":
+              floatingToolbar,
+          })}
           style={{
             paddingTop: Constants.statusBarHeight,
           }}
@@ -156,7 +162,10 @@ export function Epub({ book, format, locator }: Props) {
         <SelectionMenu
           bookUuid={book.uuid}
           x={selection.x}
-          y={selection.y + toolbarHeight}
+          y={
+            selection.y +
+            (floatingToolbar ? Constants.statusBarHeight : toolbarHeight)
+          }
           locator={selection.locator}
           existingHighlight={activeHighlight}
           onClose={() => {
@@ -165,7 +174,16 @@ export function Epub({ book, format, locator }: Props) {
           }}
         />
       )}
-      <View className="z-1 flex-1">
+      <View
+        className={cn("z-1 flex-1", {
+          "pb-safe-or-2": floatingToolbar,
+        })}
+        style={
+          floatingToolbar && {
+            paddingTop: Constants.statusBarHeight,
+          }
+        }
+      >
         <EPUBView
           ref={epubViewRef}
           style={{ flex: 1 }}
@@ -243,6 +261,7 @@ export function Epub({ book, format, locator }: Props) {
         />
       </View>
       <MiniPlayer
+        floatingToolbar={floatingToolbar ?? false}
         hidden={!preferences?.showReaderUi}
         book={book}
         format={format}

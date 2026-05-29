@@ -42,9 +42,10 @@ type Props = {
   book: BookWithRelations
   format: "ebook" | "readaloud"
   hidden: boolean
+  floatingToolbar: boolean
 }
 
-export function MiniPlayer({ book, format, hidden }: Props) {
+export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
   const locator = book.position?.locator
   const { data: bookPrefs } = useGetBookPreferencesQuery({ uuid: book.uuid })
   const position = useAppSelector(getPosition)
@@ -190,7 +191,13 @@ export function MiniPlayer({ book, format, hidden }: Props) {
   return (
     bookPrefs && (
       <View>
-        <HideableView hidden={hidden} className="mb-safe-or-2 z-3 px-3">
+        <HideableView
+          hidden={hidden}
+          className={cn("mb-safe-or-2 z-3 px-3", {
+            "bg-background border-t-foreground -bottom-safe pb-safe absolute right-0 bottom-0 left-0 border-t":
+              floatingToolbar,
+          })}
+        >
           <View className="flex-row items-center gap-0">
             <ProgressBar
               className="mt-4 mb-4 grow"

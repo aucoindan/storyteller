@@ -6,6 +6,7 @@ import { useMemo } from "react"
 import { Platform, Pressable, StyleSheet, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import { Switch } from "@/components/ui/switch"
 import { defaultPreferences } from "@/database/preferencesTypes"
 import { formatNumber } from "@/formatting"
 import { cn } from "@/lib/utils"
@@ -175,6 +176,18 @@ export function ReadingSettings({ bookUuid }: Props) {
             updateGlobalPreference({ name: "readaloudColor", value })
           }}
         />
+        <View className="my-3 w-full flex-row items-center gap-10">
+          <Text className="text-lg">Floating toolbars</Text>
+          <Switch
+            checked={preferences.floatingToolbar}
+            onCheckedChange={(value) =>
+              updateGlobalPreference({
+                name: "floatingToolbar",
+                value,
+              })
+            }
+          />
+        </View>
       </View>
       <Text variant="h2" className="mt-4">
         Margins

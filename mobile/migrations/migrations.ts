@@ -37,6 +37,10 @@ import {
   down as bookToCreatorRoleUniqueDown,
   up as bookToCreatorRoleUniqueUp,
 } from "./1779753600000_book_to_creator_role_unique"
+import {
+  down as insertFloatingToolbarsPreferenceDown,
+  up as insertFloatingToolbarsPreferenceUp,
+} from "./1779757215000_insert_floating_toolbars_preference"
 
 export const migrations = {
   "1757893743063_init": {
@@ -80,5 +84,9 @@ export const migrations = {
   "1779735566760_clear_clips": {
     up: clearClipsUp,
     down: clearClipsDown,
+  },
+  "1779757215000_insert_floating_toolbars_preference": {
+    up: insertFloatingToolbarsPreferenceUp,
+    down: insertFloatingToolbarsPreferenceDown,
   },
 }
