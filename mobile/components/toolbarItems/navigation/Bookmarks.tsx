@@ -117,62 +117,65 @@ export function Bookmarks() {
   }
 
   return (
-    <ScrollView>
-      {sortedBookmarks.map((bookmark, index) => (
-        <Swipeable
-          key={bookmark.uuid}
-          renderRightActions={() => (
-            <Button
-              className="align-center h-full w-20 justify-center bg-red-500 sm:h-full sm:w-20"
-              variant="destructive"
-              onPress={() => {
-                deleteBookmarks({
-                  bookUuid: bookmark.bookUuid,
-                  bookmarkUuids: [bookmark.uuid],
-                })
-              }}
-            >
-              <Icon as={Trash2} size={24} className="text-white" />
-            </Button>
-          )}
-        >
-          <View className="bg-background px-2">
-            <Button
-              onPress={() => {
-                dispatch(
-                  bookmarkPressed({
-                    bookUuid,
-                    locator: bookmark.locator,
-                    timestamp: Date.now(),
-                  }),
-                )
-              }}
-              variant="ghost"
-              className="h-auto flex-col items-start border-b border-b-gray-400 p-4 sm:h-auto"
-            >
-              {format === "audiobook" ? (
-                <>
-                  <Text className="text-sm font-bold">
-                    {audiobookBookmarkDetails[index]?.title}
-                  </Text>
-                  <Text className="mt-2 text-xs">
-                    Timestamp {audiobookBookmarkTimestamps[index]}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text className="text-sm font-bold">
-                    {bookmarkTitles[index]}
-                  </Text>
-                  <Text className="mt-2 text-xs">
-                    Page {bookmarkPages[index]}
-                  </Text>
-                </>
-              )}
-            </Button>
-          </View>
-        </Swipeable>
-      ))}
-    </ScrollView>
+    <Stack className="flex-1">
+      <ScrollView>
+        {sortedBookmarks.map((bookmark, index) => (
+          <Swipeable
+            key={bookmark.uuid}
+            renderRightActions={() => (
+              <Button
+                className="align-center h-full w-20 justify-center bg-red-500 sm:h-full sm:w-20"
+                variant="destructive"
+                onPress={() => {
+                  deleteBookmarks({
+                    bookUuid: bookmark.bookUuid,
+                    bookmarkUuids: [bookmark.uuid],
+                  })
+                }}
+              >
+                <Icon as={Trash2} size={24} className="text-white" />
+              </Button>
+            )}
+          >
+            <View className="bg-background px-2">
+              <Button
+                onPress={() => {
+                  dispatch(
+                    bookmarkPressed({
+                      bookUuid,
+                      locator: bookmark.locator,
+                      timestamp: Date.now(),
+                      currentLocator: book?.position?.locator,
+                    }),
+                  )
+                }}
+                variant="ghost"
+                className="h-auto flex-col items-start border-b border-b-gray-400 p-4 sm:h-auto"
+              >
+                {format === "audiobook" ? (
+                  <>
+                    <Text className="text-sm font-bold">
+                      {audiobookBookmarkDetails[index]?.title}
+                    </Text>
+                    <Text className="mt-2 text-xs">
+                      Timestamp {audiobookBookmarkTimestamps[index]}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-sm font-bold">
+                      {bookmarkTitles[index]}
+                    </Text>
+                    <Text className="mt-2 text-xs">
+                      Page {bookmarkPages[index]}
+                    </Text>
+                  </>
+                )}
+              </Button>
+            </View>
+          </Swipeable>
+        ))}
+      </ScrollView>
+    </Stack>
   )
 }

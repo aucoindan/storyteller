@@ -2,6 +2,7 @@ import { createSelector } from "@reduxjs/toolkit"
 
 import { type RootState } from "@/store/appState"
 import { localApi } from "@/store/localApi"
+import { type UUID } from "@/uuid"
 
 export function getCurrentlyPlayingBookUuid(state: RootState) {
   return state.bookshelf.currentlyPlayingBookUuid
@@ -154,3 +155,10 @@ export const getPercentComplete = createSelector(
     return Math.round(((total - remaining) / total) * 100)
   },
 )
+/**
+ * Get the saved return position for a book and navigation tab.
+ * Used when navigating from bookmarks, highlights, or contents.
+ */
+export function getReturnToPosition(state: RootState, bookUuid: UUID) {
+  return state.bookshelf.returnToPositions[bookUuid] ?? null
+}

@@ -22,6 +22,7 @@ import {
   playerTotalPositionSeeked,
   playerTrackChanged,
   prevTrackPressed,
+  returnToPreviousPosition,
   serverPositionUpdated,
 } from "@/store/actions"
 import { localApi } from "@/store/localApi"
@@ -29,6 +30,7 @@ import {
   getCurrentlyPlayingBookUuid,
   getCurrentlyPlayingFormat,
   getIsPlaying,
+  getReturnToPosition,
 } from "@/store/selectors/bookshelfSelectors"
 import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 import { type UUID } from "@/uuid"
@@ -42,12 +44,31 @@ const matchReaderLocatorUpdate = isAnyOf(
   serverPositionUpdated,
   navItemPressed,
   bookmarkPressed,
+  returnToPreviousPosition,
 )
 
 startAppListening({
   matcher: matchReaderLocatorUpdate,
   effect: async (action, listenerApi) => {
-    const { bookUuid, locator, timestamp } = action.payload
+    let bookUuid: UUID
+    let locator: ReadiumLocator
+    let timestamp: number
+
+    if (action.type === returnToPreviousPosition.type) {
+      const { bookUuid: uuid, timestamp: ts } = action.payload as ReturnType<
+        typeof returnToPreviousPosition
+      >["payload"]
+      bookUuid = uuid
+      timestamp = ts
+      const returnPos = getReturnToPosition(
+        listenerApi.getOriginalState(),
+        bookUuid,
+      )
+      if (!returnPos) return
+      locator = returnPos.locator
+    } else {
+      ;({ bookUuid, locator, timestamp } = action.payload)
+    }
 
     const updatePositionPromise = listenerApi.dispatch(
       localApi.endpoints.updatePosition.initiate(

@@ -71,6 +71,7 @@ export const navItemPressed = createAction(
     bookUuid: UUID
     locator: ReadiumLocator
     timestamp: number
+    currentLocator?: ReadiumLocator | undefined
   }) => ({ payload }),
 )
 
@@ -80,8 +81,23 @@ export const bookmarkPressed = createAction(
     bookUuid: UUID
     locator: ReadiumLocator
     timestamp: number
+    currentLocator?: ReadiumLocator | undefined
   }) => ({ payload }),
 )
+
+export const clearReturnPosition = createAction(
+  "clearReturnPosition",
+  (payload: { bookUuid: UUID }) => ({ payload }),
+)
+
+export const returnToPreviousPosition = createAction(
+  "returnToPreviousPosition",
+  (payload: { bookUuid: UUID; timestamp: number }) => ({
+    payload,
+  }),
+)
+
+export const playerPositionUpdated = createAction("playerPositionUpdated")
 
 export const playerPositionSeeked = createAction(
   "playerPositionSeeked",

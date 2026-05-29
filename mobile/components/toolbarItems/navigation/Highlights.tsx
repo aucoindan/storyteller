@@ -110,46 +110,53 @@ export function Highlights() {
   }
 
   return (
-    <ScrollView>
-      {highlights.map((highlight, index) => (
-        <View key={highlight.uuid} className="px-2">
-          <Button
-            onPress={async () => {
-              dispatch(
-                bookmarkPressed({
-                  bookUuid,
-                  locator: highlight.locator,
-                  timestamp: Date.now(),
-                }),
-              )
-            }}
-            variant="ghost"
-            className="h-auto flex-col border-b border-b-gray-400 p-4 sm:h-auto"
-          >
-            <Text className="text-sm font-bold">{highlightTitles[index]}</Text>
-            {highlight.locator.locations?.position && (
-              <Text className="my-2 text-xs">Page {highlightPages[index]}</Text>
-            )}
-            {highlight.locator.text?.highlight && (
-              <Text
-                className="text-justify text-sm underline decoration-solid"
-                style={{
-                  fontFamily: preferences?.typography?.fontFamily,
-                  textAlign: "left",
-                  backgroundColor:
-                    highlightTints[dark ? "dark" : "light"][highlight.color],
-                  textDecorationColor:
-                    highlightUnderlines[dark ? "dark" : "light"][
-                      highlight.color
-                    ],
-                }}
-              >
-                {highlight.locator.text.highlight}
+    <Stack className="flex-1">
+      <ScrollView>
+        {highlights.map((highlight, index) => (
+          <View key={highlight.uuid} className="px-2">
+            <Button
+              onPress={async () => {
+                dispatch(
+                  bookmarkPressed({
+                    bookUuid,
+                    locator: highlight.locator,
+                    timestamp: Date.now(),
+                    currentLocator: book?.position?.locator,
+                  }),
+                )
+              }}
+              variant="ghost"
+              className="h-auto flex-col border-b border-b-gray-400 p-4 sm:h-auto"
+            >
+              <Text className="text-sm font-bold">
+                {highlightTitles[index]}
               </Text>
-            )}
-          </Button>
-        </View>
-      ))}
-    </ScrollView>
+              {highlight.locator.locations?.position && (
+                <Text className="my-2 text-xs">
+                  Page {highlightPages[index]}
+                </Text>
+              )}
+              {highlight.locator.text?.highlight && (
+                <Text
+                  className="text-justify text-sm underline decoration-solid"
+                  style={{
+                    fontFamily: preferences?.typography?.fontFamily,
+                    textAlign: "left",
+                    backgroundColor:
+                      highlightTints[dark ? "dark" : "light"][highlight.color],
+                    textDecorationColor:
+                      highlightUnderlines[dark ? "dark" : "light"][
+                        highlight.color
+                      ],
+                  }}
+                >
+                  {highlight.locator.text.highlight}
+                </Text>
+              )}
+            </Button>
+          </View>
+        ))}
+      </ScrollView>
+    </Stack>
   )
 }

@@ -64,34 +64,36 @@ export function TableOfContents({ onClose }: Props) {
   if (!toc || !book) return
 
   return (
-    <ScrollView
-      ref={ref}
-      style={{
-        maxHeight,
-      }}
-      onLayout={() => {
-        if (!ref.current) return
-        // @ts-expect-error ScrollView is a perfectly valid component, not sure what
-        // exactly the issue is here
-        currentItemRef.current?.measureLayout(ref.current, (_x, y) => {
-          ref.current?.scrollTo({
-            y: y - 40,
-            animated: false,
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        ref={ref}
+        style={{
+          maxHeight,
+        }}
+        onLayout={() => {
+          if (!ref.current) return
+          // @ts-expect-error ScrollView is a perfectly valid component, not sure what
+          // exactly the issue is here
+          currentItemRef.current?.measureLayout(ref.current, (_x, y) => {
+            ref.current?.scrollTo({
+              y: y - 40,
+              animated: false,
+            })
           })
-        })
-      }}
-    >
-      {toc.map((link) => (
-        <TableOfContentsLink
-          key={link.href}
-          book={book}
-          link={link}
-          currentTocLink={currentTocLink}
-          ref={currentItemRef}
-          onPress={onClose}
-        />
-      ))}
-    </ScrollView>
+        }}
+      >
+        {toc.map((link) => (
+          <TableOfContentsLink
+            key={link.href}
+            book={book}
+            link={link}
+            currentTocLink={currentTocLink}
+            ref={currentItemRef}
+            onPress={onClose}
+          />
+        ))}
+      </ScrollView>
+    </View>
   )
 }
 
@@ -128,6 +130,7 @@ function TableOfContentsLink({
               bookUuid: book.uuid,
               locator,
               timestamp: Date.now(),
+              currentLocator: book.position?.locator,
             }),
           )
 
