@@ -370,7 +370,7 @@ release-ghost-story:
         '$CI_COMMIT_TAG =~
         /^align-v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|experimental|dev|test|preview)(?:\.\d+)?)?$/'
   script:
-    - corepack enable
+    - npm i -g --force corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align compile
     - |
@@ -558,7 +558,7 @@ publish-align:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
-    - corepack enable
+    - npm i -g --force corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align npm publish --tag="$TAG"
 
