@@ -16,12 +16,11 @@ export async function ensureBooksDirectory() {
 }
 
 export async function importBookFile(uuid: UUID, externalPath: string) {
-  const externalFile = new File(externalPath)
-  const externalBytes = await externalFile.bytes()
   const archiveFile = new File(getLocalBookArchiveUrl(uuid, "readaloud"))
+  // make sure the destination directory exists without materialising the file
+  archiveFile.parentDirectory.create({ intermediates: true, idempotent: true })
 
-  archiveFile.create({ intermediates: true })
-  archiveFile.write(externalBytes)
+  await FileSystem.copyAsync({ from: externalPath, to: archiveFile.uri })
 
   await extractArchive(
     archiveFile.uri,

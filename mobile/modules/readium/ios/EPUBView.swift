@@ -257,12 +257,12 @@ class EPUBView: ExpoView {
         }
     }
 
-    func setCssVar(_ name: String, _ value: string) {
+    func setCssVar(_ name: String, _ value: String) {
         guard let epubNav = navigator else {
             return
         }
         Task {
-            await epubNav.evaluateJavascript("""
+            await epubNav.evaluateJavaScript("""
                 (function() {
                     document.body.style.setProperty('\(name)', '\(value)')
                 })();
