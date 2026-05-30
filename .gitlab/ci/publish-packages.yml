@@ -370,7 +370,6 @@ release-ghost-story:
         '$CI_COMMIT_TAG =~
         /^align-v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|experimental|dev|test|preview)(?:\.\d+)?)?$/'
   script:
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align compile
     - |
@@ -420,7 +419,6 @@ publish-align-sea-darwin-arm64:
     - nvm install 25
     - nvm use 25
     - nvm alias default 25
-    - npm i -g yarn
     - security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
     - security list-keychains -d user -s "$KEYCHAIN_NAME" $(security
       list-keychains -d user | tr -d '"')
@@ -559,7 +557,6 @@ publish-align:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align npm publish --tag="$TAG"
 
@@ -629,7 +626,6 @@ release-align:
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
     - rustc --version
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - export PATH="$HOME/.cargo/bin:$PATH"
@@ -654,7 +650,6 @@ release-align:
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
     - rustc --version
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - export PATH="$HOME/.cargo/bin:$PATH"
@@ -685,7 +680,6 @@ release-align:
     - rm rustup.sh
     - source "$HOME/.cargo/env"
     - rustc --version
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - source "$HOME/.cargo/env"
@@ -722,7 +716,6 @@ release-align:
       $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
       rustup default stable-msvc
       rustc --version
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
   script:
     - |
@@ -847,7 +840,6 @@ publish-okmain:
     - sh rustup.sh -y --profile minimal --default-toolchain stable
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
-    - npm i -g corepack
     - yarn workspaces focus @storyteller-platform/okmain
     - ls -lah okmain/*.node
     - mkdir -p okmain/artifacts

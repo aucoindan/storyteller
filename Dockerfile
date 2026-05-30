@@ -8,7 +8,6 @@ FROM registry.gitlab.com/storyteller-platform/storyteller/storyteller-base:${BAS
 WORKDIR /app
 
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/releases ./.yarn/releases
 COPY .yarn/cache ./.yarn/cache
 COPY .yarn/patches ./.yarn/patches
 
