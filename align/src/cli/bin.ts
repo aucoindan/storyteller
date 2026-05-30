@@ -377,10 +377,6 @@ async function main() {
 
         startProgressBar()
 
-        const markedup =
-          parsed.markedup ??
-          join(os.tmpdir(), `stalign-markedup-${randomUUID()}.epub`)
-
         if (!parsed.markedup) {
           stack.defer(() => {
             rmSync(markedup, { recursive: true, force: true })
@@ -407,7 +403,7 @@ async function main() {
           markupTiming.print()
         }
       } else {
-        logger.info("Skipping markup, text-range-type set to text-fragment")
+        logger.info("Skipping markup, text-ref set to text-fragment")
       }
 
       logger.info("Aligning EPUB with audiobook...")
