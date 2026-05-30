@@ -355,7 +355,7 @@ function commonFfmpegArguments(
       ...(codec === "libopus"
         ? ["-b:a", bitrate && /^\d+[kK]$/i.test(bitrate) ? bitrate : "32K"]
         : []),
-      ...(codec === "libmp3lame" && bitrate ? ["-q:a", bitrate] : []),
+      ...(codec === "libmp3lame" && bitrate ? ["-b:a", bitrate] : []),
     )
   } else if (
     areSameType(sourceExtension, destExtension) ||

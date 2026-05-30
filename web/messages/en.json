@@ -145,11 +145,7 @@
             "codecAac": "AAC",
             "bitrate": "Preferred audio bitrate",
             "bitrateDefault": "Default (32 Kb/s)",
-            "quality": "Preferred audio quality",
-            "qualityDefault": "Default (constant 48 kb/s)",
-            "qualityHighQuality": "0 (high quality/low compression)",
-            "qualityTransparent": "4 (perceptually transparent)",
-            "qualityAcceptable": "6 (acceptable quality/high compression)"
+            "mp3BitrateDefault": "Default"
           },
           "transcription": {
             "title": "Transcription Settings",

@@ -93,6 +93,109 @@ export async function getTrackDuration(path: string, logger?: Logger) {
   return info["duration"]
 }
 
+/**
+ * CBR bitrates (bps) offered for MP3 output, roughly matching LAME -V9..-V0
+ */
+export const MP3_CBR_BITRATES = [
+  64_000, 80_000, 96_000, 112_000, 128_000, 160_000, 192_000, 224_000, 256_000,
+  320_000,
+] as const
+
+/**
+ * How many audio packets to sample when probing for a variable bitrate
+ */
+const VBR_PROBE_PACKET_COUNT = 50
+
+/**
+ * Maximum number of distinct packet sizes we tolerate before calling an MP3
+ * stream variable bitrate.
+ * CBR can have SOME variation but really only one or two distinct sizes
+ */
+const MP3_CBR_MAX_DISTINCT_SIZES = 2
+
+/**
+ * intros can be kinda unreliable as they are often very quiet
+ * so we seek some time in to get a more representative sample
+ */
+const VBR_PROBE_MIN_SEEKABLE_SECONDS = 180
+
+type FfprobeFormatDurationOutput = {
+  format?: { duration?: string }
+}
+
+type FfprobePacketsOutput = {
+  packets?: Array<{ size?: string }>
+}
+
+async function probeAudioDuration(path: string): Promise<number | null> {
+  const stdout = await execCmd(
+    `ffprobe -i ${quotePath(path)} -v error -show_entries format=duration -output_format json`,
+  )
+  const { format } = JSON.parse(stdout) as FfprobeFormatDurationOutput
+  const duration = Number(format?.duration)
+  return Number.isFinite(duration) && duration > 0 ? duration : null
+}
+
+async function probePacketSizes(
+  path: string,
+  startSeconds: number,
+): Promise<number[]> {
+  // `START%+#N`: seek to START seconds, read N packets (no START = from start).
+  const interval =
+    startSeconds > 0
+      ? `${startSeconds}%+#${VBR_PROBE_PACKET_COUNT}`
+      : `%+#${VBR_PROBE_PACKET_COUNT}`
+
+  const stdout = await execCmd(
+    `ffprobe -i ${quotePath(path)} -v error -select_streams a:0 -read_intervals "${interval}" -show_entries packet=size -output_format json`,
+  )
+
+  const { packets } = JSON.parse(stdout) as FfprobePacketsOutput
+  return (packets ?? [])
+    .map((packet) => Number(packet.size))
+    .filter((size) => Number.isFinite(size) && size > 0)
+}
+
+/**
+ * Detect whether an MP3 file uses a variable bitrate
+ * Does this by sampling the first few packets and checking if the sizes are different
+ * CBR MP3 files will have the same packet size for the entire file
+ *
+ * Can't really trust the reported bitrate to tell CBR from VBR
+ * LAME writes a Xing header carrying the *average* bitrate,
+ * which ffprobe surfaces as a normal per-stream `bit_rate`,
+ * so a VBR file looks identical to a CBR one by that measure.
+ */
+export async function isVbrMp3(path: string): Promise<boolean> {
+  if (extname(path).toLowerCase() !== ".mp3") return false
+
+  const duration = await probeAudioDuration(path)
+  const startSeconds =
+    duration && duration > VBR_PROBE_MIN_SEEKABLE_SECONDS
+      ? Math.floor(duration / 3)
+      : 0
+
+  let sizes = await probePacketSizes(path, startSeconds)
+  // failsafe in case something goes wrong
+  if (sizes.length === 0 && startSeconds > 0) {
+    sizes = await probePacketSizes(path, 0)
+  }
+
+  if (sizes.length === 0) return false
+
+  const distinctSizes = new Set(sizes).size
+  return distinctSizes > MP3_CBR_MAX_DISTINCT_SIZES
+}
+
+// Pick the nearest CBR bitrate at or above the source's average.
+export function selectCbrBitrate(averageBitrate: number): number {
+  return (
+    MP3_CBR_BITRATES.find((tier) => tier >= averageBitrate) ??
+    MP3_CBR_BITRATES.at(-1) ??
+    MP3_CBR_BITRATES[0]
+  )
+}
+
 type TrackInfo = {
   filename: string
   nbStreams: number
@@ -200,30 +303,30 @@ async function constructExtractCoverArtCommand(
   return `${command} ${args.join(" ")} | `
 }
 
-function commonFfmpegArguments(
-  sourceExtension: string,
-  destExtension: string,
-  codec: string | null,
-  bitrate: string | null,
-) {
+interface FfmpegArgumentOptions {
+  sourceExtension: string
+  destExtension: string
+  codec: string | null
+  bitrate: string | null
+}
+
+function commonFfmpegArguments(options: FfmpegArgumentOptions) {
+  const { sourceExtension, destExtension, codec, bitrate } = options
   const args = ["-vn"]
 
   if (codec) {
-    args.push(
-      "-c:a",
-      codec,
-      ...(codec === "libopus"
-        ? ["-b:a", bitrate && /^\d+[kK]$/i.test(bitrate) ? bitrate : "32K"]
-        : []),
-      ...(codec === "libmp3lame" && bitrate ? ["-q:a", bitrate] : []),
-    )
+    args.push("-c:a", codec)
+
+    if (codec === "libopus") {
+      args.push("-b:a", bitrate && /^\d+[kK]$/i.test(bitrate) ? bitrate : "32K")
+    } else if (codec === "libmp3lame" && bitrate) {
+      // MP3 is always CBR for accurate seeking; bitrate is a `-b:a` value.
+      args.push("-b:a", bitrate)
+    }
   } else if (
     areSameType(sourceExtension, destExtension) ||
     destExtension == ".mp4"
   ) {
-    // Ideally this would be a check for whether the container could handle the
-    // input, but it seems like ffmpeg doesn't make that easy to figure out.
-    // Right now this only comes up when remuxing ogg to mp4, where copy works.
     args.push("-c:a", "copy")
   }
 
@@ -260,12 +363,12 @@ export async function splitFile(
     end,
     "-i",
     quotePath(input),
-    ...commonFfmpegArguments(
-      extname(input),
-      extname(output),
-      encoding?.codec ?? null,
-      encoding?.bitrate ?? null,
-    ),
+    ...commonFfmpegArguments({
+      sourceExtension: extname(input),
+      destExtension: extname(output),
+      codec: encoding?.codec ?? null,
+      bitrate: encoding?.bitrate ?? null,
+    }),
     quotePath(output),
   ]
 
@@ -307,12 +410,12 @@ export async function transcodeFile(
     "-nostdin",
     "-i",
     quotePath(input),
-    ...commonFfmpegArguments(
-      extname(input),
-      extname(output),
-      encoding?.codec ?? null,
-      encoding?.bitrate ?? null,
-    ),
+    ...commonFfmpegArguments({
+      sourceExtension: extname(input),
+      destExtension: extname(output),
+      codec: encoding?.codec ?? null,
+      bitrate: encoding?.bitrate ?? null,
+    }),
     quotePath(output),
   ]
 

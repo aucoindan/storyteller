@@ -146,11 +146,7 @@
             "codecAac": "AAC",
             "bitrate": "Voorkeurs audiobitrate",
             "bitrateDefault": "Standaard (32 Kb/s)",
-            "quality": "Voorkeurs audiokwaliteit",
-            "qualityDefault": "Standaard (constant 48 kb/s)",
-            "qualityHighQuality": "0 (hoge kwaliteit/lage compressie)",
-            "qualityTransparent": "4 (perceptueel transparant)",
-            "qualityAcceptable": "6 (acceptabele kwaliteit/hoge compressie)"
+            "mp3BitrateDefault": "Standaard"
           },
           "transcription": {
             "title": "Transcriptie Instellingen",

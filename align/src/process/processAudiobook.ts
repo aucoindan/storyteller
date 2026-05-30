@@ -20,7 +20,12 @@ import {
   createTiming,
 } from "@storyteller-platform/ghost-story"
 
-import { splitFile } from "../common/ffmpeg.ts"
+import {
+  getTrackInfo,
+  isVbrMp3,
+  selectCbrBitrate,
+  splitFile,
+} from "../common/ffmpeg.ts"
 
 import { type AudioEncoding } from "./AudioEncoding.ts"
 import { getSafeChapterRanges } from "./ranges.ts"
@@ -111,6 +116,38 @@ interface ProcessFileOptions extends Omit<ProcessOptions, "parallelism"> {
   lock: AsyncSemaphore
 }
 
+async function resolveVbrEncoding(
+  filepath: string,
+  userEncoding: AudioEncoding | null | undefined,
+  logger?: Logger | null,
+): Promise<AudioEncoding | null | undefined> {
+  if (userEncoding?.codec && userEncoding.codec !== "libmp3lame") {
+    return userEncoding
+  }
+
+  const sourceIsMp3 = extname(filepath).toLowerCase() === ".mp3"
+
+  if (!userEncoding?.codec && !sourceIsMp3) {
+    return userEncoding
+  }
+
+  if (!userEncoding?.codec && !(await isVbrMp3(filepath))) {
+    return userEncoding
+  }
+
+  const trackInfo = await getTrackInfo(filepath, logger ?? undefined)
+  const targetBitrate = selectCbrBitrate(trackInfo.bitRate)
+
+  logger?.info(
+    `Forcing CBR MP3 for ${filepath} (avg ${trackInfo.bitRate}bps) at ${targetBitrate / 1000}k`,
+  )
+
+  return {
+    codec: "libmp3lame",
+    bitrate: `${targetBitrate / 1000}k`,
+  }
+}
+
 export async function processFile(
   input: string,
   output: string,
@@ -137,11 +174,31 @@ export async function processFile(
     options.logger,
   )
 
+  // pre-check each unique source file for vbr so we only probe once per file
+  // one file can have multiple ranges depending on the size/max length setting
+  const vbrEncodings = new Map<string, AudioEncoding | null | undefined>()
+
+  const uniqueFilepaths = [...new Set(ranges.map((r) => r.filepath))]
+  await Promise.all(
+    uniqueFilepaths.map(async (filepath) => {
+      const result = await resolveVbrEncoding(
+        filepath,
+        options.encoding,
+        options.logger,
+      )
+      vbrEncodings.set(filepath, result)
+    }),
+  )
+
   await Promise.all(
     ranges.map(async (range, index) => {
+      const effectiveEncoding = vbrEncodings.has(range.filepath)
+        ? vbrEncodings.get(range.filepath)
+        : options.encoding
+
       const outputExtension = determineExtension(
         range.filepath,
-        options.encoding?.codec,
+        effectiveEncoding?.codec,
       )
       const outputFilename = `${prefix}${(index + 1).toString().padStart(5, "0")}${outputExtension}`
       const outputFilepath = join(output, outputFilename)
@@ -162,7 +219,7 @@ export async function processFile(
             outputFilepath,
             range.start,
             range.end,
-            options.encoding,
+            effectiveEncoding,
             options.signal,
             options.logger,
           )

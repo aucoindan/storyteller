@@ -3,6 +3,8 @@
 import { useTranslations } from "next-intl"
 import { useWatch } from "react-hook-form"
 
+import { MP3_CBR_BITRATE_OPTIONS } from "@/assets/audio/mp3Bitrates"
+
 import {
   Card,
   CardContent,
@@ -73,18 +75,12 @@ export function TranscriptionTab() {
     { value: "96K", label: "96 Kb/s" },
   ]
 
-  const mp3QualityOptions = [
-    { value: "", label: ta("qualityDefault") },
-    { value: "0", label: ta("qualityHighQuality") },
-    { value: "1", label: "1" },
-    { value: "2", label: "2" },
-    { value: "3", label: "3" },
-    { value: "4", label: ta("qualityTransparent") },
-    { value: "5", label: "5" },
-    { value: "6", label: ta("qualityAcceptable") },
-    { value: "7", label: "7" },
-    { value: "8", label: "8" },
-    { value: "9", label: "9" },
+  const mp3BitrateOptions = [
+    { value: "", label: ta("mp3BitrateDefault") },
+    ...MP3_CBR_BITRATE_OPTIONS.map(({ value, kbps }) => ({
+      value,
+      label: `${kbps} kb/s`,
+    })),
   ]
 
   return (
@@ -256,7 +252,7 @@ export function TranscriptionTab() {
             {codec === "libmp3lame" && (
               <SettingsFormField
                 name="bitrate"
-                label={ta("quality")}
+                label={ta("bitrate")}
                 render={(field, fieldState, isLocked) => (
                   <Select
                     disabled={isLocked}
@@ -269,13 +265,13 @@ export function TranscriptionTab() {
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue>
-                        {mp3QualityOptions.find(
+                        {mp3BitrateOptions.find(
                           ({ value }) => value === field.value,
-                        )?.label ?? ta("qualityDefault")}
+                        )?.label ?? ta("mp3BitrateDefault")}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {mp3QualityOptions.map(({ value, label }) => (
+                      {mp3BitrateOptions.map(({ value, label }) => (
                         <SelectItem key={value} value={value}>
                           {label}
                         </SelectItem>

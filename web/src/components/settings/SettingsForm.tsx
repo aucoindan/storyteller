@@ -35,6 +35,7 @@ import {
 import { useMemo, useRef, useState } from "react"
 
 import type { Settings } from "@/apiModels"
+import { MP3_CBR_BITRATE_OPTIONS } from "@/assets/audio/mp3Bitrates"
 import {
   cronExpressionToMinutes,
   minutesToCronExpression,
@@ -1372,19 +1373,12 @@ export function SettingsForm({
             {...form.getInputProps("bitrate")}
             disabled={isLocked("bitrate")}
           >
-            <option value="">Default (constant 48 kb/s)</option>
-            <option value="0">0 (high quality/low compression)</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">
-              4 (perceptually transparent/moderate compression)
-            </option>
-            <option value="5">5</option>
-            <option value="6">6 (acceptable quality/high compression)</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
+            <option value="">Default</option>
+            {MP3_CBR_BITRATE_OPTIONS.map(({ value, kbps }) => (
+              <option key={value} value={value}>
+                {kbps} kb/s
+              </option>
+            ))}
           </NativeSelect>
         )}
       </Fieldset>
