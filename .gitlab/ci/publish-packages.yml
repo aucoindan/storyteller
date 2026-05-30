@@ -370,6 +370,7 @@ release-ghost-story:
         '$CI_COMMIT_TAG =~
         /^align-v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|experimental|dev|test|preview)(?:\.\d+)?)?$/'
   script:
+    - corepack enable
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align compile
     - |
