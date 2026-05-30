@@ -18,15 +18,14 @@ async function execCmd(
   logger?: Logger | null,
   signal?: AbortSignal | null,
 ) {
-  let stdout: string = ""
-  let stderr: string = ""
   try {
     // cover art can be several megabytes, so we need a larger buffer
     // matches what is set in the audiobook package
-    ;({ stdout, stderr } = await execPromise(command, {
+    const { stdout } = await execPromise(command, {
       maxBuffer: 50 * 1024 * 1024,
       signal: signal ?? undefined,
-    }))
+    })
+
     return stdout
   } catch (error) {
     if (
@@ -38,9 +37,15 @@ async function execCmd(
       )
     }
 
+    const execErr = error as { stderr?: string; stdout?: string }
+
     logger?.error(error)
-    logger?.info(stdout)
-    throw new Error(stderr)
+    if (execErr.stdout) logger?.info(execErr.stdout)
+
+    const errorDetail =
+      execErr.stderr || execErr.stdout || `Command failed: ${command}`
+
+    throw new Error(errorDetail)
   }
 }
 
@@ -76,7 +81,7 @@ export const getTrackInfo = memoize(async function getTrackInfo(
   logger?: Logger,
 ) {
   const stdout = await execCmd(
-    `ffprobe -i ${quotePath(path)} -show_format -of json`,
+    `ffprobe -v error -i ${quotePath(path)} -show_format -of json`,
     logger,
   )
   const info = JSON.parse(stdout) as FfmpegTrackFormat

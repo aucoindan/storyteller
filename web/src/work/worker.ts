@@ -144,6 +144,10 @@ export default async function processBook({
 
     try {
       if (stage === "SPLIT_TRACKS") {
+        // clean stale files from previous runs to prevent mismatches
+        // shame not to reuse stuff, but too easy to produce bugs if we do
+        await deleteProcessed(book)
+
         const settings = await getSettings()
         logger.info("Pre-processing...")
         await processTiming.timeAsync("split_tracks", () =>

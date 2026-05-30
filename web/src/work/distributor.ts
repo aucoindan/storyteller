@@ -205,11 +205,21 @@ export async function startProcessing(bookUuid: UUID, restart: RestartMode) {
     )
 
     const book = await getBookOrThrow(bookUuid)
+
+    if (book.readaloud?.status === "ERROR") {
+      const failedStage = book.readaloud.currentStage
+      logger.error(
+        `Processing for "${book.title}" (${bookUuid}) failed during ${failedStage}. See the error log above for details.`,
+      )
+      return
+    }
+
     if (!book.readaloud?.filepath) {
       throw new Error(
-        `Book ${book.title} (${bookUuid}) has no readaloud filepath after processing`,
+        `Processing completed for "${book.title}" (${bookUuid}) but no aligned file was produced. This is likely a bug.`,
       )
     }
+
     await scan({
       source: "readaloud-creation",
       request: {

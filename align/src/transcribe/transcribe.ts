@@ -79,8 +79,10 @@ export async function transcribe(
   const model = options.model ?? "tiny.en"
 
   if (engine === "whisper.cpp") {
+    const resolvedModel = getWhisperCppModelId(locale.language, model)
+
     await ensureWhisperInstalled({
-      model,
+      model: resolvedModel,
       printOutput: ["debug", "info"].includes(
         options.logger?.level ?? "silent",
       ),
@@ -218,8 +220,13 @@ export async function transcribeFile(
         options.whisperCpuOverride ?? null,
       )
 
+      const resolvedModel = getWhisperCppModelId(
+        sharedOptions.language,
+        options.model,
+      )
+
       const whisperOptions = await ensureWhisperInstalled({
-        model: options.model,
+        model: resolvedModel,
         variant: fallbackVariant,
         printOutput: ["debug", "info"].includes(
           options.logger?.level ?? "silent",
@@ -233,7 +240,7 @@ export async function transcribeFile(
         engine: options.engine,
         options: {
           flashAttention: true,
-          model: getWhisperCppModelId(sharedOptions.language, options.model),
+          model: resolvedModel,
           processors: options.processors,
           threads: options.threads,
           onProgress: (progress) => {
