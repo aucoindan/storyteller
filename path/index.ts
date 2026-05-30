@@ -458,12 +458,70 @@ export const windows = {
   },
 
   dirname(path: string) {
-    if (path.length === 0) return "."
-    const hasRoot = path.charCodeAt(0) === CHAR_FORWARD_SLASH
+    const len = path.length
+    if (len === 0) return "."
+    let rootEnd = -1
+    let offset = 0
+    const code = path.charCodeAt(0)
+
+    if (len === 1) {
+      // `path` contains just a path separator, exit early to avoid
+      // unnecessary work or a dot.
+      return isPathSeparator(code) ? path : "."
+    }
+
+    // Try to match a root
+    if (isPathSeparator(code)) {
+      // Possible UNC root
+
+      rootEnd = offset = 1
+
+      if (isPathSeparator(path.charCodeAt(1))) {
+        // Matched double path separator at beginning
+        let j = 2
+        let last = j
+        // Match 1 or more non-path separators
+        while (j < len && !isPathSeparator(path.charCodeAt(j))) {
+          j++
+        }
+        if (j < len && j !== last) {
+          // Matched!
+          last = j
+          // Match 1 or more path separators
+          while (j < len && isPathSeparator(path.charCodeAt(j))) {
+            j++
+          }
+          if (j < len && j !== last) {
+            // Matched!
+            last = j
+            // Match 1 or more non-path separators
+            while (j < len && !isPathSeparator(path.charCodeAt(j))) {
+              j++
+            }
+            if (j === len) {
+              // We matched a UNC root only
+              return path
+            }
+            if (j !== last) {
+              // We matched a UNC root with leftovers
+
+              // Offset by 1 to include the separator after the UNC root to
+              // treat it as a "normal root" on top of a (UNC) root
+              rootEnd = offset = j + 1
+            }
+          }
+        }
+      }
+      // Possible device root
+    } else if (isWindowsDeviceRoot(code) && path.charCodeAt(1) === CHAR_COLON) {
+      rootEnd = len > 2 && isPathSeparator(path.charCodeAt(2)) ? 3 : 2
+      offset = rootEnd
+    }
+
     let end = -1
     let matchedSlash = true
-    for (let i = path.length - 1; i >= 1; --i) {
-      if (path.charCodeAt(i) === CHAR_FORWARD_SLASH) {
+    for (let i = len - 1; i >= offset; --i) {
+      if (isPathSeparator(path.charCodeAt(i))) {
         if (!matchedSlash) {
           end = i
           break
@@ -474,8 +532,11 @@ export const windows = {
       }
     }
 
-    if (end === -1) return hasRoot ? "/" : "."
-    if (hasRoot && end === 1) return "//"
+    if (end === -1) {
+      if (rootEnd === -1) return "."
+
+      end = rootEnd
+    }
     return path.slice(0, end)
   },
 

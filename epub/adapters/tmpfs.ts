@@ -48,7 +48,7 @@ function isAudioFile(filenameOrExt: string): boolean {
 }
 
 function mintRootPath(): string {
-  return join(tmpdir(), `storyteller-platform-epub-${randomUUID()}.epub`)
+  return join(tmpdir(), `storyteller-platform-epub-${randomUUID()}`)
 }
 
 /**
@@ -74,7 +74,7 @@ export class TmpFsAdapter implements EpubStorageAdapter {
       })
 
       for await (const entry of zipfile) {
-        if (entry.filename.endsWith(sep)) {
+        if (entry.filename.endsWith("/")) {
           // directory entries are skipped; parent dirs are created implicitly
           continue
         }
