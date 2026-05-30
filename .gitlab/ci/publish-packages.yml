@@ -558,6 +558,7 @@ publish-align:
         preview*) TAG="preview" ;;
         *) TAG="latest" ;;
       esac
+    - corepack enable
     - yarn workspaces focus @storyteller-platform/align
     - yarn workspace @storyteller-platform/align npm publish --tag="$TAG"
 
