@@ -1831,11 +1831,11 @@ export class Epub {
       if (!creatorIdref) return
 
       const creatorId = creatorIdref.slice(1)
-      const index = creatorEntries.findIndex((entry) => entry.id === creatorId)
-      if (index === -1) return
+      const creator = creatorEntries
+        .filter((entry) => entry.id === creatorId && !!entry.value)
+        .map((creator) => ({ name: creator.value }) as DcCreator)[0]
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const creator = creators[index]!
+      if (!creator) return
 
       if (entry.properties["alternate-script"]) {
         if (!entry.properties["xml:lang"]) return

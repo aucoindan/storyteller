@@ -134,9 +134,11 @@ const server = new Server({
       await move(uploadPath, filepath)
 
       if (format.data !== "audiobook") {
+        // ebook/readaloud are single files.
+        // dont pass the batch dir, otherwise relocate moves the whole dir onto the target
         await replaceBookAssetFromUpload({
           book,
-          uploadPath: batchUuidDir,
+          uploadPath: filepath,
           format: format.data as ScanFormat,
           metadataFieldOverrides,
           signal: new AbortController().signal,

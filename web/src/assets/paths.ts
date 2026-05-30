@@ -1,4 +1,4 @@
-import { basename, dirname, extname, join } from "node:path"
+import { basename, dirname, extname, join, resolve } from "node:path"
 
 import { type Book, type BookWithRelations } from "@/database/books"
 import { type Settings } from "@/database/settingsTypes"
@@ -93,7 +93,7 @@ export function getReadaloudFilepath(
 ) {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const ebookFilepath = book.ebook!.filepath
-  if (ebookFilepath === getInternalEpubFilepath(book)) {
+  if (resolve(ebookFilepath) === resolve(getInternalEpubFilepath(book))) {
     return getInternalReadaloudFilepath(book)
   }
 
