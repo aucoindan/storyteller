@@ -6,6 +6,7 @@ import { withHasPermission } from "@/auth/auth"
 import {
   type CreatorRelation,
   type SeriesRelation,
+  type UserBookRatingRelation,
   deleteBook,
   getBook,
   getBookUuid,
@@ -59,9 +60,35 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
   const language = getField<string | null>(formData, "language") ?? null
   const subtitle = getField<string | null>(formData, "subtitle") ?? null
   const description = getField<string | null>(formData, "description") ?? null
-  const rating = getField<number | null>(formData, "rating") ?? null
   const pageCount = getField<number | null>(formData, "pageCount") ?? null
   const duration = getField<number | null>(formData, "duration") ?? null
+
+  // null means delete the rating
+  const rating = getField<UserBookRatingRelation | null>(formData, "rating")
+  if (rating && rating.rating == null && rating.review == null) {
+    return NextResponse.json(
+      {
+        message:
+          "Either rating or review, or both must be provided when updating a rating",
+      },
+      { status: 405 },
+    )
+  }
+
+  // zod where are you i need you
+  if (
+    rating &&
+    rating.rating != null &&
+    !isNaN(rating.rating) &&
+    (rating.rating < 0 || rating.rating > 5)
+  ) {
+    return NextResponse.json(
+      {
+        message: "Rating must be a number between 0 and 5",
+      },
+      { status: 405 },
+    )
+  }
 
   const publicationDate =
     getField<string | null>(formData, "publicationDate") ?? null
@@ -146,7 +173,6 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
       ...(fields.has("subtitle") && { subtitle: subtitle }),
       ...(fields.has("language") && { language }),
       ...(fields.has("description") && { description }),
-      ...(fields.has("rating") && { rating }),
       ...(fields.has("publicationDate") && { publicationDate }),
       ...(fields.has("pageCount") && { pageCount }),
       ...(fields.has("duration") && { duration }),
@@ -159,6 +185,11 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
       ...(fields.has("status") && {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         status: { statusUuid: status!, userId: request.auth.user.id },
+      }),
+      ...(fields.has("rating") && {
+        rating: rating
+          ? { ...rating, userId: request.auth.user.id }
+          : { userId: request.auth.user.id },
       }),
     },
     request.auth.user.id,

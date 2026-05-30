@@ -163,7 +163,6 @@ export function BookEditForm({ book }: Props) {
       status: book.status?.uuid,
       collections: book.collections.map((collection) => collection.uuid),
       publicationDate: book.publicationDate && new Date(book.publicationDate),
-      rating: book.rating,
       description: book.description,
       narrators: book.narrators.map((narrator) => narrator.name),
       tags: book.tags.map((tag) => tag.name),
@@ -200,10 +199,11 @@ export function BookEditForm({ book }: Props) {
         onSubmit={form.onSubmit(async (values) => {
           setSavedState(SaveState.LOADING)
           const { textCover, audioCover, ...update } = values
+          const { rating, ...bookWithoutRating } = book
           try {
             await updateBook({
               update: {
-                ...book,
+                ...bookWithoutRating,
                 ...update,
                 publicationDate:
                   update.publicationDate &&

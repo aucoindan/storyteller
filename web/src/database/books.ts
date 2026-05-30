@@ -29,6 +29,7 @@ import { type NewCreator } from "./creators"
 import { type DB } from "./schema"
 import { type NewSeries } from "./series"
 import { getDefaultStatus } from "./statuses"
+import { type NewUserBookRating } from "./userRatings"
 
 /**
  * This function only exists to support old clients that haven't
@@ -89,6 +90,7 @@ export type SeriesRelation = NewSeries &
   Omit<NewBookToSeries, "bookUuid" | "seriesUuid">
 export type TagRelation = NewTag & NewBookToTag
 export type StatusRelation = Omit<NewBookToStatus, "bookUuid">
+export type UserBookRatingRelation = Omit<NewUserBookRating, "bookUuid">
 
 export type NewEbook = Insertable<DB["ebook"]>
 export type Ebook = Selectable<DB["ebook"]>
@@ -954,6 +956,7 @@ export type BookRelationsUpdate = {
   readaloud?: ReadaloudRelation
   books?: UUID[]
   status?: StatusRelation
+  rating?: UserBookRatingRelation
 }
 
 export async function updateBook(
@@ -1212,6 +1215,28 @@ export async function updateBook(
           eb.selectFrom("bookToTag").select(["bookToTag.tagUuid"]),
         )
         .execute()
+    }
+
+    if (relations.rating !== undefined) {
+      if (relations.rating.rating == null && relations.rating.review == null) {
+        // delete the rating
+        await tr
+          .deleteFrom("userBookRating")
+          .where("bookUuid", "=", uuid)
+          .where("userId", "=", relations.rating.userId)
+          .execute()
+      } else {
+        await tr
+          .insertInto("userBookRating")
+          .values({ ...relations.rating, bookUuid: uuid })
+          .onConflict((oc) =>
+            oc.columns(["userId", "bookUuid"]).doUpdateSet({
+              rating: relations.rating?.rating,
+              review: relations.rating?.review,
+            }),
+          )
+          .execute()
+      }
     }
 
     if (relations.ebook) {
