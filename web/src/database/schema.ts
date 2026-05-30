@@ -174,7 +174,7 @@ export interface ImportRule {
   kind: "watch" | "ignore"
   path: string
   source: Generated<
-    "user" | "import-relocate" | "import-backup" | "prevent-reimport"
+    "user" | "config" | "import-relocate" | "import-backup" | "prevent-reimport"
   >
   updatedAt: Generated<string>
   uuid: Generated<import("@/uuid").UUID>

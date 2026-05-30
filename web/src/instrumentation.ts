@@ -41,14 +41,6 @@ export async function register() {
   }
 
   try {
-    const { syncConfigFileImportPaths } = await import("./database/settings")
-    await syncConfigFileImportPaths()
-  } catch (err) {
-    logger.error("Failed to sync config file import paths")
-    logger.error(err)
-  }
-
-  try {
     await getWatcher().start()
     await getScheduler().refresh()
   } catch (err) {

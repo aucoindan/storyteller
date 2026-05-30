@@ -9,6 +9,7 @@ import {
   deleteImportRules,
   getImportRules,
   getUserImportRules,
+  isConfigImportRule,
 } from "@/database/importRules"
 import {
   validateWatchRulePath,
@@ -76,8 +77,12 @@ export const POST = withHasPermission("settingsUpdate")(async (request) => {
 export const DELETE = withHasPermission("settingsUpdate")(async (request) => {
   const body = (await request.json()) as { uuids: UUID[] }
 
-  await deleteImportRules(body.uuids)
-  await getWatcher().reload()
+  const deletable = body.uuids.filter((uuid) => !isConfigImportRule(uuid))
+
+  if (deletable.length > 0) {
+    await deleteImportRules(deletable)
+    await getWatcher().reload()
+  }
 
   return new NextResponse(null, { status: 204 })
 })

@@ -151,6 +151,7 @@ const IMPORT_MODE_OPTIONS = [
 ]
 
 const AUTO_SOURCE_LABELS: Record<Exclude<ImportRuleSource, "user">, string> = {
+  config: "Config",
   "import-relocate": "Relocated",
   "import-backup": "Backup copy",
   "prevent-reimport": "Re-import prevention",
@@ -176,6 +177,8 @@ function WatchRuleCard({
   const [editPath, setEditPath] = useState(rule.path)
   const [editError, setEditError] = useState<string | null>(null)
 
+  const isConfig = rule.source === "config"
+
   function trySave() {
     const result = validateWatchRulePath({
       path: editPath,
@@ -189,6 +192,7 @@ function WatchRuleCard({
       setEditError(watchRuleValidationMessage(result, { conflictingPath }))
       return
     }
+
     setEditError(null)
     void updateRule({ uuid: rule.uuid, path: editPath })
     setEditingPath(false)
@@ -196,14 +200,16 @@ function WatchRuleCard({
 
   return (
     <div className="flex gap-3 rounded-md border p-3">
-      <Checkbox
-        className="mt-1"
-        checked={selected}
-        onCheckedChange={onToggle}
-      />
+      {!isConfig && (
+        <Checkbox
+          className="mt-1"
+          checked={selected}
+          onCheckedChange={onToggle}
+        />
+      )}
 
       <div className="min-w-0 flex-1 space-y-2">
-        {editingPath ? (
+        {editingPath && !isConfig ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Input
@@ -249,20 +255,34 @@ function WatchRuleCard({
             )}
           </div>
         ) : (
-          <button
-            type="button"
-            className="text-foreground hover:text-foreground block max-w-full truncate text-left text-xs underline-offset-2 hover:underline"
-            title={rule.path}
-            onClick={() => {
-              setEditingPath(true)
-            }}
-          >
-            {rule.path}
-          </button>
+          <div className="flex items-center gap-2">
+            {isConfig ? (
+              <span
+                className="text-foreground block max-w-full truncate text-xs"
+                title={rule.path}
+              >
+                {rule.path}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="text-foreground hover:text-foreground block max-w-full truncate text-left text-xs underline-offset-2 hover:underline"
+                title={rule.path}
+                onClick={() => {
+                  setEditingPath(true)
+                }}
+              >
+                {rule.path}
+              </button>
+            )}
+
+            {isConfig && <Badge variant="outline">Config</Badge>}
+          </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Select
+            disabled={isConfig}
             value={rule.importMode ?? USE_DEFAULT_VALUE}
             onValueChange={(v) => {
               const mode = v === USE_DEFAULT_VALUE ? null : v
@@ -285,43 +305,50 @@ function WatchRuleCard({
             </SelectContent>
           </Select>
 
-          <Combobox
-            items={collections.map((c) => ({ value: c.uuid, label: c.name }))}
-            multiple
-            value={rule.collections.map((c) => c.uuid)}
-            onValueChange={(uuids) => {
-              void updateRule({
-                uuid: rule.uuid,
-                collectionUuids: uuids,
-              })
-            }}
-          >
-            <ComboboxChips className="min-w-[200px] flex-1">
-              <ComboboxValue>
-                {rule.collections
-                  .map(
-                    (c) =>
-                      collections.find((cc) => cc.uuid === c.uuid)?.name ??
-                      c.uuid,
-                  )
-                  .map((name) => (
-                    <ComboboxChip key={name}>{name}</ComboboxChip>
-                  ))}
-              </ComboboxValue>
-              <ComboboxChipsInput placeholder="Add collection" />
-            </ComboboxChips>
-          </Combobox>
+          {!isConfig && (
+            <Combobox
+              items={collections.map((c) => ({
+                value: c.uuid,
+                label: c.name,
+              }))}
+              multiple
+              value={rule.collections.map((c) => c.uuid)}
+              onValueChange={(uuids) => {
+                void updateRule({
+                  uuid: rule.uuid,
+                  collectionUuids: uuids,
+                })
+              }}
+            >
+              <ComboboxChips className="min-w-[200px] flex-1">
+                <ComboboxValue>
+                  {rule.collections
+                    .map(
+                      (c) =>
+                        collections.find((cc) => cc.uuid === c.uuid)?.name ??
+                        c.uuid,
+                    )
+                    .map((name) => (
+                      <ComboboxChip key={name}>{name}</ComboboxChip>
+                    ))}
+                </ComboboxValue>
+                <ComboboxChipsInput placeholder="Add collection" />
+              </ComboboxChips>
+            </Combobox>
+          )}
         </div>
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Delete rule"
-        onClick={onDelete}
-      >
-        <IconTrash size={14} className="text-destructive" />
-      </Button>
+      {!isConfig && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete rule"
+          onClick={onDelete}
+        >
+          <IconTrash size={14} className="text-destructive" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -337,9 +364,11 @@ function IgnoreRuleRow({
   onToggle: () => void
   onDelete: () => void
 }) {
+  const isConfig = rule.source === "config"
+
   return (
     <div className="flex items-center gap-3 rounded-md border px-3 py-2">
-      <Checkbox checked={selected} onCheckedChange={onToggle} />
+      {!isConfig && <Checkbox checked={selected} onCheckedChange={onToggle} />}
 
       <span
         className="text-foreground min-w-0 flex-1 truncate text-xs"
@@ -348,14 +377,18 @@ function IgnoreRuleRow({
         {rule.path}
       </span>
 
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Delete rule"
-        onClick={onDelete}
-      >
-        <IconTrash size={14} className="text-destructive" />
-      </Button>
+      {isConfig ? (
+        <Badge variant="outline">Config</Badge>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete rule"
+          onClick={onDelete}
+        >
+          <IconTrash size={14} className="text-destructive" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -624,11 +657,13 @@ function ImportRulesSection() {
     const watch: ImportRuleWithCollections[] = []
     const userIgnore: ImportRuleWithCollections[] = []
     const autoIgnore: ImportRuleWithCollections[] = []
+
     for (const r of rules) {
       if (r.kind === "watch") watch.push(r)
-      else if (r.source === "user") userIgnore.push(r)
+      else if (r.source === "user" || r.source === "config") userIgnore.push(r)
       else autoIgnore.push(r)
     }
+
     return {
       watchRules: watch,
       userIgnoreRules: userIgnore,
@@ -656,8 +691,14 @@ function ImportRulesSection() {
   const filteredIgnore = filterByPath(userIgnoreRules, searchByTab.ignore)
   const filteredAuto = filterAuto(autoIgnoreRules, searchByTab.auto)
 
-  const watchSelectable = filteredWatch.map((r) => r.uuid)
-  const ignoreSelectable = filteredIgnore.map((r) => r.uuid)
+  const watchSelectable = filteredWatch
+    .filter((r) => r.source !== "config")
+    .map((r) => r.uuid)
+
+  const ignoreSelectable = filteredIgnore
+    .filter((r) => r.source !== "config")
+    .map((r) => r.uuid)
+
   const autoSelectable = filteredAuto.map((r) => r.uuid)
 
   function toggleSelected(uuid: UUID) {

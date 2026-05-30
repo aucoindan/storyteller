@@ -1,16 +1,16 @@
 import { readFileSync } from "node:fs"
 
-import { ZodError } from "zod"
+import { ZodError, z } from "zod"
 
 import { getScheduler } from "@/assets/library/scanner/triggers/scheduler"
 import { env } from "@/env"
 import { logger } from "@/logging"
 
 import { db } from "./connection"
-import { createImportRule, getImportRules } from "./importRules"
 import {
   ConfigFileSchema,
   type ImportMode,
+  ImportRuleSchema,
   type Settings,
 } from "./settingsTypes"
 
@@ -31,10 +31,18 @@ export function formatTranscriptionEngineDetails(settings: Settings) {
   return details
 }
 
+export type ConfigImportRuleEntry = {
+  kind: "watch" | "ignore"
+  path: string
+  importMode: ImportMode | null
+}
+
 type ConfigFileCache = {
   settings: Partial<Settings>
   keys: Set<keyof Settings>
+  importRules: ConfigImportRuleEntry[]
 }
+
 // globalThis to survive Next.js module re-imports (see distributor.ts)
 declare global {
   // eslint-disable-next-line no-var
@@ -68,11 +76,18 @@ function resolveFileReferences(obj: unknown): unknown {
 
 function loadConfigFile(): ConfigFileCache {
   if (globalThis.configFileCache) return globalThis.configFileCache
+
   const configPath = env.STORYTELLER_CONFIG
+
   if (!configPath) {
-    globalThis.configFileCache = { settings: {}, keys: new Set() }
+    globalThis.configFileCache = {
+      settings: {},
+      keys: new Set(),
+      importRules: [],
+    }
     return globalThis.configFileCache
   }
+
   let rawConfig: unknown
   try {
     rawConfig = JSON.parse(readFileSync(configPath, "utf-8")) as unknown
@@ -81,18 +96,71 @@ function loadConfigFile(): ConfigFileCache {
       `Failed to read config file "${configPath}": ${err instanceof Error ? err.message : String(err)}`,
     )
   }
+
   const resolved = resolveFileReferences(rawConfig)
+
+  const configObj = resolved as Record<string, unknown>
+  const {
+    importRules: rawImportRules,
+    importPath: rawImportPath,
+    ...rawSettings
+  } = configObj
+
   let settings: Partial<Settings>
   try {
-    settings = ConfigFileSchema.parse(resolved) as Partial<Settings>
+    settings = ConfigFileSchema.parse(rawSettings) as Partial<Settings>
   } catch (err) {
     if (err instanceof ZodError) {
       throw new Error(`Invalid config file "${configPath}": ${err.message}`)
     }
     throw err
   }
+
+  // validate and collect explicit importRules
+  const explicitRules = rawImportRules
+    ? z.array(ImportRuleSchema).parse(rawImportRules)
+    : []
+
+  // convert deprecated importPath to watch rules
+  let legacyRules: ConfigImportRuleEntry[] = []
+
+  if (rawImportPath !== undefined) {
+    logger.warn(
+      "config file contains 'importPath' which is deprecated; " +
+        "please migrate to 'importRules' instead.",
+    )
+
+    const importPathSchema = z.union([z.string(), z.array(ImportRuleSchema)])
+    const parsed = importPathSchema.parse(rawImportPath)
+
+    const entries = Array.isArray(parsed) ? parsed : [{ path: parsed }]
+
+    legacyRules = entries.map((e) => ({
+      kind: "watch" as const,
+      path: e.path,
+      importMode: ("importMode" in e ? e.importMode : null) ?? null,
+    }))
+  }
+
+  // explicit importRules take precedence over legacy importPath
+  const seen = new Set<string>()
+  const allRules: ConfigImportRuleEntry[] = []
+
+  for (const rule of [...explicitRules, ...legacyRules]) {
+    const key = `${rule.kind}:${rule.path}`
+    if (seen.has(key)) continue
+
+    seen.add(key)
+    allRules.push({
+      kind: rule.kind,
+      path: rule.path,
+      importMode: rule.importMode ?? null,
+    })
+  }
+
   const keys = new Set(Object.keys(settings) as (keyof Settings)[])
-  globalThis.configFileCache = { settings, keys }
+
+  globalThis.configFileCache = { settings, keys, importRules: allRules }
   return globalThis.configFileCache
 }
 
@@ -178,59 +246,9 @@ export async function updateSettings(settings: Settings) {
   await getScheduler().refresh()
 }
 
-// Validate and cache config file on startup (never re-read after this)
+// validate and cache config file on startup (never re-read after this)
 loadConfigFile()
 
-type ConfigImportPathEntry = { path: string; importMode?: ImportMode | null }
-
-/**
- * if the config file still has importPath entries, sync them to import rules.
- * this is a deprecated compatibility path; users should migrate to configuring
- * import rules through the ui.
- */
-export async function syncConfigFileImportPaths() {
-  const configPath = env.STORYTELLER_CONFIG
-  if (!configPath) return
-
-  let rawConfig: Record<string, unknown>
-
-  try {
-    const { readFileSync } = await import("node:fs")
-    rawConfig = JSON.parse(readFileSync(configPath, "utf-8")) as Record<
-      string,
-      unknown
-    >
-  } catch {
-    return
-  }
-
-  const rawImportPath = rawConfig["importPath"]
-  if (!rawImportPath) return
-
-  logger.warn(
-    "config file contains 'importPath' which is deprecated. " +
-      "these entries have been synced to import rules. " +
-      "please remove 'importPath' from your config file and use the settings ui instead.",
-  )
-
-  const entries: ConfigImportPathEntry[] = Array.isArray(rawImportPath)
-    ? (rawImportPath as ConfigImportPathEntry[])
-    : typeof rawImportPath === "string"
-      ? [{ path: rawImportPath }]
-      : []
-
-  if (entries.length === 0) return
-
-  const existingRules = await getImportRules("watch")
-  const existingPaths = new Set(existingRules.map((r) => r.path))
-
-  for (const entry of entries) {
-    if (existingPaths.has(entry.path)) continue
-
-    await createImportRule({
-      kind: "watch",
-      path: entry.path,
-      importMode: entry.importMode ?? null,
-    })
-  }
+export function getConfigImportRules(): ConfigImportRuleEntry[] {
+  return loadConfigFile().importRules
 }

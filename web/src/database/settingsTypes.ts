@@ -112,6 +112,7 @@ export const CustomAuthProviderSchema = z.object({
   allowRegistration: z.boolean().optional(),
   groupPermissions: z.record(z.string(), z.array(z.string())).nullish(),
 })
+
 export type CustomAuthProvider = z.infer<typeof CustomAuthProviderSchema>
 
 export const AuthProviderSchema = z.discriminatedUnion("kind", [
@@ -119,6 +120,14 @@ export const AuthProviderSchema = z.discriminatedUnion("kind", [
   CustomAuthProviderSchema,
 ])
 export type AuthProvider = z.infer<typeof AuthProviderSchema>
+
+export const ImportRuleSchema = z.object({
+  kind: z.enum(["watch", "ignore"]),
+  path: z.string(),
+  importMode: ImportModeSchema.nullish(),
+})
+
+export type ImportRule = z.infer<typeof ImportRuleSchema>
 
 // Main settings schema
 export const SettingsSchema = z.object({
@@ -183,7 +192,7 @@ export const SettingsSchema = z.object({
 })
 export type Settings = z.infer<typeof SettingsSchema>
 
-// Partial schema for config file: _file references are resolved
-// at runtime before validation (see resolveFileReferences)
+// settings-only schema for config file validation;
+// importRules / importPath are extracted before this runs
 export const ConfigFileSchema = SettingsSchema.partial()
 export type ConfigFile = z.infer<typeof ConfigFileSchema>

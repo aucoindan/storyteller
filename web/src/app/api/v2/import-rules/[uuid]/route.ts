@@ -6,6 +6,7 @@ import {
   type UpdateImportRuleInput,
   deleteImportRule,
   getImportRules,
+  isConfigImportRule,
   updateImportRule,
 } from "@/database/importRules"
 import {
@@ -24,6 +25,13 @@ export const PUT = withHasPermission<Params>("settingsUpdate")(async (
   context,
 ) => {
   const { uuid } = await context.params
+
+  if (isConfigImportRule(uuid)) {
+    return NextResponse.json(
+      { error: "Rules from the config file cannot be modified." },
+      { status: 403 },
+    )
+  }
 
   const body = (await request.json()) as {
     path?: string
@@ -77,6 +85,13 @@ export const DELETE = withHasPermission<Params>("settingsUpdate")(async (
   context,
 ) => {
   const { uuid } = await context.params
+
+  if (isConfigImportRule(uuid)) {
+    return NextResponse.json(
+      { error: "Rules from the config file cannot be deleted." },
+      { status: 403 },
+    )
+  }
 
   await deleteImportRule(uuid)
   await getWatcher().reload()

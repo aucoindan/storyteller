@@ -11,6 +11,7 @@ import { type BookWithRelations } from "@/database/books"
 import { getIgnorePaths } from "@/database/importRules"
 import { getSetting } from "@/database/settings"
 import { type ImportMode } from "@/database/settingsTypes"
+import { isEpubVersionError } from "@/epub"
 import { logger } from "@/logging"
 
 import { type ScanCtx } from "./ctx"
@@ -78,11 +79,18 @@ async function classifyFolder(
       using epub = await Epub.using(MemoryAdapter).from(epubPath)
       aligned = await isReadaloudEpub(epub)
     } catch (error) {
-      logger.warn({
-        msg: "Failed to classify epub during folder scan; treating as regular",
-        epubPath,
-        err: error,
-      })
+      if (isEpubVersionError(error)) {
+        logger.warn({
+          msg: "Can't classify epub as readaloud or regular ebook because it is an EPUB 2 file, treating as regular and continuing",
+          epubPath,
+        })
+      } else {
+        logger.warn({
+          msg: "Failed to classify epub as readaloud or regular ebook during folder scan; treating as regular",
+          epubPath,
+          err: error,
+        })
+      }
     }
     if (aligned) readaloudEpubs.push(epubPath)
     else regularEpubs.push(epubPath)

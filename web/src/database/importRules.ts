@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto"
+
 import { type Selectable } from "kysely"
 import { jsonArrayFrom } from "kysely/helpers/sqlite"
 
@@ -5,6 +7,7 @@ import { type UUID } from "@/uuid"
 
 import { db } from "./connection"
 import { type DB } from "./schema"
+import { getConfigImportRules } from "./settings"
 
 export type ImportRule = Selectable<DB["importRule"]>
 export type ImportRuleKind = ImportRule["kind"]
@@ -17,10 +20,49 @@ export type ImportRuleWithCollections = ImportRule & {
 export type ImportRuleSource = ImportRule["source"]
 export type ImportMode = ImportRule["importMode"]
 
+// globalThis to survive Next.js module re-imports
+declare global {
+  // eslint-disable-next-line no-var
+  var _configImportRuleObjects: ImportRuleWithCollections[] | undefined
+}
+
+function getConfigRuleObjects(): ImportRuleWithCollections[] {
+  if (globalThis._configImportRuleObjects) {
+    return globalThis._configImportRuleObjects
+  }
+
+  const entries = getConfigImportRules()
+  const now = new Date().toISOString()
+
+  globalThis._configImportRuleObjects = entries.map((entry) => ({
+    uuid: randomUUID(),
+    kind: entry.kind,
+    path: entry.path,
+    importMode: entry.importMode ?? null,
+    source: "config" as const,
+    bookUuid: null,
+    createdAt: now,
+    updatedAt: now,
+    collections: [],
+    bookTitle: null,
+  }))
+
+  return globalThis._configImportRuleObjects
+}
+
+export function isConfigImportRule(uuid: UUID): boolean {
+  return getConfigRuleObjects().some((r) => r.uuid === uuid)
+}
+
 export async function getImportRules(
   kind?: ImportRuleKind,
 ): Promise<ImportRuleWithCollections[]> {
-  const rules = await db
+  const configRules = getConfigRuleObjects()
+  const filteredConfigRules = kind
+    ? configRules.filter((r) => r.kind === kind)
+    : configRules
+
+  const dbRules = await db
     .selectFrom("importRule")
     .leftJoin("book", "book.uuid", "importRule.bookUuid")
     .selectAll("importRule")
@@ -47,7 +89,7 @@ export async function getImportRules(
     .orderBy("importRule.createdAt", "asc")
     .execute()
 
-  return rules
+  return [...filteredConfigRules, ...dbRules]
 }
 
 /**
@@ -91,6 +133,10 @@ export async function getWatchRules(): Promise<ImportRuleWithCollections[]> {
 }
 
 export async function getIgnorePaths(): Promise<string[]> {
+  const configPaths = getConfigRuleObjects()
+    .filter((r) => r.kind === "ignore")
+    .map((r) => r.path)
+
   const rows = await db
     .selectFrom("importRule")
     .select(["path"])
@@ -98,7 +144,7 @@ export async function getIgnorePaths(): Promise<string[]> {
     .distinct()
     .execute()
 
-  return rows.map((r) => r.path)
+  return [...new Set([...configPaths, ...rows.map((r) => r.path)])]
 }
 
 export type CreateImportRuleInput = {
