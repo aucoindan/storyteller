@@ -9,7 +9,9 @@ build:
 
     - run:
         name: Focus install
-        command: yarn workspaces focus @storyteller-platform/mobile
+        command: |
+          npm i -g corepack
+          yarn workspaces focus @storyteller-platform/mobile
 
     - eas/resolve_build_config
 
