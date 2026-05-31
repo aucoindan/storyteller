@@ -1,21 +1,15 @@
-import { skipToken } from "@reduxjs/toolkit/query"
-import { documentDirectory } from "expo-file-system/legacy"
-import { Image } from "expo-image"
-import * as MediaLibrary from "expo-media-library"
 import { Link, useLocalSearchParams, useRouter } from "expo-router"
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleX,
-  Image as ImageIcon,
   LibraryBig,
   LibrarySquare,
-  MoreVertical,
   Tag,
 } from "lucide-react-native"
 import { Fragment, useState } from "react"
-import { Alert, Platform, RefreshControl, ScrollView, View } from "react-native"
+import { RefreshControl, ScrollView, View } from "react-native"
 
 import { BackButton } from "@/components/BackButton"
 import BookDescription from "@/components/BookDescription"
@@ -54,20 +48,15 @@ import { useAvailableFormats } from "@/hooks/useAvailableFormats"
 import { useColorTheme } from "@/hooks/useColorTheme"
 import { useDownloadedFormats } from "@/hooks/useDownloadedFormats"
 import { useListAllServerBooks } from "@/hooks/useListAllServerBooks"
-import WallpaperModule from "@/modules/WallpaperModule"
 import {
   useCancelDownloadMutation,
   useDeleteBookMutation,
   useDownloadBookMutation,
   useGetBookQuery,
-  useGetServerQuery,
   useListStatusesQuery,
   useUpdateStatusMutation,
 } from "@/store/localApi"
-import {
-  getCoverUrl,
-  useLazyGetBookQuery as useLazyGetServerBookQuery,
-} from "@/store/serverApi"
+import { useLazyGetBookQuery as useLazyGetServerBookQuery } from "@/store/serverApi"
 import type { UUID } from "@/uuid"
 
 export default function BookDetailsScreen() {
@@ -79,10 +68,6 @@ export default function BookDetailsScreen() {
   const [cancelDownload] = useCancelDownloadMutation()
   const [deleteBook] = useDeleteBookMutation()
   const { data: book, isLoading, isUninitialized } = useGetBookQuery({ uuid })
-
-  const { data: server } = useGetServerQuery(
-    book?.serverUuid ? { uuid: book.serverUuid } : skipToken,
-  )
 
   const { data: statuses } = useListStatusesQuery()
 
@@ -103,66 +88,6 @@ export default function BookDetailsScreen() {
   const onlyFormat = availableFormats[0]
 
   const { refetch } = useListAllServerBooks()
-  const handleSaveCover = async () => {
-    // Capture book value at function start for type safety
-    const currentBook = book
-    if (!currentBook) {
-      Alert.alert("Error", "Book not loaded")
-      return
-    }
-
-    try {
-      // Request photo library permissions
-      const { status } = await MediaLibrary.requestPermissionsAsync()
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Please grant photo library permissions to save book covers",
-        )
-        return
-      }
-
-      const serverCoverUrl =
-        server &&
-        getCoverUrl(server.baseUrl, book.uuid, {
-          height: 352,
-          width: 232,
-        })
-
-      const coverUri = book.ebookCoverUrl
-        ? new URL(book.ebookCoverUrl, documentDirectory!).toString()
-        : book.audiobookCoverUrl
-          ? new URL(book.audiobookCoverUrl, documentDirectory!).toString()
-          : serverCoverUrl
-            ? await Image.getCachePathAsync(serverCoverUrl)
-            : null
-
-      if (!coverUri) {
-        Alert.alert("Error", "No cover image available")
-        return
-      }
-
-      if (Platform.OS === "ios") {
-        // For iOS: save to photo library
-        const asset = await MediaLibrary.createAssetAsync(coverUri)
-        await MediaLibrary.createAlbumAsync("Storyteller", asset, false)
-
-        Alert.alert(
-          "Saved to Photos",
-          'Book cover has been saved to the "Storyteller" album in your Photos. Open the Photos app to set it as your wallpaper.',
-        )
-      } else if (WallpaperModule) {
-        // For Android: use native module to scale and save
-        const message = await WallpaperModule.setAsLockScreen(coverUri)
-        Alert.alert("Success", message)
-      }
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "Failed to save book cover",
-      )
-    }
-  }
 
   if (isLoading || isUninitialized) return <LoadingView />
 
@@ -221,19 +146,6 @@ export default function BookDetailsScreen() {
         <Stack className="pt-safe">
           <View className="flex-row justify-between px-2">
             <BackButton />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Icon as={MoreVertical} size={24} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onPress={handleSaveCover}>
-                  <Icon as={ImageIcon} size={16} />
-                  <Text>Save cover image</Text>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </View>
           <Stack className="items-start px-8">
             <BookThumbnailImage
