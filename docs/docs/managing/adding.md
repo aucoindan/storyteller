@@ -124,6 +124,14 @@ Some important notes about the allowed structure:
 
 ### Configuring auto-import
 
+:::warning
+
+This section is out of date and will be updated soon. Please see this blogpost
+for the latest information:
+[v2.14.0: A big update to file management](../../blog/20260525_scanner)
+
+:::
+
 You can configure Storyteller to automatically import from a folder in two
 places:
 

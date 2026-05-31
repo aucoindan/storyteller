@@ -64,6 +64,14 @@ Plex), so give your library a distinctive name.
 
 ## Automatic Import
 
+:::warning
+
+This section is out of date and will be updated soon. Please see this blogpost
+for the latest information:
+[v2.14.0: A big update to file management](../../blog/20260525_scanner)
+
+:::
+
 You can upload books one at a time through the web client, import them from
 another server or set up automatic imports. Automatic imports can be uncollected
 or based on particular collections. For uncollected books, the watch folder is
