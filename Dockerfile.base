@@ -91,11 +91,17 @@ RUN if [ "$GPU_VARIANT" = "sycl" ]; then \
       level-zero \
       intel-oneapi-runtime-libs \
       intel-oneapi-runtime-dnnl \
-      intel-oneapi-umf-1.0 && \
+      intel-oneapi-umf-1.0 \
+      software-properties-common && \
     echo "/opt/intel/oneapi/umf/1.0/lib" > /etc/ld.so.conf.d/intel-umf.conf && \
-    rm -rf /var/lib/apt/lists/* && \
     find /opt/intel/oneapi -name "*.so*" -exec dirname {} \; | sort -u > /etc/ld.so.conf.d/oneapi.conf && \
-    ldconfig; \
+    ldconfig && \
+    add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      intel-opencl-icd \
+      libze-intel-gpu1 && \
+    rm -rf /var/lib/apt/lists/*; \
 fi
 
 RUN if [ "$GPU_VARIANT" = "rocm" ]; then \
