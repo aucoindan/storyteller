@@ -75,15 +75,6 @@
             "modeMove": "Move to library",
             "modeHardlink": "Hard link"
           },
-          "readaloudLocation": {
-            "title": "Readaloud Location",
-            "description": "Configure where new readaloud files are saved when the input files were not uploaded through the web client",
-            "locationType": "Location type",
-            "locationTypeSuffix": "Alongside input with a suffix",
-            "locationTypeSiblingFolder": "Alongside input in a folder",
-            "locationTypeCustomFolder": "In a custom folder",
-            "locationTypeInternal": "In the Storyteller internal folder"
-          },
           "scanControls": {
             "title": "Library Scanning",
             "description": "Scan your library for new files and changes. Scans check all tracked books and import paths for additions, removals, and modified files.",
@@ -125,9 +116,28 @@
           }
         }
       },
-      "transcription": {
-        "title": "Transcription",
+      "processing": {
+        "title": "Processing",
         "sections": {
+          "readaloud": {
+            "title": "Readaloud",
+            "description": "Configure where new readaloud files are saved when the input files were not uploaded through the web client",
+            "locationType": "Location type",
+            "locationTypeSuffix": "Alongside input with a suffix",
+            "locationTypeSiblingFolder": "Alongside input in a folder",
+            "locationTypeCustomFolder": "In a custom folder",
+            "locationTypeInternal": "In the Storyteller internal folder",
+            "cleanCacheAfterReadaloud": "Clean up cache after alignment",
+            "cleanCacheAfterReadaloudDescription": "Automatically delete processed audio and transcription files after a readaloud is successfully created. Saves disk space, but means a full restart is needed if you want to re-align later.",
+            "clearCacheNow": "Clear cache for all books",
+            "clearCacheNowDescription": "Delete all processed audio and transcription files across the library now. Original files are left untouched.",
+            "clearCacheConfirmTitle": "Clear cache for all books",
+            "clearCacheConfirmDescription": "Delete processed audio and transcription files for every book in the library? This frees disk space but means a full restart is needed to re-align books later. Original files are left untouched.",
+            "clearCacheConfirm": "Clear cache",
+            "clearCacheCancel": "Cancel",
+            "clearCacheSuccess": "Cleared processed cache",
+            "clearCacheError": "Failed to clear cache"
+          },
           "audio": {
             "title": "Audio Settings",
             "description": "Configure audio processing options",

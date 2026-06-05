@@ -33,6 +33,7 @@ import {
 } from "@/database/books"
 import {
   formatTranscriptionEngineDetails,
+  getSetting,
   getSettings,
 } from "@/database/settings"
 import { env } from "@/env"
@@ -285,6 +286,13 @@ export default async function processBook({
         )
 
         await epub.saveAndClose()
+
+        const shouldCleanCache = await getSetting("cleanCacheAfterReadaloud")
+
+        if (shouldCleanCache) {
+          logger.info("Cleaning up cache files after successful alignment")
+          await deleteProcessed(book)
+        }
       }
     } catch (e) {
       logger.error({

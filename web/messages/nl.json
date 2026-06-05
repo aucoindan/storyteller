@@ -75,15 +75,6 @@
             "modeMove": "Verplaatsen naar interne Storyteller folder",
             "modeHardlink": "Hard link"
           },
-          "readaloudLocation": {
-            "title": "Readaloud Locatie",
-            "description": "Stel in waar nieuwe readalouds worden opgeslagen wanneer de (audio)boeken niet via de webclient zijn geüpload",
-            "locationType": "Locatietype",
-            "locationTypeSuffix": "In dezelfde folder als de EPUB, met een suffix",
-            "locationTypeSiblingFolder": "In dezelfde folder als de EPUB, in een folder",
-            "locationTypeCustomFolder": "In een specifieke folder",
-            "locationTypeInternal": "In de interne Storyteller-folder"
-          },
           "scanControls": {
             "title": "Bibliotheek Scannen",
             "description": "Scan je bibliotheek voor nieuwe bestanden en wijzigingen. Scans controleren alle gevolgde boeken en importpaden voor toevoegingen, verwijderingen en gewijzigde bestanden.",
@@ -126,9 +117,28 @@
           }
         }
       },
-      "transcription": {
-        "title": "Transcriptie",
+      "processing": {
+        "title": "Verwerking",
         "sections": {
+          "readaloud": {
+            "title": "Readaloud",
+            "description": "Stel in waar nieuwe readalouds worden opgeslagen wanneer de (audio)boeken niet via de webclient zijn geüpload",
+            "locationType": "Locatietype",
+            "locationTypeSuffix": "In dezelfde folder als de EPUB, met een suffix",
+            "locationTypeSiblingFolder": "In dezelfde folder als de EPUB, in een folder",
+            "locationTypeCustomFolder": "In een specifieke folder",
+            "locationTypeInternal": "In de interne Storyteller-folder",
+            "cleanCacheAfterReadaloud": "Cache opruimen na synchronisatie",
+            "cleanCacheAfterReadaloudDescription": "Verwijder automatisch verwerkte audio- en transcriptiebestanden nadat een readaloud succesvol is aangemaakt. Bespaart schijfruimte, maar betekent dat een volledige herstart nodig is als je later opnieuw wilt synchroniseren.",
+            "clearCacheNow": "Cache wissen voor alle boeken",
+            "clearCacheNowDescription": "Verwijder nu alle verwerkte audio- en transcriptiebestanden in de bibliotheek. Originele bestanden blijven ongemoeid.",
+            "clearCacheConfirmTitle": "Cache wissen voor alle boeken",
+            "clearCacheConfirmDescription": "Verwerkte audio- en transcriptiebestanden verwijderen voor elk boek in de bibliotheek? Dit maakt schijfruimte vrij, maar betekent dat een volledige herstart nodig is om boeken later opnieuw te synchroniseren. Originele bestanden blijven ongemoeid.",
+            "clearCacheConfirm": "Cache wissen",
+            "clearCacheCancel": "Annuleren",
+            "clearCacheSuccess": "Verwerkte cache gewist",
+            "clearCacheError": "Cache wissen mislukt"
+          },
           "audio": {
             "title": "Audio Instellingen",
             "description": "Configureer audio-verwerkingsopties",

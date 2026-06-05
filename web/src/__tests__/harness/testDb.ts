@@ -60,6 +60,7 @@ const DEFAULT_SETTINGS: Settings = {
   importMode: "reference",
   epub2ImportStrategy: "backup-and-convert",
   epub2BackupSuffix: "_epub2",
+  cleanCacheAfterReadaloud: true,
   metadataFieldOverrides: {
     cover: "merge",
     title: "merge",

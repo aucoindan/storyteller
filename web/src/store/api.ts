@@ -211,6 +211,13 @@ export const api = createApi({
         }),
       },
     ),
+    clearBooksCache: build.mutation<void, { bookUuids?: UUID[] }>({
+      query: ({ bookUuids }) => ({
+        url: `/books/cache`,
+        method: "DELETE",
+        body: { bookUuids },
+      }),
+    }),
     deleteBooks: build.mutation<
       void,
       {
@@ -941,6 +948,7 @@ export const {
   useCreateBookMutation,
   useCreateCollectionMutation,
   useCreateInviteMutation,
+  useClearBooksCacheMutation,
   useDeleteBookAssetsMutation,
   useDeleteBookMutation,
   useDeleteBooksMutation,

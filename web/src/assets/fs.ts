@@ -18,7 +18,12 @@ import { reflinkFile } from "@reflink/reflink"
 import { getFileChunks } from "@storyteller-platform/fs"
 
 import { isAudioFile } from "@/audio"
-import { type Book, type BookWithRelations, updateBook } from "@/database/books"
+import {
+  type Book,
+  type BookWithRelations,
+  removeBookFormat,
+  updateBook,
+} from "@/database/books"
 import { db } from "@/database/connection"
 import { ASSETS_DIR } from "@/directories"
 import { logger } from "@/logging"
@@ -266,6 +271,39 @@ export async function originalAudioExists(book: BookWithRelations) {
 export async function deleteProcessed(book: BookWithRelations) {
   await deleteProcessedAudio(book)
   await deleteTranscriptions(book)
+}
+
+export function isReadaloudInFlight(book: BookWithRelations) {
+  const status = book.readaloud?.status
+  return status === "QUEUED" || status === "PROCESSING"
+}
+
+export async function exist(filepath: string) {
+  try {
+    await stat(filepath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Removes the readaloud record unless it points to a finished, on-disk
+ * readaloud file. Clearing the processed cache invalidates any partial run,
+ * so an unfinished readaloud is dropped entirely and the book returns to its
+ * unprocessed state (showing "Create readaloud" again) rather than being left
+ * mid-stage with no backing cache.
+ */
+export async function resetReadaloudIfUnfinished(book: BookWithRelations) {
+  const readaloud = book.readaloud
+  if (!readaloud) return
+
+  const exists = readaloud.filepath && (await exist(readaloud.filepath))
+  const isFinished = readaloud.status === "ALIGNED" && exists
+
+  if (isFinished) return
+
+  await removeBookFormat(book.uuid, "readaloud")
 }
 
 export async function deleteTranscriptions(book: BookWithRelations) {

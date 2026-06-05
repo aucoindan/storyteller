@@ -55,6 +55,7 @@ import {
 import { usePermissions } from "@/hooks/usePermissions"
 import {
   useCancelScanMutation,
+  useClearBooksCacheMutation,
   useCreateImportRuleMutation,
   useDeleteImportRulesMutation,
   useGetImportRulesQuery,
@@ -966,6 +967,9 @@ export function SettingsForm({
   const [triggerScan, { isLoading: isTriggeringScan }] =
     useTriggerScanMutation()
   const [cancelScan, { isLoading: isCancellingScan }] = useCancelScanMutation()
+  const [clearBooksCache, { isLoading: isClearingCache }] =
+    useClearBooksCacheMutation()
+  const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false)
 
   const initialValues: Settings = {
     smtpHost: settings.smtpHost,
@@ -1017,6 +1021,7 @@ export function SettingsForm({
     metadataFieldOverrides: settings.metadataFieldOverrides,
     epub2ImportStrategy: settings.epub2ImportStrategy,
     epub2BackupSuffix: settings.epub2BackupSuffix,
+    cleanCacheAfterReadaloud: settings.cleanCacheAfterReadaloud,
   }
 
   const form = useForm({
@@ -1315,6 +1320,76 @@ export function SettingsForm({
             {...form.getInputProps("readaloudLocation")}
           />
         )}
+
+        <Switch
+          label="Clean up cache after alignment"
+          description="Automatically delete processed audio and transcription files after a readaloud is successfully created. Saves disk space, but means a full restart is needed if you want to re-align later."
+          disabled={isLocked("cleanCacheAfterReadaloud")}
+          {...form.getInputProps("cleanCacheAfterReadaloud", {
+            type: "checkbox",
+          })}
+        />
+
+        {permissions?.bookProcess && (
+          <Group mt="md">
+            <Button
+              variant="outline"
+              color="red"
+              loading={isClearingCache}
+              onClick={() => {
+                setClearCacheConfirmOpen(true)
+              }}
+            >
+              Clear cache for all books
+            </Button>
+            <Text className="text-xs opacity-60">
+              Delete all processed audio and transcription files across the
+              library now. Original files are left untouched.
+            </Text>
+          </Group>
+        )}
+
+        <Modal
+          opened={clearCacheConfirmOpen}
+          onClose={() => {
+            setClearCacheConfirmOpen(false)
+          }}
+          title="Clear cache for all books"
+          centered
+          size="sm"
+        >
+          <Stack>
+            <Text>
+              Delete processed audio and transcription files for every book in
+              the library?
+            </Text>
+            <Text size="sm" c="dimmed">
+              This frees disk space but means a full restart is needed to
+              re-align books later. Original files are left untouched.
+            </Text>
+            <Group justify="space-between">
+              <Button
+                variant="subtle"
+                onClick={() => {
+                  setClearCacheConfirmOpen(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                loading={isClearingCache}
+                onClick={() => {
+                  void clearBooksCache({}).then(() => {
+                    setClearCacheConfirmOpen(false)
+                  })
+                }}
+              >
+                Clear cache
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Fieldset>
       <Fieldset legend="Audio settings">
         <NativeSelect

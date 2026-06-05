@@ -189,6 +189,8 @@ export const SettingsSchema = z.object({
   // EPUB 2 import settings
   epub2ImportStrategy: Epub2ImportStrategySchema,
   epub2BackupSuffix: z.string(),
+  // Cache cleanup
+  cleanCacheAfterReadaloud: z.boolean(),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

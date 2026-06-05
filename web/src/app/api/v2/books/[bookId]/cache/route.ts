@@ -1,4 +1,9 @@
-import { deleteOriginals, deleteProcessed } from "@/assets/fs"
+import {
+  deleteOriginals,
+  deleteProcessed,
+  isReadaloudInFlight,
+  resetReadaloudIfUnfinished,
+} from "@/assets/fs"
 import { withHasPermission } from "@/auth/auth"
 import { getBook, getBookUuid } from "@/database/books"
 import { BookEvents } from "@/events"
@@ -26,6 +31,13 @@ export const DELETE = withHasPermission<Params>("bookProcess")(async (
       { status: 404 },
     )
   }
+  if (isReadaloudInFlight(book)) {
+    return Response.json(
+      { message: "Can't clear cache while the book is queued or processing" },
+      { status: 409 },
+    )
+  }
+
   const url = request.nextUrl
   const includeOriginals = typeof url.searchParams.get("originals") === "string"
 
@@ -33,6 +45,8 @@ export const DELETE = withHasPermission<Params>("bookProcess")(async (
     deleteProcessed(book),
     ...(includeOriginals ? [deleteOriginals(book)] : []),
   ])
+
+  await resetReadaloudIfUnfinished(book)
 
   if (includeOriginals) {
     BookEvents.emit("message", {

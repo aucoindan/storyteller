@@ -14,6 +14,7 @@ import { AddBooksToCollectionsItem } from "./actionMenuItems/AddBooksToCollectio
 import { AddBooksToSeriesItem } from "./actionMenuItems/AddBooksToSeriesItem"
 import { AddTagsToBooksItem } from "./actionMenuItems/AddTagsToBooksItem"
 import { BeginProcessingItem } from "./actionMenuItems/BeginProcessingItem"
+import { ClearCacheItem } from "./actionMenuItems/ClearCacheItem"
 import { DeleteBooksItem } from "./actionMenuItems/DeleteBooksItem"
 import { MergeBooksItem } from "./actionMenuItems/MergeBooksItem"
 import { RemoveBooksFromCollectionsItem } from "./actionMenuItems/RemoveBooksFromCollectionsItem"
@@ -89,6 +90,7 @@ export function ActionMenu({ selected, onClear }: Props) {
           {!!permissions?.bookProcess && (
             <BeginProcessingItem selected={selected} />
           )}
+          {!!permissions?.bookProcess && <ClearCacheItem selected={selected} />}
           {!!permissions?.bookDelete && (
             <DeleteBooksItem selected={selected} onCommit={onCommit} />
           )}

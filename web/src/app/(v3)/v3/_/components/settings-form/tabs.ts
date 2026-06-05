@@ -1,6 +1,6 @@
 export const settingsFormTabs = [
   "library",
-  "transcription",
+  "processing",
   "auth",
   "upload",
   "email",

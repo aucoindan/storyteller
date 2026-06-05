@@ -1,10 +1,15 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import { useWatch } from "react-hook-form"
+import { useState } from "react"
+import { Controller, useWatch } from "react-hook-form"
+import { toast } from "sonner"
 
 import { MP3_CBR_BITRATE_OPTIONS } from "@/assets/audio/mp3Bitrates"
+import { usePermissions } from "@/hooks/usePermissions"
+import { useClearBooksCacheMutation } from "@/store/api"
 
+import { Button } from "@v3/_/components/ui/button"
 import {
   Card,
   CardContent,
@@ -12,6 +17,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@v3/_/components/ui/card"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@v3/_/components/ui/dialog"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@v3/_/components/ui/field"
 import { Input } from "@v3/_/components/ui/input"
 import {
   Select,
@@ -20,20 +40,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@v3/_/components/ui/select"
+import { Switch } from "@v3/_/components/ui/switch"
 import { TabsContent } from "@v3/_/components/ui/tabs"
 
-import { SettingsFormField, useSettingsForm } from "./SettingsFormProvider"
+import {
+  LockTooltip,
+  SettingsFormField,
+  useSettingsForm,
+} from "./SettingsFormProvider"
 import { SettingsSection } from "./shared"
 
-export function TranscriptionTab() {
+export function ProcessingTab() {
   const { form } = useSettingsForm()
   const tt = useTranslations(
-    "SettingsPage.tabs.transcription.sections.transcription",
+    "SettingsPage.tabs.processing.sections.transcription",
   )
   const tp = useTranslations(
-    "SettingsPage.tabs.transcription.sections.parallelization",
+    "SettingsPage.tabs.processing.sections.parallelization",
   )
-  const ta = useTranslations("SettingsPage.tabs.transcription.sections.audio")
+  const ta = useTranslations("SettingsPage.tabs.processing.sections.audio")
+  const tr = useTranslations("SettingsPage.tabs.processing.sections.readaloud")
 
   const transcriptionEngine = useWatch({
     control: form.control,
@@ -84,8 +110,10 @@ export function TranscriptionTab() {
   ]
 
   return (
-    <TabsContent value="transcription" className="space-y-6">
-      <SettingsSection tab="transcription" section="transcription">
+    <TabsContent value="processing" className="space-y-6">
+      <ReadaloudSection tr={tr} />
+
+      <SettingsSection tab="processing" section="transcription">
         <Card>
           <CardHeader>
             <CardTitle>{tt("title")}</CardTitle>
@@ -146,7 +174,7 @@ export function TranscriptionTab() {
         </Card>
       </SettingsSection>
 
-      <SettingsSection tab="transcription" section="audio">
+      <SettingsSection tab="processing" section="audio">
         <Card>
           <CardHeader>
             <CardTitle>{ta("title")}</CardTitle>
@@ -285,7 +313,7 @@ export function TranscriptionTab() {
         </Card>
       </SettingsSection>
 
-      <SettingsSection tab="transcription" section="parallelization">
+      <SettingsSection tab="processing" section="parallelization">
         <Card>
           <CardHeader>
             <CardTitle>{tp("title")}</CardTitle>
@@ -337,7 +365,7 @@ export function TranscriptionTab() {
 }
 
 type TranslationFn = ReturnType<
-  typeof useTranslations<"SettingsPage.tabs.transcription.sections.transcription">
+  typeof useTranslations<"SettingsPage.tabs.processing.sections.transcription">
 >
 
 function WhisperSettings({ t }: { t: TranslationFn }) {
@@ -703,5 +731,200 @@ function DeepgramSettings({ t }: { t: TranslationFn }) {
         )}
       />
     </>
+  )
+}
+
+type ReadaloudTranslationFn = ReturnType<
+  typeof useTranslations<"SettingsPage.tabs.processing.sections.readaloud">
+>
+
+function ReadaloudSection({ tr }: { tr: ReadaloudTranslationFn }) {
+  const { form, lockedSettings } = useSettingsForm()
+
+  const permissions = usePermissions()
+  const [clearBooksCache, { isLoading: isClearingCache }] =
+    useClearBooksCacheMutation()
+  const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false)
+
+  const locationType = useWatch({
+    control: form.control,
+    name: "readaloudLocationType",
+  })
+
+  const readaloudLocationOptions = [
+    { value: "SUFFIX", label: tr("locationTypeSuffix") },
+    { value: "SIBLING_FOLDER", label: tr("locationTypeSiblingFolder") },
+    { value: "CUSTOM_FOLDER", label: tr("locationTypeCustomFolder") },
+    { value: "INTERNAL", label: tr("locationTypeInternal") },
+  ]
+
+  return (
+    <SettingsSection tab="processing" section="readaloud">
+      <Card>
+        <CardHeader>
+          <CardTitle>{tr("title")}</CardTitle>
+          <CardDescription>{tr("description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SettingsFormField
+            name="readaloudLocationType"
+            label={tr("locationType")}
+            render={(field, _, isLocked) => (
+              <Select
+                items={readaloudLocationOptions}
+                disabled={isLocked}
+                value={field.value}
+                onValueChange={(value) => {
+                  if (!value) return
+
+                  field.onChange(value)
+                  switch (value) {
+                    case "SUFFIX":
+                      form.setValue("readaloudLocation", " (readaloud)")
+                      break
+                    case "SIBLING_FOLDER":
+                      form.setValue("readaloudLocation", "readaloud")
+                      break
+                    case "CUSTOM_FOLDER":
+                      form.setValue("readaloudLocation", "/readalouds")
+                      break
+                    case "INTERNAL":
+                      form.setValue("readaloudLocation", "")
+                      break
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {readaloudLocationOptions.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+
+          {locationType !== "INTERNAL" && (
+            <SettingsFormField
+              name="readaloudLocation"
+              label={
+                locationType === "SUFFIX"
+                  ? tr("locationTypeSuffix")
+                  : locationType === "SIBLING_FOLDER"
+                    ? tr("locationTypeSiblingFolder")
+                    : tr("locationTypeCustomFolder")
+              }
+              render={(field, fieldState, isLocked) => (
+                <Input
+                  id="readaloudLocation"
+                  disabled={isLocked}
+                  {...field}
+                  aria-invalid={fieldState.invalid}
+                />
+              )}
+            />
+          )}
+
+          <Controller
+            name="cleanCacheAfterReadaloud"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field
+                orientation="horizontal"
+                data-invalid={fieldState.invalid}
+                data-disabled={lockedSettings.has("cleanCacheAfterReadaloud")}
+              >
+                <Switch
+                  id="cleanCacheAfterReadaloud"
+                  disabled={lockedSettings.has("cleanCacheAfterReadaloud")}
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="cleanCacheAfterReadaloud">
+                    {tr("cleanCacheAfterReadaloud")}
+                    {lockedSettings.has("cleanCacheAfterReadaloud") && (
+                      <LockTooltip />
+                    )}
+                  </FieldLabel>
+                  <FieldDescription>
+                    {tr("cleanCacheAfterReadaloudDescription")}
+                  </FieldDescription>
+                </div>
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
+              </Field>
+            )}
+          />
+
+          {permissions?.bookProcess && (
+            <div className="space-y-1.5">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={isClearingCache}
+                onClick={() => {
+                  setClearCacheConfirmOpen(true)
+                }}
+              >
+                {tr("clearCacheNow")}
+              </Button>
+              <FieldDescription>
+                {tr("clearCacheNowDescription")}
+              </FieldDescription>
+            </div>
+          )}
+
+          <Dialog
+            open={clearCacheConfirmOpen}
+            onOpenChange={setClearCacheConfirmOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{tr("clearCacheConfirmTitle")}</DialogTitle>
+                <DialogDescription>
+                  {tr("clearCacheConfirmDescription")}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose
+                  render={
+                    <Button variant="ghost" size="sm">
+                      {tr("clearCacheCancel")}
+                    </Button>
+                  }
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isClearingCache}
+                  onClick={() => {
+                    void clearBooksCache({})
+                      .unwrap()
+                      .then(() => {
+                        toast.success(tr("clearCacheSuccess"))
+                      })
+                      .catch(() => {
+                        toast.error(tr("clearCacheError"))
+                      })
+                      .finally(() => {
+                        setClearCacheConfirmOpen(false)
+                      })
+                  }}
+                >
+                  {tr("clearCacheConfirm")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
+    </SettingsSection>
   )
 }
