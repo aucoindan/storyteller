@@ -1,5 +1,6 @@
+import { isPlainObject } from "@reduxjs/toolkit"
 import {
-  type AnyColumn,
+  type Generated,
   type KyselyPlugin,
   OperationNodeTransformer,
   type PluginTransformQueryArgs,
@@ -32,13 +33,25 @@ class SqliteBooleanTransformer extends OperationNodeTransformer {
   }
 }
 
+type BooleanFields<DB> = DB[keyof DB] extends infer T
+  ? T extends T
+    ? {
+        [K in keyof T]: T[K] extends Generated<boolean> ? K : never
+      }[keyof T]
+    : never
+  : never
+
+type BooleanFieldMap<DB> = {
+  [K in BooleanFields<DB>]: boolean
+}
+
 export interface BooleanPluginOptions<DB> {
-  fields: AnyColumn<DB, keyof DB>[]
+  fields: BooleanFieldMap<DB>
 }
 
 export class BooleanPlugin<DB> implements KyselyPlugin {
   private transformer = new SqliteBooleanTransformer()
-  private fields: AnyColumn<DB, keyof DB>[]
+  private fields: BooleanFieldMap<DB>
 
   public constructor({ fields }: BooleanPluginOptions<DB>) {
     this.fields = fields
@@ -51,17 +64,33 @@ export class BooleanPlugin<DB> implements KyselyPlugin {
   public transformResult(
     args: PluginTransformResultArgs,
   ): Promise<QueryResult<UnknownRow>> {
-    return Promise.resolve({
-      ...args.result,
-      rows: args.result.rows.map((row) =>
-        Object.fromEntries(
-          Object.entries(row).map(([columnName, columnValue]) =>
-            this.fields.includes(columnName as AnyColumn<DB, keyof DB>)
-              ? [columnName, !!columnValue]
-              : [columnName, columnValue],
-          ),
-        ),
-      ),
-    })
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (args.result.rows && Array.isArray(args.result.rows)) {
+      return Promise.resolve({
+        ...args.result,
+        rows: args.result.rows.map((row) => this.mapRow(row)),
+      })
+    }
+
+    return Promise.resolve(args.result)
   }
+
+  protected mapRow(row: UnknownRow): UnknownRow {
+    return Object.keys(row).reduce<UnknownRow>((obj, key) => {
+      let value = row[key]
+      if (Array.isArray(value)) {
+        value = value.map((it) => this.mapRow(it as UnknownRow))
+      } else if (canMap(value)) {
+        value = this.mapRow(value)
+      }
+
+      obj[key] = this.fields[key as BooleanFields<DB>] ? !!value : value
+
+      return obj
+    }, {})
+  }
+}
+
+function canMap(obj: unknown): obj is Record<string, unknown> {
+  return isPlainObject(obj)
 }
