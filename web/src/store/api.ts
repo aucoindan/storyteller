@@ -34,6 +34,7 @@ import {
 import { type Status } from "@/database/statuses"
 import { type Tag } from "@/database/tags"
 import { type UserBookRating } from "@/database/userRatings"
+import { type UserSettingValue } from "@/database/userSettings"
 import { type UserPermissionSet } from "@/database/users"
 import { type BookEvent } from "@/events"
 import { type SeriesWithBooks } from "@/hooks/useFilterSortedSeries"
@@ -58,6 +59,7 @@ export const api = createApi({
     "GpuBuildWarning",
     "ImportRules",
     "UserRatings",
+    "UserSettings",
   ],
   endpoints: (build) => ({
     createInvite: build.mutation<Invite, InviteRequest>({
@@ -805,7 +807,6 @@ export const api = createApi({
         body,
       }),
     }),
-
     getBookRating: build.query<UserBookRating | null, { bookUuid: UUID }>({
       query: ({ bookUuid }) => `/books/${bookUuid}/rating`,
       providesTags: (_result, _error, { bookUuid }) => [
@@ -842,6 +843,37 @@ export const api = createApi({
         ratings?.map((r) => ({ type: "UserRatings", id: r.bookUuid })) ?? [
           "UserRatings",
         ],
+    }),
+
+    getUserSettings: build.query<Record<string, UserSettingValue>, void>({
+      query: () => "/user/settings",
+      providesTags: ["UserSettings"],
+    }),
+    updateUserSettings: build.mutation<void, Record<string, UserSettingValue>>({
+      query: (body) => ({
+        url: "/user/settings",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["UserSettings"],
+    }),
+    setUserSetting: build.mutation<
+      void,
+      { name: string; value: UserSettingValue }
+    >({
+      query: ({ name, value }) => ({
+        url: `/user/settings/${encodeURIComponent(name)}`,
+        method: "PUT",
+        body: { value },
+      }),
+      invalidatesTags: ["UserSettings"],
+    }),
+    deleteUserSetting: build.mutation<void, { name: string }>({
+      query: ({ name }) => ({
+        url: `/user/settings/${encodeURIComponent(name)}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["UserSettings"],
     }),
 
     getInfiniteChangelog: build.infiniteQuery<
@@ -968,6 +1000,10 @@ export const {
   useSetBookRatingMutation,
   useDeleteBookRatingMutation,
   useListUserRatingsQuery,
+  useGetUserSettingsQuery,
+  useUpdateUserSettingsMutation,
+  useSetUserSettingMutation,
+  useDeleteUserSettingMutation,
 } = api
 
 export function getDownloadUrl(

@@ -174,7 +174,7 @@ export interface ImportRule {
   kind: "watch" | "ignore"
   path: string
   source: Generated<
-    "user" | "config" | "import-relocate" | "import-backup" | "prevent-reimport"
+    "user" | "import-relocate" | "import-backup" | "prevent-reimport" | "config"
   >
   updatedAt: Generated<string>
   uuid: Generated<import("@/uuid").UUID>
@@ -323,6 +323,15 @@ export interface UserPermission {
   uuid: Generated<import("@/uuid").UUID>
 }
 
+export interface UserSettings {
+  createdAt: Generated<string>
+  name: string
+  updatedAt: Generated<string>
+  userId: import("@/uuid").UUID
+  uuid: Generated<import("@/uuid").UUID>
+  value: string | null
+}
+
 export interface VerificationToken {
   createdAt: Generated<string>
   expires: Date
@@ -360,5 +369,6 @@ export interface DB {
   user: User
   userBookRating: UserBookRating
   userPermission: UserPermission
+  userSettings: UserSettings
   verificationToken: VerificationToken
 }
