@@ -2,12 +2,11 @@ import { skipToken } from "@reduxjs/toolkit/query"
 import { type Ref, useRef } from "react"
 import { View } from "react-native"
 import { ScrollView } from "react-native-gesture-handler"
-import { useSafeAreaFrame } from "react-native-safe-area-context"
 
+import { useReaderFormSheetScrollPaddingBottom } from "@/components/toolbarItems/readerFormSheetLayout"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { type BookWithRelations } from "@/database/books"
-import { useSpacingVariable } from "@/hooks/useSpacingVariable"
 import { cn } from "@/lib/utils"
 import { isSameChapter } from "@/links"
 import { locateLink } from "@/modules/readium"
@@ -15,10 +14,8 @@ import { type ReadiumLink } from "@/modules/readium/src/Readium.types"
 import { navItemPressed } from "@/store/actions"
 import { useAppDispatch, useAppSelector } from "@/store/appState"
 import { useGetBookQuery } from "@/store/localApi"
-import {
-  getCurrentlyPlayingBookUuid,
-  getCurrentlyPlayingFormat,
-} from "@/store/selectors/bookshelfSelectors"
+import { getCurrentlyPlayingFormat } from "@/store/selectors/bookshelfSelectors"
+import { type UUID } from "@/uuid"
 
 function searchToc(
   toc: ReadiumLink[] | null | undefined,
@@ -34,18 +31,25 @@ function searchToc(
 }
 
 interface Props {
+  bookUuid?: UUID | undefined
+  format?: "readaloud" | "ebook" | "audiobook" | undefined
   onClose?: () => void
 }
 
-export function TableOfContents({ onClose }: Props) {
+export function TableOfContents({
+  bookUuid: bookUuidProp,
+  format: formatProp,
+  onClose,
+}: Props) {
   const ref = useRef<null | ScrollView>(null)
   const currentItemRef = useRef<null | View>(null)
 
-  const bookUuid = useAppSelector(getCurrentlyPlayingBookUuid)
+  const selectedFormat = useAppSelector(getCurrentlyPlayingFormat)
+  const bookUuid = bookUuidProp
   const { data: book } = useGetBookQuery(
     bookUuid ? { uuid: bookUuid } : skipToken,
   )
-  const format = useAppSelector(getCurrentlyPlayingFormat)
+  const format = formatProp ?? selectedFormat
 
   const toc =
     format &&
@@ -58,42 +62,38 @@ export function TableOfContents({ onClose }: Props) {
   const currentTocLink =
     locator && searchToc(toc, (link) => isSameChapter(link.href, locator.href))
 
-  const frame = useSafeAreaFrame()
-
-  const maxHeight = frame.height - useSpacingVariable(72)
+  const paddingBottom = useReaderFormSheetScrollPaddingBottom()
   if (!toc || !book) return
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView
-        ref={ref}
-        style={{
-          maxHeight,
-        }}
-        onLayout={() => {
-          if (!ref.current) return
-          // @ts-expect-error ScrollView is a perfectly valid component, not sure what
-          // exactly the issue is here
-          currentItemRef.current?.measureLayout(ref.current, (_x, y) => {
-            ref.current?.scrollTo({
-              y: y - 40,
-              animated: false,
-            })
+    <ScrollView
+      ref={ref}
+      className="flex-1"
+      contentContainerClassName="px-2 pt-2"
+      contentContainerStyle={{ paddingBottom }}
+      onLayout={() => {
+        if (!ref.current) return
+        // @ts-expect-error ScrollView is a perfectly valid component, not sure what
+        // exactly the issue is here
+        currentItemRef.current?.measureLayout(ref.current, (_x, y) => {
+          ref.current?.scrollTo({
+            y: y - 40,
+            animated: false,
           })
-        }}
-      >
-        {toc.map((link) => (
-          <TableOfContentsLink
-            key={link.href}
-            book={book}
-            link={link}
-            currentTocLink={currentTocLink}
-            ref={currentItemRef}
-            onPress={onClose}
-          />
-        ))}
-      </ScrollView>
-    </View>
+        })
+      }}
+    >
+      {toc.map((link) => (
+        <TableOfContentsLink
+          key={link.href}
+          book={book}
+          link={link}
+          currentTocLink={currentTocLink}
+          ref={currentItemRef}
+          onPress={onClose}
+        />
+      ))}
+    </ScrollView>
   )
 }
 
@@ -118,7 +118,7 @@ function TableOfContentsLink({
       collapsable={false}
       key={link.href}
       ref={isCurrent ? ref : undefined}
-      className="px-2"
+      className="py-0.5"
     >
       <Button
         variant="ghost"
@@ -137,21 +137,22 @@ function TableOfContentsLink({
           onPress?.()
         }}
         className={cn(
-          "h-auto justify-start border-b border-b-gray-400 p-4 sm:h-auto",
+          "h-auto justify-start rounded-md border border-transparent px-3 py-3 sm:h-auto",
           {
-            "bg-secondary": isCurrent,
+            "border-border bg-secondary": isCurrent,
           },
         )}
       >
         <Text className="text-sm font-bold">{link.title}</Text>
       </Button>
       {link.children?.map((child) => (
-        <View key={child.href} className="pr-2 pl-4">
+        <View key={child.href} className="pl-4">
           <TableOfContentsLink
             book={book}
             link={child}
             currentTocLink={currentTocLink}
             ref={ref}
+            onPress={onPress}
           />
         </View>
       ))}

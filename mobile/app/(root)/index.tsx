@@ -123,6 +123,8 @@ export default function Home() {
     <View className="pt-safe flex-1 items-center gap-2 bg-transparent">
       <Group className="items-center gap-2 pr-2 pl-4">
         <TouchableOpacity
+          accessibilityLabel="Scroll to top"
+          accessibilityRole="button"
           onPress={() => {
             scrollViewRef.current?.scrollTo({ y: 0, animated: true })
           }}
@@ -136,7 +138,11 @@ export default function Home() {
         <BookSearch />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button
+              variant="ghost"
+              size="icon"
+              accessibilityLabel="Open home menu"
+            >
               <Icon as={EllipsisVertical} size={24} className="text-primary" />
             </Button>
           </DropdownMenuTrigger>

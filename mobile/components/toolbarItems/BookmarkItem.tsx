@@ -96,6 +96,7 @@ export function BookmarkItem({ activeBookmarks }: Props) {
   return (
     <Animated.View style={buttonAnimatedStyle}>
       <Button
+        accessibilityLabel={showActive ? "Remove bookmark" : "Add bookmark"}
         className="items-center rounded"
         size="icon"
         variant="ghost"

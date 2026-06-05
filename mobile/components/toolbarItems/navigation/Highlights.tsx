@@ -5,6 +5,7 @@ import { View } from "react-native"
 import { ScrollView } from "react-native-gesture-handler"
 
 import { highlightTints, highlightUnderlines } from "@/colors"
+import { useReaderFormSheetScrollPaddingBottom } from "@/components/toolbarItems/readerFormSheetLayout"
 import { Stack } from "@/components/ui/Stack"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
@@ -19,14 +20,24 @@ import {
   useGetBookQuery,
   useGetGlobalPreferencesQuery,
 } from "@/store/localApi"
-import {
-  getCurrentlyPlayingBookUuid,
-  getCurrentlyPlayingFormat,
-} from "@/store/selectors/bookshelfSelectors"
+import { getCurrentlyPlayingFormat } from "@/store/selectors/bookshelfSelectors"
+import { type UUID } from "@/uuid"
 
-export function Highlights() {
-  const bookUuid = useAppSelector(getCurrentlyPlayingBookUuid)
-  const format = useAppSelector(getCurrentlyPlayingFormat)
+interface Props {
+  bookUuid?: UUID | undefined
+  format?: "readaloud" | "ebook" | "audiobook" | undefined
+  onClose?: () => void
+}
+
+export function Highlights({
+  bookUuid: bookUuidProp,
+  format: formatProp,
+  onClose,
+}: Props) {
+  const selectedFormat = useAppSelector(getCurrentlyPlayingFormat)
+  const bookUuid = bookUuidProp
+  const format = formatProp ?? selectedFormat
+  const paddingBottom = useReaderFormSheetScrollPaddingBottom()
   const dispatch = useAppDispatch()
   const { dark } = useColorTheme()
   const { data: highlights } = useGetBookHighlightsQuery(
@@ -100,8 +111,8 @@ export function Highlights() {
 
   if (!highlights.length) {
     return (
-      <Stack className="p-8">
-        <Text className="text-muted-foreground">
+      <Stack className="flex-1 items-center justify-center px-8 py-12">
+        <Text className="text-muted-foreground text-center">
           No highlights yet! Try adding some by long pressing on the text to
           make a selection.
         </Text>
@@ -110,53 +121,52 @@ export function Highlights() {
   }
 
   return (
-    <Stack className="flex-1">
-      <ScrollView>
-        {highlights.map((highlight, index) => (
-          <View key={highlight.uuid} className="px-2">
-            <Button
-              onPress={async () => {
-                dispatch(
-                  bookmarkPressed({
-                    bookUuid,
-                    locator: highlight.locator,
-                    timestamp: Date.now(),
-                    currentLocator: book?.position?.locator,
-                  }),
-                )
-              }}
-              variant="ghost"
-              className="h-auto flex-col border-b border-b-gray-400 p-4 sm:h-auto"
-            >
-              <Text className="text-sm font-bold">
-                {highlightTitles[index]}
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="px-2 pt-2"
+      contentContainerStyle={{ paddingBottom }}
+    >
+      {highlights.map((highlight, index) => (
+        <View key={highlight.uuid} className="py-0.5">
+          <Button
+            onPress={async () => {
+              dispatch(
+                bookmarkPressed({
+                  bookUuid,
+                  locator: highlight.locator,
+                  timestamp: Date.now(),
+                  currentLocator: book?.position?.locator,
+                }),
+              )
+              onClose?.()
+            }}
+            variant="ghost"
+            className="active:bg-secondary h-auto flex-col items-start rounded-md border border-transparent px-3 py-3 sm:h-auto"
+          >
+            <Text className="text-sm font-bold">{highlightTitles[index]}</Text>
+            {highlight.locator.locations?.position && (
+              <Text className="my-2 text-xs">Page {highlightPages[index]}</Text>
+            )}
+            {highlight.locator.text?.highlight && (
+              <Text
+                className="text-justify text-sm underline decoration-solid"
+                style={{
+                  fontFamily: preferences?.typography?.fontFamily,
+                  textAlign: "left",
+                  backgroundColor:
+                    highlightTints[dark ? "dark" : "light"][highlight.color],
+                  textDecorationColor:
+                    highlightUnderlines[dark ? "dark" : "light"][
+                      highlight.color
+                    ],
+                }}
+              >
+                {highlight.locator.text.highlight}
               </Text>
-              {highlight.locator.locations?.position && (
-                <Text className="my-2 text-xs">
-                  Page {highlightPages[index]}
-                </Text>
-              )}
-              {highlight.locator.text?.highlight && (
-                <Text
-                  className="text-justify text-sm underline decoration-solid"
-                  style={{
-                    fontFamily: preferences?.typography?.fontFamily,
-                    textAlign: "left",
-                    backgroundColor:
-                      highlightTints[dark ? "dark" : "light"][highlight.color],
-                    textDecorationColor:
-                      highlightUnderlines[dark ? "dark" : "light"][
-                        highlight.color
-                      ],
-                  }}
-                >
-                  {highlight.locator.text.highlight}
-                </Text>
-              )}
-            </Button>
-          </View>
-        ))}
-      </ScrollView>
-    </Stack>
+            )}
+          </Button>
+        </View>
+      ))}
+    </ScrollView>
   )
 }

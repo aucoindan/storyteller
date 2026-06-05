@@ -160,6 +160,7 @@ export function BookSearch() {
       >
         <Input
           className="min-h-8 text-sm"
+          accessibilityLabel="Search books"
           maxFontSizeMultiplier={2}
           value={query}
           onChangeText={(value) => {

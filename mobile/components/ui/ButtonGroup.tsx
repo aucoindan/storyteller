@@ -79,6 +79,10 @@ export function ButtonGroupButton<Value>({
   return (
     <Button
       {...props}
+      accessibilityState={{
+        ...props.accessibilityState,
+        selected: currentValue === value,
+      }}
       className={cn({
         "bg-transparent": currentValue !== value,
         "rounded-tr-none rounded-br-none":

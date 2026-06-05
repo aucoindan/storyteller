@@ -47,6 +47,7 @@ export default function LogModal() {
     <View className="android:pt-safe h-full">
       <View className="w-full flex-row items-center justify-between px-4 pt-3">
         <Button
+          accessibilityLabel="Close logs"
           variant="ghost"
           size="icon"
           onPress={() => {
@@ -56,6 +57,7 @@ export default function LogModal() {
           <Icon as={ChevronDownIcon} size={24} />
         </Button>
         <Button
+          accessibilityLabel="Clear today's log"
           variant="ghost"
           className="self-end"
           onPress={() => {
@@ -67,6 +69,7 @@ export default function LogModal() {
       </View>
       <View className="justify-center">
         <Button
+          accessibilityLabel="Share today's log"
           variant="ghost"
           onPress={() => {
             Sharing.shareAsync(getTodaysLogUri(), {

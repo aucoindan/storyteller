@@ -59,7 +59,11 @@ export function Toolbar({ mode, activeBookmarks }: Props) {
                 params: { uuid: book.uuid, format },
               }}
             >
-              <Button variant="ghost" size="icon">
+              <Button
+                accessibilityLabel={`Switch to reading ${book.title}`}
+                variant="ghost"
+                size="icon"
+              >
                 <Icon as={BookOpen} size={24} />
               </Button>
             </Link>
@@ -72,7 +76,11 @@ export function Toolbar({ mode, activeBookmarks }: Props) {
                 params: { uuid: book.uuid, format },
               }}
             >
-              <Button variant="ghost" size="icon">
+              <Button
+                accessibilityLabel={`Switch to listening to ${book.title}`}
+                variant="ghost"
+                size="icon"
+              >
                 <Icon as={Headphones} size={24} />
               </Button>
             </Link>

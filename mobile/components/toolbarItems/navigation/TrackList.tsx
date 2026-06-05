@@ -2,11 +2,10 @@ import { skipToken } from "@reduxjs/toolkit/query"
 import { type RefObject, useRef } from "react"
 import { View } from "react-native"
 import { ScrollView } from "react-native-gesture-handler"
-import { useSafeAreaFrame } from "react-native-safe-area-context"
 
+import { useReaderFormSheetScrollPaddingBottom } from "@/components/toolbarItems/readerFormSheetLayout"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
-import { useSpacingVariable } from "@/hooks/useSpacingVariable"
 import { cn } from "@/lib/utils"
 import {
   AUDIOBOOK_TOC_LOOKAHEAD_SECONDS,
@@ -18,22 +17,29 @@ import { useAppDispatch, useAppSelector } from "@/store/appState"
 import { useGetBookQuery } from "@/store/localApi"
 import {
   getCurrentTrackIndex,
-  getCurrentlyPlayingBookUuid,
   getCurrentlyPlayingFormat,
   getPosition,
   getTracks,
 } from "@/store/selectors/bookshelfSelectors"
+import { type UUID } from "@/uuid"
 
 interface Props {
+  bookUuid?: UUID | undefined
+  format?: "readaloud" | "ebook" | "audiobook" | undefined
   onClose?: () => void
 }
 
-export function TrackLisk({ onClose }: Props) {
+export function TrackLisk({
+  bookUuid: bookUuidProp,
+  format: formatProp,
+  onClose,
+}: Props) {
   const ref = useRef<null | ScrollView>(null)
   const currentItemRef = useRef<null | View>(null)
 
-  const bookUuid = useAppSelector(getCurrentlyPlayingBookUuid)
-  const format = useAppSelector(getCurrentlyPlayingFormat) ?? "readaloud"
+  const selectedFormat = useAppSelector(getCurrentlyPlayingFormat)
+  const bookUuid = bookUuidProp
+  const format = formatProp ?? selectedFormat ?? "readaloud"
 
   const currentTrackIndex = useAppSelector(getCurrentTrackIndex)
   const position = useAppSelector(getPosition)
@@ -59,9 +65,7 @@ export function TrackLisk({ onClose }: Props) {
 
   const listing = manifest?.toc ?? fromTracks
 
-  const frame = useSafeAreaFrame()
-
-  const maxHeight = frame.height - useSpacingVariable(72)
+  const paddingBottom = useReaderFormSheetScrollPaddingBottom()
 
   const currentTocItem = manifest?.toc
     ? getAudiobookTocItemAtPosition(
@@ -76,7 +80,9 @@ export function TrackLisk({ onClose }: Props) {
   return (
     <ScrollView
       ref={ref}
-      style={{ maxHeight }}
+      className="flex-1"
+      contentContainerClassName="px-2 pt-2"
+      contentContainerStyle={{ paddingBottom }}
       onLayout={() => {
         if (!ref.current) return
         // @ts-expect-error ScrollView is a perfectly valid component, not sure what
@@ -121,14 +127,14 @@ function Sublist({
           {...(link === currentTocItem && {
             ref: currentItemRef,
           })}
-          style={{ paddingHorizontal: 8 }}
+          className="py-0.5"
         >
           <Button
             variant={link === currentTocItem ? "secondary" : "ghost"}
             className={cn(
-              "h-auto justify-start border-b border-b-gray-400 p-4 sm:h-auto",
+              "h-auto justify-start rounded-md border border-transparent px-3 py-3 sm:h-auto",
               {
-                "bg-secondary": 0,
+                "border-border bg-secondary": link === currentTocItem,
               },
             )}
             onPress={async () => {

@@ -96,6 +96,7 @@ export default function BookDetailsScreen() {
       <View className="flex-1 items-center justify-center">
         <Text>Book not found</Text>
         <Button
+          accessibilityLabel="Go back"
           onPress={() => {
             if (router.canGoBack()) {
               router.back()
@@ -227,7 +228,10 @@ export default function BookDetailsScreen() {
                     })
                   }}
                 >
-                  <SelectTrigger className="">
+                  <SelectTrigger
+                    className=""
+                    accessibilityLabel={`Reading status, ${book.status.name}`}
+                  >
                     <SelectValue placeholder="" />
                   </SelectTrigger>
                   <SelectContent>
@@ -236,6 +240,7 @@ export default function BookDetailsScreen() {
                         key={status.uuid}
                         label={status.name}
                         value={status.uuid}
+                        accessibilityLabel={`Set reading status to ${status.name}`}
                       />
                     ))}
                   </SelectContent>
@@ -250,6 +255,7 @@ export default function BookDetailsScreen() {
                           <Button
                             variant="outline"
                             className="border-primary dark:border-primary"
+                            accessibilityLabel="Open download options"
                           >
                             <Text className="text-primary">Downloads</Text>
                             <Icon
@@ -260,59 +266,57 @@ export default function BookDetailsScreen() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          {availableFormats.map((format) => (
-                            <DropdownMenuItem
-                              key={format}
-                              onPress={() => {
-                                const status = book[format]?.downloadStatus
-                                if (
-                                  status === "DOWNLOADING" ||
-                                  status === "QUEUED"
-                                ) {
-                                  cancelDownload({
-                                    bookUuid: book.uuid,
-                                    format,
-                                  })
-                                  return
-                                }
+                          {availableFormats.map((format) => {
+                            const status = book[format]?.downloadStatus
+                            const isActiveDownload =
+                              status === "DOWNLOADING" || status === "QUEUED"
+                            const isDownloaded =
+                              downloadedFormats.includes(format)
+                            const label = isDownloaded
+                              ? `Remove ${format}`
+                              : isActiveDownload
+                                ? `Cancel ${format} download`
+                                : `Download ${format}`
 
-                                if (downloadedFormats.includes(format)) {
-                                  setPendingDeleteFormat(format)
-                                  return
+                            return (
+                              <DropdownMenuItem
+                                key={format}
+                                accessibilityLabel={label}
+                                onPress={() => {
+                                  if (isActiveDownload) {
+                                    cancelDownload({
+                                      bookUuid: book.uuid,
+                                      format,
+                                    })
+                                    return
+                                  }
+
+                                  if (isDownloaded) {
+                                    setPendingDeleteFormat(format)
+                                    return
+                                  }
+                                  downloadBook({
+                                    bookUuid: book.uuid,
+                                    format: format,
+                                  })
+                                }}
+                                variant={
+                                  isDownloaded ? "destructive" : "default"
                                 }
-                                downloadBook({
-                                  bookUuid: book.uuid,
-                                  format: format,
-                                })
-                              }}
-                              variant={
-                                downloadedFormats.includes(format)
-                                  ? "destructive"
-                                  : "default"
-                              }
-                              className={
-                                book[format]?.downloadStatus === "DOWNLOADED" ||
-                                book[format]?.downloadStatus === "DOWNLOADING"
-                                  ? "border-destructive"
-                                  : "border-primary"
-                              }
-                            >
-                              <Text>
-                                {downloadedFormats.includes(format)
-                                  ? `Remove ${format}`
-                                  : book[format]?.downloadStatus ===
-                                        "DOWNLOADING" ||
-                                      book[format]?.downloadStatus === "QUEUED"
-                                    ? "Cancel download"
-                                    : `${format[0]?.toUpperCase()}${format.slice(1)}`}
-                              </Text>
-                              {(book[format]?.downloadStatus ===
-                                "DOWNLOADING" ||
-                                book[format]?.downloadStatus === "QUEUED") && (
-                                <Icon as={CircleX} size={16} />
-                              )}
-                            </DropdownMenuItem>
-                          ))}
+                                className={
+                                  status === "DOWNLOADED" ||
+                                  status === "DOWNLOADING"
+                                    ? "border-destructive"
+                                    : "border-primary"
+                                }
+                              >
+                                <Text>{label}</Text>
+                                {isActiveDownload && (
+                                  <Icon as={CircleX} size={16} />
+                                )}
+                              </DropdownMenuItem>
+                            )
+                          })}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </>
@@ -321,6 +325,15 @@ export default function BookDetailsScreen() {
                       <>
                         <Button
                           variant="outline"
+                          accessibilityLabel={
+                            book[onlyFormat]?.downloadStatus === "DOWNLOADED"
+                              ? `Remove ${onlyFormat}`
+                              : book[onlyFormat]?.downloadStatus ===
+                                    "DOWNLOADING" ||
+                                  book[onlyFormat]?.downloadStatus === "QUEUED"
+                                ? `Cancel ${onlyFormat} download`
+                                : `Download ${onlyFormat}`
+                          }
                           className={
                             book[onlyFormat]?.downloadStatus === "DOWNLOADED" ||
                             book[onlyFormat]?.downloadStatus ===
@@ -410,6 +423,7 @@ export default function BookDetailsScreen() {
                       className="w-full justify-start"
                     >
                       <Button
+                        accessibilityLabel={`Open series ${series.name}, book ${series.position}`}
                         variant="link"
                         className="y-0 mt-[-5px] flex flex-row items-center gap-1 px-0"
                       >
@@ -442,6 +456,7 @@ export default function BookDetailsScreen() {
                       asChild
                     >
                       <Button
+                        accessibilityLabel={`Open tag ${tag.name}`}
                         variant="secondary"
                         size="sm"
                         className="flex flex-row items-center gap-2 rounded-full px-3"
@@ -456,6 +471,11 @@ export default function BookDetailsScreen() {
                       variant="outline"
                       size="sm"
                       className="flex flex-row items-center gap-2 rounded-full px-3"
+                      accessibilityLabel={
+                        showTagsMore
+                          ? "Show fewer tags"
+                          : `Show ${numTagsHidden} more tags`
+                      }
                       onPress={() => {
                         setShowTagsMore(!showTagsMore)
                       }}
@@ -495,6 +515,7 @@ export default function BookDetailsScreen() {
                       asChild
                     >
                       <Button
+                        accessibilityLabel={`Open collection ${collection.name}`}
                         variant="secondary"
                         className="flex flex-row items-center gap-2 rounded-md px-4 py-0"
                       >
@@ -507,6 +528,11 @@ export default function BookDetailsScreen() {
                       variant="outline"
                       size="sm"
                       className="flex flex-row items-center gap-2 rounded-full px-3"
+                      accessibilityLabel={
+                        showCollectionsMore
+                          ? "Show fewer collections"
+                          : `Show ${numCollectionsHidden} more collections`
+                      }
                       onPress={() => {
                         setShowCollectionsMore(!showCollectionsMore)
                       }}
@@ -561,6 +587,7 @@ export default function BookDetailsScreen() {
             <AlertDialogAction asChild>
               <Button
                 variant="destructive"
+                accessibilityLabel={`Remove ${pendingDeleteFormat} from device`}
                 onPress={() => {
                   if (!pendingDeleteFormat) return
                   deleteBook({

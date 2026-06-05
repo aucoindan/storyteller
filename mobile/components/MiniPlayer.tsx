@@ -200,6 +200,7 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
         >
           <View className="flex-row items-center gap-0">
             <ProgressBar
+              accessibilityLabel="Mini player progress"
               className="mt-4 mb-4 grow"
               start={progressStart}
               stop={progressEnd ?? 0}
@@ -233,6 +234,7 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
             {format !== "ebook" && (
               <>
                 <Button
+                  accessibilityLabel="Previous section"
                   variant="ghost"
                   onPress={() => {
                     dispatch(previousFragmentPressed())
@@ -244,6 +246,7 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
                   <PlayPause automaticRewind={false} />
                 </View>
                 <Button
+                  accessibilityLabel="Next section"
                   variant="ghost"
                   onPress={() => {
                     dispatch(nextFragmentPressed())
@@ -257,6 +260,8 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
 
           <View className="flex-row items-center justify-between gap-3 pr-6 pl-3">
             <TouchableOpacity
+              accessibilityLabel={`Open details for ${title}`}
+              accessibilityRole="button"
               className="w-10 p-0"
               onPress={() => {
                 dispatch(bookDetailPressed({ bookUuid: book.uuid, format }))
@@ -276,6 +281,8 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
               </View>
             </TouchableOpacity>
             <TouchableOpacity
+              accessibilityLabel={`Open details for ${title}`}
+              accessibilityRole="button"
               className="flex-1 flex-col items-stretch"
               onPress={() => {
                 dispatch(bookDetailPressed({ bookUuid: book.uuid, format }))

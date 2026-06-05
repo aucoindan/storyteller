@@ -224,6 +224,8 @@ export default function PlayerScreen() {
       <PortalHost>
         <View className="w-full flex-row items-center justify-between px-4 pt-3 pb-2">
           <TouchableOpacity
+            accessibilityLabel="Minimize player"
+            accessibilityRole="button"
             className="size-8 items-center justify-center"
             onPress={() => {
               router.back()
@@ -251,6 +253,7 @@ export default function PlayerScreen() {
           </View>
           <View className="my-4 w-full px-6">
             <ProgressBar
+              accessibilityLabel="Playback position"
               start={0}
               stop={duration}
               progress={eagerProgress}
@@ -277,6 +280,7 @@ export default function PlayerScreen() {
           </View>
           <View className="mt-6 grow flex-row items-center gap-6 pb-6">
             <Button
+              accessibilityLabel="Previous track"
               variant="ghost"
               size="icon"
               onPress={() => {
@@ -300,6 +304,7 @@ export default function PlayerScreen() {
               <Icon as={SkipBack} size={32} />
             </Button>
             <Button
+              accessibilityLabel="Rewind 15 seconds"
               variant="ghost"
               size="icon"
               onPress={() => {
@@ -310,6 +315,7 @@ export default function PlayerScreen() {
             </Button>
             <PlayPause size={80} />
             <Button
+              accessibilityLabel="Forward 15 seconds"
               variant="ghost"
               size="icon"
               onPress={() => {
@@ -319,6 +325,7 @@ export default function PlayerScreen() {
               <Icon as={RotateCw} size={32} />
             </Button>
             <Button
+              accessibilityLabel="Next track"
               variant="ghost"
               size="icon"
               onPress={() => {

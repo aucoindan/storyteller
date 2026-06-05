@@ -90,6 +90,7 @@ export default function ServerPage() {
       <View className="gap-4 pb-4">
         <Text className="mx-2">Server url</Text>
         <Input
+          accessibilityLabel="Server URL"
           maxFontSizeMultiplier={2}
           autoCapitalize="none"
           keyboardType="url"
@@ -100,7 +101,12 @@ export default function ServerPage() {
           onChangeText={setUrl}
         />
         <LoginButton serverUrl={url} />
-        <Button variant="ghost" size="flex" onPress={openScanner}>
+        <Button
+          accessibilityLabel="Add server with QR code"
+          variant="ghost"
+          size="flex"
+          onPress={openScanner}
+        >
           <Icon as={CameraIcon} />
           <Text>Add server with QR</Text>
         </Button>
@@ -119,9 +125,15 @@ export default function ServerPage() {
               />
             </View>
             {scannerError && (
-              <Input editable={false} multiline value={scannerError} />
+              <Input
+                accessibilityLabel="QR scanner error"
+                editable={false}
+                multiline
+                value={scannerError}
+              />
             )}
             <Button
+              accessibilityLabel="Close QR scanner"
               variant="secondary"
               size="flex"
               disabled={isScanning}

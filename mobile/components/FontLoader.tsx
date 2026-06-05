@@ -32,6 +32,7 @@ export function FontLoader() {
     <Dialog>
       <DialogTrigger asChild>
         <Button
+          accessibilityLabel="Add custom font"
           className="w-full flex-row items-center sm:w-full"
           variant="ghost"
           size="icon"
@@ -63,10 +64,15 @@ export function FontLoader() {
             <Text variant="h2">Adding new font</Text>
             <Text className="font-semibold">{loadedFont?.name}</Text>
             <Text>Font name:</Text>
-            <Input value={fontName} onChangeText={setFontName} />
+            <Input
+              accessibilityLabel="Custom font name"
+              value={fontName}
+              onChangeText={setFontName}
+            />
             <View className="flex-row justify-between">
               <DialogClose asChild>
                 <Button
+                  accessibilityLabel="Cancel adding custom font"
                   variant="secondary"
                   onPress={() => {
                     setShowFontName(false)
@@ -79,6 +85,7 @@ export function FontLoader() {
               </DialogClose>
               <DialogClose asChild>
                 <Button
+                  accessibilityLabel="Save custom font"
                   disabled={!fontName}
                   onPress={async () => {
                     setShowFontName(false)

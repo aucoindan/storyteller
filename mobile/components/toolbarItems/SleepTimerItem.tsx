@@ -67,6 +67,11 @@ export function SleepTimerItem() {
     <DropdownMenu>
       <DropdownMenuTrigger className="items-center" asChild>
         <Button
+          accessibilityLabel={
+            formattedSleepTimer
+              ? `Sleep timer, ${formattedSleepTimer} remaining`
+              : "Open sleep timer menu"
+          }
           variant="ghost"
           size="icon"
           className="h-10 w-12 sm:h-9 sm:w-11"

@@ -97,13 +97,16 @@ export function ReadingSettings({ bookUuid }: Props) {
             updateGlobalPreference({ name: "darkMode", value })
           }}
         >
-          <ButtonGroupButton value={false}>
+          <ButtonGroupButton accessibilityLabel="Use light mode" value={false}>
             <Text maxFontSizeMultiplier={1}>Light</Text>
           </ButtonGroupButton>
-          <ButtonGroupButton value="auto">
+          <ButtonGroupButton
+            accessibilityLabel="Use device dark mode setting"
+            value="auto"
+          >
             <Text maxFontSizeMultiplier={1}>Device</Text>
           </ButtonGroupButton>
-          <ButtonGroupButton value={true}>
+          <ButtonGroupButton accessibilityLabel="Use dark mode" value={true}>
             <Text maxFontSizeMultiplier={1}>Dark</Text>
           </ButtonGroupButton>
         </ButtonGroup>
@@ -120,7 +123,7 @@ export function ReadingSettings({ bookUuid }: Props) {
             updateGlobalPreference({ name: "lightTheme", value: option.value })
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger accessibilityLabel="Light theme">
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent insets={contentInsets}>
@@ -146,7 +149,7 @@ export function ReadingSettings({ bookUuid }: Props) {
             updateGlobalPreference({ name: "darkTheme", value: option.value })
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger accessibilityLabel="Dark theme">
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent insets={contentInsets}>
@@ -161,7 +164,11 @@ export function ReadingSettings({ bookUuid }: Props) {
         </Select>
       </View>
       <Link href="/custom-theme" asChild>
-        <Button size="flex" variant="ghost">
+        <Button
+          accessibilityLabel="Manage custom themes"
+          size="flex"
+          variant="ghost"
+        >
           <Text className="text-primary group-active:text-primary/80">
             Manage custom themes
           </Text>
@@ -291,6 +298,7 @@ export function ReadingSettings({ bookUuid }: Props) {
         {bookUuid ? (
           <View style={styles.typographyControls}>
             <Button
+              accessibilityLabel="Set typography as defaults"
               disabled={dirty}
               variant="ghost"
               size="sm"
@@ -306,6 +314,7 @@ export function ReadingSettings({ bookUuid }: Props) {
               </Text>
             </Button>
             <Button
+              accessibilityLabel="Reset typography to defaults"
               variant="ghost"
               size="sm"
               disabled={typographyPreferencesAreDefaults}
@@ -331,6 +340,9 @@ export function ReadingSettings({ bookUuid }: Props) {
           </View>
         ) : (
           <Pressable
+            accessibilityLabel="Reset typography settings"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: typographyPreferencesAreDefaults }}
             disabled={typographyPreferencesAreDefaults}
             onPress={() => {
               updateGlobalPreference({
@@ -358,6 +370,7 @@ export function ReadingSettings({ bookUuid }: Props) {
           Font scaling
         </Text>
         <Slider
+          accessibilityLabel="Font scaling"
           className="h-2 grow"
           start={0.7}
           stop={2}
@@ -389,6 +402,7 @@ export function ReadingSettings({ bookUuid }: Props) {
           Line height
         </Text>
         <Slider
+          accessibilityLabel="Line height"
           className="h-2 grow"
           start={1.0}
           stop={2.0}
@@ -437,10 +451,16 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         >
-          <ButtonGroupButton value="justify">
+          <ButtonGroupButton
+            accessibilityLabel="Justify text alignment"
+            value="justify"
+          >
             <Text maxFontSizeMultiplier={1}>Justify</Text>
           </ButtonGroupButton>
-          <ButtonGroupButton value="left">
+          <ButtonGroupButton
+            accessibilityLabel="Use left text alignment"
+            value="left"
+          >
             <Text maxFontSizeMultiplier={1}>Left</Text>
           </ButtonGroupButton>
         </ButtonGroup>
@@ -471,7 +491,7 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger accessibilityLabel="Font family">
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent insets={contentInsets}>
@@ -507,7 +527,11 @@ export function ReadingSettings({ bookUuid }: Props) {
         </Select>
       </View>
       <Link href="custom-fonts" asChild>
-        <Button size="flex" variant="ghost">
+        <Button
+          accessibilityLabel="Manage custom fonts"
+          size="flex"
+          variant="ghost"
+        >
           <Text className="text-primary group-active:text-primary/80">
             Manage custom fonts
           </Text>

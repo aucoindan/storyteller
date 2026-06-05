@@ -59,6 +59,7 @@ export default function Settings() {
                         <Text>Logged in as:</Text>
                         <Text>{server.username}</Text>
                         <Button
+                          accessibilityLabel={`Log out of ${serverUrl.hostname}`}
                           variant="secondary"
                           className="my-2"
                           size="flex"
@@ -81,7 +82,12 @@ export default function Settings() {
             })}
           </View>
           <Link href="/server" asChild>
-            <Button variant="ghost" size="flex" onPress={() => {}}>
+            <Button
+              accessibilityLabel="Add server"
+              variant="ghost"
+              size="flex"
+              onPress={() => {}}
+            >
               <Icon as={PlusIcon} />
               <Text>Add server</Text>
             </Button>
@@ -99,6 +105,7 @@ export default function Settings() {
               Enabled
             </Text>
             <Switch
+              accessibilityLabel="Automatic rewind enabled"
               checked={preferences.automaticRewind.enabled}
               onCheckedChange={(value) =>
                 updatePreference({
@@ -116,6 +123,7 @@ export default function Settings() {
               Long break
             </Text>
             <Slider
+              accessibilityLabel="Automatic rewind after long break"
               disabled={!preferences.automaticRewind.enabled}
               className="h-4 grow"
               start={1}
@@ -142,6 +150,7 @@ export default function Settings() {
               Interruption
             </Text>
             <Slider
+              accessibilityLabel="Automatic rewind after interruption"
               disabled={!preferences.automaticRewind.enabled}
               className="h-4 grow"
               start={1}
@@ -168,6 +177,11 @@ export default function Settings() {
         <View className="mt-8 gap-4">
           <Text variant="h2">Logging</Text>
           <Button
+            accessibilityLabel={
+              preferences.logLevel === "debug"
+                ? "Disable debug logging"
+                : "Enable debug logging"
+            }
             variant="secondary"
             size="flex"
             onPress={() => {
@@ -188,7 +202,7 @@ export default function Settings() {
             </Text>
           </Button>
           <Link href="/log" asChild>
-            <Button size="flex" variant="ghost">
+            <Button accessibilityLabel="View logs" size="flex" variant="ghost">
               <Text>View logs</Text>
             </Button>
           </Link>

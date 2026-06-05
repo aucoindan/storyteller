@@ -106,10 +106,17 @@ type ButtonProps = React.ComponentProps<typeof Pressable> &
   React.RefAttributes<typeof Pressable> &
   VariantProps<typeof buttonVariants>
 
-function Button({ className, variant, size, ...props }: ButtonProps) {
+function Button({
+  accessibilityRole = "button",
+  className,
+  variant,
+  size,
+  ...props
+}: ButtonProps) {
   return (
     <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
       <Pressable
+        accessibilityRole={accessibilityRole}
         className={cn(
           props.disabled && "opacity-50",
           buttonVariants({ variant, size }),

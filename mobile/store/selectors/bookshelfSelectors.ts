@@ -156,8 +156,7 @@ export const getPercentComplete = createSelector(
   },
 )
 /**
- * Get the saved return position for a book and navigation tab.
- * Used when navigating from bookmarks, highlights, or contents.
+ * Get the saved return position for a book.
  */
 export function getReturnToPosition(state: RootState, bookUuid: UUID) {
   return state.bookshelf.returnToPositions[bookUuid] ?? null

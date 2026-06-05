@@ -30,6 +30,7 @@ export default function CustomThemeListScreen() {
     <View className="android:pt-safe w-full flex-1">
       <View className="mb-2 w-full flex-row items-center px-4 pt-3">
         <Button
+          accessibilityLabel="Close custom themes"
           variant="ghost"
           size="icon"
           onPress={() => {
@@ -44,7 +45,11 @@ export default function CustomThemeListScreen() {
       </Text>
       <ScrollView className="mx-6 flex-1">
         <Link href="/custom-theme/new" asChild>
-          <Button variant="ghost" className="h-20 sm:h-20">
+          <Button
+            accessibilityLabel="Create new custom theme"
+            variant="ghost"
+            className="h-20 sm:h-20"
+          >
             <Icon as={Plus} size={24} />
             <Text>New theme</Text>
           </Button>
@@ -54,6 +59,7 @@ export default function CustomThemeListScreen() {
             key={theme.name}
             renderRightActions={() => (
               <Button
+                accessibilityLabel={`Delete custom theme ${theme.name}`}
                 className="align-center h-full w-20 justify-center rounded-l-none bg-red-500 sm:h-full"
                 variant="destructive"
                 onPress={() => {
@@ -74,7 +80,11 @@ export default function CustomThemeListScreen() {
               }}
               asChild
             >
-              <Button variant="ghost" className="h-20 justify-start sm:h-20">
+              <Button
+                accessibilityLabel={`Edit custom theme ${theme.name}`}
+                variant="ghost"
+                className="h-20 justify-start sm:h-20"
+              >
                 <Group className="shrink-0 basis-1/2 items-center gap-4">
                   <Icon as={Pencil} size={16} />
                   <Text className="text-lg">{theme.name}</Text>

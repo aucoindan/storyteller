@@ -18,7 +18,13 @@ export function HighlightColorPicker({ style, value, onChange }: Props) {
           highlightTints[dark ? "dark" : "light"],
         ) as Array<HighlightTint>
       ).map((color) => (
-        <Pressable key={color} onPress={() => onChange(color)}>
+        <Pressable
+          key={color}
+          accessibilityLabel={`Highlight color ${color}`}
+          accessibilityRole="button"
+          accessibilityState={{ selected: value === color }}
+          onPress={() => onChange(color)}
+        >
           <View
             style={[
               styles.button,

@@ -22,10 +22,19 @@ export function PlayPause({ size = 24, automaticRewind = true }: Props) {
   const isLoading = useAppSelector(getIsAudioLoading)
   const { foreground } = useColorTheme()
 
-  if (isLoading) return <ActivityIndicator size={size} />
+  if (isLoading) {
+    return (
+      <ActivityIndicator
+        accessibilityLabel="Loading audio"
+        accessibilityRole="progressbar"
+        size={size}
+      />
+    )
+  }
 
   return isPlaying ? (
     <Button
+      accessibilityLabel="Pause"
       variant="ghost"
       size="icon"
       onPress={() => {
@@ -36,6 +45,7 @@ export function PlayPause({ size = 24, automaticRewind = true }: Props) {
     </Button>
   ) : (
     <Button
+      accessibilityLabel="Play"
       variant="ghost"
       size="icon"
       onPress={() => {

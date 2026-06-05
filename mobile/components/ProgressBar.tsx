@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { Slider } from "./ui/slider"
 
 type Props = {
+  accessibilityLabel?: string | undefined
   className?: string | undefined
   start?: number
   step?: number
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export function ProgressBar({
+  accessibilityLabel,
   className,
   start = 0,
   step = 1,
@@ -29,6 +31,7 @@ export function ProgressBar({
     return (
       <View {...(className && { className })}>
         <Slider
+          accessibilityLabel={accessibilityLabel}
           start={start}
           stop={stop}
           step={step}

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 const THUMB_SIZE = 20
 
 interface Props {
+  accessibilityLabel?: string | undefined
   className?: string | undefined
   start: number
   stop: number
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function Slider({
+  accessibilityLabel,
   className,
   onPanStart,
   onPanStop,
@@ -167,7 +169,14 @@ export function Slider({
               ]}
             />
             <Animated.View
+              accessibilityLabel={accessibilityLabel}
               accessibilityRole="adjustable"
+              accessibilityState={{ disabled }}
+              accessibilityValue={{
+                min: props.start,
+                max: props.stop,
+                now: props.value,
+              }}
               style={[
                 {
                   position: "absolute",

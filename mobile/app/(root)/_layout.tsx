@@ -27,6 +27,33 @@ export default function ModalLayout() {
         }}
       />
       <Stack.Screen name="read/[uuid]" options={{ gestureEnabled: false }} />
+      <Stack.Screen
+        name="navigation-menu"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: "fitToContents",
+          sheetGrabberVisible: false,
+          sheetLargestUndimmedDetentIndex: "none",
+        }}
+      />
+      <Stack.Screen
+        name="speed-menu"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: "fitToContents",
+          sheetGrabberVisible: false,
+          sheetLargestUndimmedDetentIndex: "none",
+        }}
+      />
+      <Stack.Screen
+        name="reading-settings"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: "fitToContents",
+          sheetGrabberVisible: false,
+          sheetLargestUndimmedDetentIndex: "none",
+        }}
+      />
       <Stack.Screen name="book/[uuid]" />
       <Stack.Screen name="shelf/[type]" />
       <Stack.Screen name="author/[uuid]" />

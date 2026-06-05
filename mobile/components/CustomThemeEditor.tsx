@@ -50,6 +50,7 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
     <>
       <View className="android:pt-safe bg-background w-full flex-row items-center px-4 pb-4">
         <Button
+          accessibilityLabel="Close custom theme editor"
           variant="ghost"
           size="icon"
           onPress={() => {
@@ -68,10 +69,10 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
           Custom theme
         </Text>
         <ButtonGroup value={isDark} onChange={setIsDark}>
-          <ButtonGroupButton value={false}>
+          <ButtonGroupButton accessibilityLabel="Use light theme" value={false}>
             <Text style={isDark && { color: foreground }}>Light</Text>
           </ButtonGroupButton>
-          <ButtonGroupButton value={true}>
+          <ButtonGroupButton accessibilityLabel="Use dark theme" value={true}>
             <Text style={!isDark && { color: foreground }}>Dark</Text>
           </ButtonGroupButton>
         </ButtonGroup>
@@ -79,6 +80,7 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
           Theme name
         </Text>
         <Input
+          accessibilityLabel="Theme name"
           value={name}
           onChangeText={setName}
           style={{ color: foreground }}
@@ -132,6 +134,7 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
         </ColorPicker>
         <Group className="justify-end">
           <Button
+            accessibilityLabel="Save custom theme"
             className="mb-6 w-full"
             disabled={!name.trim()}
             onPress={() => {

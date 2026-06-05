@@ -23,6 +23,7 @@ export function LoginButton({ serverUrl, serverUuid }: Props) {
   const dispatch = useAppDispatch()
   return (
     <Button
+      accessibilityLabel="Log in to server"
       size="flex"
       onPress={async () => {
         const redirectUrl = Linking.createURL("settings")

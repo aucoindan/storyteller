@@ -118,6 +118,7 @@ export function MiniPlayerWidget() {
           {book && (
             <View>
               <ProgressBar
+                accessibilityLabel="Mini player progress"
                 start={startPosition}
                 stop={endPosition}
                 progress={eagerProgress}
@@ -135,7 +136,11 @@ export function MiniPlayerWidget() {
                   }}
                   asChild
                 >
-                  <TouchableOpacity className="shrink flex-row items-center justify-between gap-6 px-6">
+                  <TouchableOpacity
+                    accessibilityLabel={`Open audio player for ${book.title}`}
+                    accessibilityRole="button"
+                    className="shrink flex-row items-center justify-between gap-6 px-6"
+                  >
                     <View className="h-10 w-10">
                       <AudiobookCover book={book} style={{ borderRadius: 4 }} />
                     </View>

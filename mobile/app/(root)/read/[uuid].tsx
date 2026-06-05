@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router"
+import { useLocalSearchParams, useSegments } from "expo-router"
 import { useEffect } from "react"
 
 import { Epub } from "@/components/Epub"
@@ -22,19 +22,28 @@ export default function BookScreen() {
   const locator = book?.position?.locator
 
   const isFocused = useIsFocused()
+  const segments = useSegments()
+  const isReaderSheetOpen =
+    segments.includes("navigation-menu") ||
+    segments.includes("speed-menu") ||
+    segments.includes("reading-settings")
   const isNotBackground = useIsNotBackground()
 
   const isAudioLoading = useAppSelector(
     (state) => state.bookshelf.isAudioLoading,
   )
+  const showEpub =
+    !!book &&
+    !!locator &&
+    (isFocused || isReaderSheetOpen) &&
+    isNotBackground &&
+    !isAudioLoading
 
   useEffect(() => {
     dispatch(bookshelfSlice.actions.bookOpened({ bookUuid: uuid, format }))
   }, [dispatch, format, uuid])
 
-  return book && locator && isFocused && isNotBackground && !isAudioLoading ? (
-    <Epub key={book.uuid} format={format} book={book} locator={locator} />
-  ) : (
-    <LoadingView />
-  )
+  if (!showEpub || !book || !locator) return <LoadingView />
+
+  return <Epub key={book.uuid} format={format} book={book} locator={locator} />
 }

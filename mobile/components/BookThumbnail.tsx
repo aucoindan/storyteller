@@ -76,7 +76,12 @@ export function BookThumbnail({
       <ContextMenuTrigger asChild>
         {/* asChild + Pressable instead of Link for Boox device compat */}
         <Link asChild href={`/book/${book.uuid}`}>
-          <Pressable style={{ width }} className="overflow-visible">
+          <Pressable
+            accessibilityLabel={`Open details for ${book.title}`}
+            accessibilityRole="button"
+            style={{ width }}
+            className="overflow-visible"
+          >
             <Stack
               // should be a more elegant way to get the text a little closer
               className="relative -mb-3 flex-col justify-center"
@@ -274,6 +279,7 @@ export function BookThumbnailImage({
             asChild
           >
             <Button
+              accessibilityLabel={`Read ${book.title}`}
               className="bg-background rounded-full"
               style={{
                 height: height / 5,
@@ -303,6 +309,7 @@ export function BookThumbnailImage({
             asChild
           >
             <Button
+              accessibilityLabel={`Listen to ${book.title}`}
               className="bg-background rounded-full"
               style={{
                 height: height / 5,

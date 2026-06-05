@@ -88,6 +88,8 @@ export function SelectionMenu({
           }}
         />
         <Pressable
+          accessibilityLabel="Copy selected text"
+          accessibilityRole="button"
           style={styles.copyButton}
           onPress={() => {
             Clipboard.setString(
@@ -102,6 +104,8 @@ export function SelectionMenu({
         </Pressable>
         {existingHighlight && (
           <Pressable
+            accessibilityLabel="Delete highlight"
+            accessibilityRole="button"
             style={styles.trashButton}
             onPress={() => {
               deleteHighlight({ uuid: existingHighlight.uuid })
@@ -113,7 +117,12 @@ export function SelectionMenu({
         )}
       </View>
       {existingHighlight && (
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} />
+        <TouchableOpacity
+          accessibilityLabel="Close selection menu"
+          accessibilityRole="button"
+          style={styles.backdrop}
+          onPress={onClose}
+        />
       )}
     </>
   )

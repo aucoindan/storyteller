@@ -36,6 +36,7 @@ export default function CustomFontListScreen() {
     <View className="android:pt-safe w-full flex-1">
       <View className="mb-2 w-full flex-row items-center px-4 pt-3">
         <Button
+          accessibilityLabel="Close custom fonts"
           variant="ghost"
           size="icon"
           onPress={() => {
@@ -55,6 +56,7 @@ export default function CustomFontListScreen() {
             key={font.name}
             renderRightActions={() => (
               <Button
+                accessibilityLabel={`Delete custom font ${font.name}`}
                 className="align-center h-full w-20 justify-center rounded-l-none bg-red-500 sm:h-full"
                 variant="destructive"
                 onPress={() => {

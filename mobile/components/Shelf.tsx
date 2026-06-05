@@ -28,6 +28,8 @@ export function Shelf({ label, href, books }: Props) {
 
         {href && (
           <TouchableOpacity
+            accessibilityLabel={`View all ${label} books`}
+            accessibilityRole="button"
             onPress={() => router.push(href)}
             className="flex-row items-center"
           >
