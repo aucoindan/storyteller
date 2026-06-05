@@ -269,6 +269,10 @@ public class ReadiumModule: Module {
                 view.pendingProps.readaloudColor = Color(hex: prop)
             }
 
+            Prop("scrollMode") { (view: EPUBView, prop: Bool?) in
+                view.pendingProps.scrollMode = prop ?? false
+            }
+
             Prop("fontScale") { (view: EPUBView, prop: Double) in
                 view.pendingProps.fontSize = prop
             }

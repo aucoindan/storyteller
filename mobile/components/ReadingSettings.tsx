@@ -254,6 +254,39 @@ export function ReadingSettings({ bookUuid }: Props) {
       </View>
 
       <View>
+        <Text variant="h2">Layout</Text>
+        <View style={styles.field}>
+          <Text maxFontSizeMultiplier={1} className="text-lg">
+            Reader layout
+          </Text>
+          <ButtonGroup
+            value={preferences.layout.scroll ? "scroll" : "page"}
+            onChange={(layout: "page" | "scroll") => {
+              updateGlobalPreference({
+                name: "layout",
+                value: {
+                  ...preferences.layout,
+                  scroll: layout === "scroll",
+                },
+              })
+            }}
+          >
+            <ButtonGroupButton
+              accessibilityLabel="Use page layout"
+              value="page"
+            >
+              <Text maxFontSizeMultiplier={1}>Page</Text>
+            </ButtonGroupButton>
+            <ButtonGroupButton
+              accessibilityLabel="Use scroll layout"
+              value="scroll"
+            >
+              <Text maxFontSizeMultiplier={1}>Scroll</Text>
+            </ButtonGroupButton>
+          </ButtonGroup>
+        </View>
+      </View>
+      <View>
         <Text variant="h2">Typography{!bookUuid && " defaults"}</Text>
         {bookUuid ? (
           <View style={styles.typographyControls}>

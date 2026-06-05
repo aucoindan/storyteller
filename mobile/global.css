@@ -2,6 +2,8 @@
 @import "uniwind";
 
 @theme {
+  --breakpoint-xs: 390px;
+
   --font-youngserif: "YoungSerif";
 
   --color-background: #ffffff;

@@ -22,6 +22,7 @@ import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.input.KeyEvent as ReadiumKeyEvent
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.TextAlign
@@ -31,7 +32,9 @@ import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.toMap
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
+import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
 import kotlin.math.ceil
 
 data class Highlight(val id: String, @ColorInt val color: Int, val locator: Locator)
@@ -54,7 +57,8 @@ data class Props(
     var fontSize: Double?,
     var textAlign: TextAlign?,
     var marginLeft: Int?,
-    var marginRight: Int?
+    var marginRight: Int?,
+    var scrollMode: Boolean?
 )
 
 
@@ -74,7 +78,8 @@ data class FinalizedProps(
     var fontSize: Double,
     var textAlign: TextAlign,
     var marginLeft: Int,
-    var marginRight: Int
+    var marginRight: Int,
+    var scrollMode: Boolean
 )
 
 
@@ -154,6 +159,10 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     var locationEmitter: Job? = null
 
     private var changingResource = false
+    private var lastEmittedLocator: Locator? = null
+
+    private val activity: FragmentActivity?
+        get() = appContext.currentActivity as FragmentActivity?
 
     var pendingProps: Props = Props(
         bookUuid = null,
@@ -172,8 +181,268 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         textAlign = null,
         marginLeft = null,
         marginRight = null,
+        scrollMode = null,
     )
     var props: FinalizedProps? = null
+
+    private fun isSameLocatorPosition(lhs: Locator?, rhs: Locator?): Boolean {
+        if (lhs == null || rhs == null) {
+            return lhs == null && rhs == null
+        }
+
+        if (lhs.href != rhs.href) return false
+
+        val lhsFragment = lhs.locations.fragments.firstOrNull()
+        val rhsFragment = rhs.locations.fragments.firstOrNull()
+        if (lhsFragment != null || rhsFragment != null) {
+            return lhsFragment == rhsFragment
+        }
+
+        val lhsProgression = lhs.locations.progression
+        val rhsProgression = rhs.locations.progression
+        if (lhsProgression != null || rhsProgression != null) {
+            return lhsProgression != null &&
+                rhsProgression != null &&
+                abs(lhsProgression - rhsProgression) < 0.00001
+        }
+
+        return true
+    }
+
+    private fun emitLocatorChange(locator: Locator) {
+        lastEmittedLocator = locator
+        onLocatorChange(locator.toJSON().toMap())
+    }
+
+    private data class LayoutChange(
+        val finalProps: FinalizedProps,
+        val layoutModeChanged: Boolean,
+        val enteredPageLayout: Boolean,
+        val locatorChangedFromExternalUpdate: Boolean,
+    )
+
+    private interface EpubLayoutBehavior {
+        val supportsPagedClipScheduling: Boolean
+
+        fun preferences(view: EpubView): EpubPreferences
+        fun submitModePreferences(view: EpubView, change: LayoutChange)
+        fun shouldNavigateToLocator(view: EpubView, change: LayoutChange): Boolean
+        fun navigateToLocator(view: EpubView, locator: Locator)
+        fun handleExternalLocatorChange(
+            view: EpubView,
+            change: LayoutChange,
+            didNavigateToLocator: Boolean
+        )
+        fun handlePlayingFragmentChanged(
+            view: EpubView,
+            change: LayoutChange,
+            newFragment: String?,
+            oldFragment: String?
+        )
+        fun keepPlayingLocatorVisible(
+            view: EpubView,
+            change: LayoutChange,
+            didNavigateToLocator: Boolean
+        )
+        fun submitReadingPreferences(view: EpubView, change: LayoutChange)
+        fun onTap(
+            view: EpubView,
+            event: TapEvent,
+            directionalNavigationAdapter: DirectionalNavigationAdapter
+        ): Boolean
+        suspend fun isProgressionVisible(
+            view: EpubView,
+            currentLocator: Locator,
+            progression: Double
+        ): Boolean?
+        suspend fun findOnPage(view: EpubView, locator: Locator)
+    }
+
+    private object PagedLayoutBehavior : EpubLayoutBehavior {
+        override val supportsPagedClipScheduling = true
+
+        override fun preferences(view: EpubView): EpubPreferences =
+            view.epubPreferences()
+
+        override fun submitModePreferences(view: EpubView, change: LayoutChange) {
+            if (change.enteredPageLayout) {
+                view.navigator?.submitPreferences(view.epubPreferences(scroll = false))
+            }
+        }
+
+        override fun shouldNavigateToLocator(view: EpubView, change: LayoutChange): Boolean {
+            val currentLocator = view.navigator?.currentLocator?.value
+            return change.finalProps.locator?.let { locator ->
+                !change.enteredPageLayout && locator != currentLocator
+            } ?: false
+        }
+
+        override fun navigateToLocator(view: EpubView, locator: Locator) {
+            view.go(locator)
+        }
+
+        override fun handleExternalLocatorChange(
+            view: EpubView,
+            change: LayoutChange,
+            didNavigateToLocator: Boolean
+        ) = Unit
+
+        override fun handlePlayingFragmentChanged(
+            view: EpubView,
+            change: LayoutChange,
+            newFragment: String?,
+            oldFragment: String?
+        ) {
+            if (newFragment != null && (newFragment != oldFragment || change.enteredPageLayout)) {
+                view.player?.let { player ->
+                    view.schedulePagedClipChanged(newFragment, player)
+                }
+            }
+        }
+
+        override fun keepPlayingLocatorVisible(
+            view: EpubView,
+            change: LayoutChange,
+            didNavigateToLocator: Boolean
+        ) = Unit
+
+        override fun submitReadingPreferences(view: EpubView, change: LayoutChange) {
+            view.navigator?.submitPreferences(view.epubPreferences())
+        }
+
+        override fun onTap(
+            view: EpubView,
+            event: TapEvent,
+            directionalNavigationAdapter: DirectionalNavigationAdapter
+        ): Boolean = directionalNavigationAdapter.onTap(event)
+
+        override suspend fun isProgressionVisible(
+            view: EpubView,
+            currentLocator: Locator,
+            progression: Double
+        ): Boolean? = view.isPagedProgressionVisible(currentLocator, progression)
+
+        override suspend fun findOnPage(view: EpubView, locator: Locator) {
+            view.findOnPageInPagedLayout(locator)
+        }
+    }
+
+    private object ScrollLayoutBehavior : EpubLayoutBehavior {
+        override val supportsPagedClipScheduling = false
+
+        override fun preferences(view: EpubView): EpubPreferences =
+            view.epubPreferences(scroll = true)
+
+        override fun submitModePreferences(view: EpubView, change: LayoutChange) {
+            view.navigator?.submitPreferences(view.epubPreferences(scroll = true))
+        }
+
+        override fun shouldNavigateToLocator(view: EpubView, change: LayoutChange): Boolean {
+            val currentLocator = view.navigator?.currentLocator?.value
+            return change.finalProps.locator?.let { locator ->
+                change.layoutModeChanged ||
+                    currentLocator == null ||
+                    locator.href != currentLocator.href
+            } ?: false
+        }
+
+        override fun navigateToLocator(view: EpubView, locator: Locator) {
+            view.go(locator, scrollAfterNavigation = true)
+        }
+
+        override fun handleExternalLocatorChange(
+            view: EpubView,
+            change: LayoutChange,
+            didNavigateToLocator: Boolean
+        ) {
+            val locator = change.finalProps.locator ?: return
+            if (!didNavigateToLocator && change.locatorChangedFromExternalUpdate && !change.finalProps.isPlaying) {
+                // In active playback, same-resource updates are centered below; go() top-aligns first.
+                view.go(locator, scrollAfterNavigation = true)
+            }
+        }
+
+        override fun handlePlayingFragmentChanged(
+            view: EpubView,
+            change: LayoutChange,
+            newFragment: String?,
+            oldFragment: String?
+        ) = Unit
+
+        override fun keepPlayingLocatorVisible(
+            view: EpubView,
+            change: LayoutChange,
+            didNavigateToLocator: Boolean
+        ) {
+            val locator = change.finalProps.locator ?: return
+            if (didNavigateToLocator || !change.finalProps.isPlaying) return
+
+            view.activity?.lifecycleScope?.launch {
+                view.scrollFragmentIntoView(locator)
+            }
+        }
+
+        override fun submitReadingPreferences(view: EpubView, change: LayoutChange) = Unit
+
+        override fun onTap(
+            view: EpubView,
+            event: TapEvent,
+            directionalNavigationAdapter: DirectionalNavigationAdapter
+        ): Boolean {
+            val width = view.navigator?.publicationView?.width?.toDouble() ?: return false
+            val horizontalEdgeSize = maxOf(80.0, 0.3 * width)
+            val x = event.point.x.toDouble()
+
+            when {
+                x <= horizontalEdgeSize -> view.handleScrollModeEdgeTap(goForward = false)
+                x >= width - horizontalEdgeSize -> view.handleScrollModeEdgeTap(goForward = true)
+            }
+
+            return false
+        }
+
+        override suspend fun isProgressionVisible(
+            view: EpubView,
+            currentLocator: Locator,
+            progression: Double
+        ): Boolean? = view.isScrollProgressionVisible(progression)
+
+        override suspend fun findOnPage(view: EpubView, locator: Locator) {
+            view.findOnPageInScrollLayout(locator)
+        }
+    }
+
+    private fun layoutBehavior(props: FinalizedProps? = this.props): EpubLayoutBehavior =
+        if (props?.scrollMode == true) ScrollLayoutBehavior else PagedLayoutBehavior
+
+    fun layoutPreferences(): EpubPreferences =
+        layoutBehavior(props!!).preferences(this)
+
+    fun epubPreferences(scroll: Boolean? = null): EpubPreferences {
+        val props = props!!
+        return if (scroll == null) {
+            EpubPreferences(
+                backgroundColor = org.readium.r2.navigator.preferences.Color(props.background),
+                fontFamily = props.fontFamily,
+                fontSize = props.fontSize,
+                lineHeight = props.lineHeight,
+                paragraphSpacing = props.paragraphSpacing,
+                textAlign = props.textAlign,
+                textColor = org.readium.r2.navigator.preferences.Color(props.foreground),
+            )
+        } else {
+            EpubPreferences(
+                backgroundColor = org.readium.r2.navigator.preferences.Color(props.background),
+                fontFamily = props.fontFamily,
+                fontSize = props.fontSize,
+                lineHeight = props.lineHeight,
+                paragraphSpacing = props.paragraphSpacing,
+                scroll = scroll,
+                textAlign = props.textAlign,
+                textColor = org.readium.r2.navigator.preferences.Color(props.foreground),
+            )
+        }
+    }
 
     fun finalizeProps() {
         val oldProps = props
@@ -200,20 +469,41 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                 fontSize = pendingProps.fontSize ?: oldProps?.fontSize ?: 1.0,
                 textAlign = pendingProps.textAlign ?: oldProps?.textAlign ?: TextAlign.JUSTIFY,
                 marginLeft = pendingProps.marginLeft ?: oldProps?.marginLeft ?: 0,
-                marginRight = pendingProps.marginRight ?: oldProps?.marginRight ?: 0
+                marginRight = pendingProps.marginRight ?: oldProps?.marginRight ?: 0,
+                scrollMode = pendingProps.scrollMode ?: oldProps?.scrollMode ?: false,
             )
 
         props = finalProps
+        val scrollModeChanged = oldProps?.let { finalProps.scrollMode != it.scrollMode } ?: false
+        val enteredPageLayout = oldProps?.scrollMode == true && !finalProps.scrollMode
+        val locatorChangedFromExternalUpdate = finalProps.locator != null &&
+            !isSameLocatorPosition(finalProps.locator, oldProps?.locator) &&
+            !isSameLocatorPosition(finalProps.locator, lastEmittedLocator)
+        val layoutChange = LayoutChange(
+            finalProps = finalProps,
+            layoutModeChanged = scrollModeChanged,
+            enteredPageLayout = enteredPageLayout,
+            locatorChangedFromExternalUpdate = locatorChangedFromExternalUpdate,
+        )
+        val layoutBehavior = layoutBehavior(finalProps)
 
-        if (finalProps.bookUuid != oldProps?.bookUuid || finalProps.customFonts != oldProps.customFonts) {
+        if (finalProps.bookUuid != oldProps?.bookUuid || finalProps.customFonts != oldProps?.customFonts) {
             destroyNavigator()
             initializeNavigator()
         }
 
-        val activity = appContext.currentActivity as FragmentActivity?
-
-        if (finalProps.locator != navigator?.currentLocator && finalProps.locator != null) {
-            go(finalProps.locator!!)
+        layoutBehavior.submitModePreferences(this, layoutChange)
+        val shouldNavigateToLocator = layoutBehavior.shouldNavigateToLocator(this, layoutChange)
+        if (shouldNavigateToLocator) {
+            finalProps.locator?.let { locator ->
+                layoutBehavior.navigateToLocator(this, locator)
+            }
+        } else {
+            layoutBehavior.handleExternalLocatorChange(
+                this,
+                layoutChange,
+                didNavigateToLocator = false
+            )
         }
 
         if (finalProps.marginLeft != oldProps?.marginLeft) {
@@ -230,13 +520,12 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             val newFragment = finalProps.locator?.locations?.fragments?.firstOrNull()
             val oldFragment = oldProps?.locator?.locations?.fragments?.firstOrNull()
 
-            if (newFragment != null && newFragment != oldFragment) {
-                val p = player
-
-                if (p != null) {
-                    handleClipChanged(newFragment, p)
-                }
-            }
+            layoutBehavior.handlePlayingFragmentChanged(
+                this,
+                layoutChange,
+                newFragment,
+                oldFragment
+            )
         } else {
             clearHighlightFragment()
         }
@@ -254,17 +543,12 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             highlightFragment(finalProps.locator!!)
         }
 
-        navigator?.submitPreferences(
-            EpubPreferences(
-                backgroundColor = org.readium.r2.navigator.preferences.Color(props!!.background),
-                fontFamily = props!!.fontFamily,
-                fontSize = props!!.fontSize,
-                lineHeight = props!!.lineHeight,
-                paragraphSpacing = props!!.paragraphSpacing,
-                textAlign = props!!.textAlign,
-                textColor = org.readium.r2.navigator.preferences.Color(props!!.foreground),
-            )
+        layoutBehavior.keepPlayingLocatorVisible(
+            this,
+            layoutChange,
+            didNavigateToLocator = shouldNavigateToLocator
         )
+        layoutBehavior.submitReadingPreferences(this, layoutChange)
     }
 
     fun initializeNavigator() {
@@ -292,12 +576,24 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
         navigator?.addDecorationListener("highlights", this)
 
-        navigator?.addInputListener(
-            DirectionalNavigationAdapter(
-                navigator!!,
-                animatedTransition = true,
-            )
+        val directionalNavigationAdapter = DirectionalNavigationAdapter(
+            navigator!!,
+            animatedTransition = true,
         )
+
+        navigator?.addInputListener(object : InputListener {
+            override fun onTap(event: TapEvent): Boolean {
+                return layoutBehavior().onTap(
+                    this@EpubView,
+                    event,
+                    directionalNavigationAdapter
+                )
+            }
+
+            override fun onKey(event: ReadiumKeyEvent): Boolean {
+                return directionalNavigationAdapter.onKey(event)
+            }
+        })
 
         navigator?.addInputListener(object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
@@ -349,9 +645,9 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private suspend fun emitCurrentLocator() {
         val currentLocator = navigator!!.currentLocator.value
-
-        val result = props?.locator?.locations?.fragments?.firstOrNull()?.let {
-            navigator?.evaluateJavascript(
+        val propLocator = props?.locator
+        val isPropLocatorOnPage = propLocator?.locations?.fragments?.firstOrNull()?.let {
+            val result = navigator?.evaluateJavascript(
                 """
             (function() {
                 const element = document.getElementById("$it")
@@ -359,36 +655,17 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             })();
             """.trimIndent()
             )
-        } ?: props?.locator?.locations?.progression?.let {
-            navigator?.evaluateJavascript(
-                """
-            (function() {
-                const width = Android.getViewportWidth();
-                const pageWidth = width / window.devicePixelRatio;
-
-                function snapOffset(offset) {
-                    const value = offset + 1;
-                    return value - (value % pageWidth);
-                }
-
-                const documentWidth = document.scrollingElement.scrollWidth;
-                const currentPageStart = snapOffset(documentWidth * ${currentLocator.locations.progression});
-                const currentPageEnd = currentPageStart + pageWidth;
-                return $it * documentWidth >= currentPageStart &&
-                    $it * documentWidth < currentPageEnd;
-            })();
-            """.trimIndent()
-            )
-        }
-
-        val isPropLocatorOnPage = result?.let { Json.decodeFromString<Boolean?>(it) } ?: false
+            result?.let { Json.decodeFromString<Boolean?>(it) }
+        } ?: propLocator?.locations?.progression?.let {
+            layoutBehavior().isProgressionVisible(this, currentLocator, it)
+        } ?: false
 
         val found = navigator!!.firstVisibleElementLocator()
         if (found == null) {
             // If the locator specified by the prop is still on the page, don't emit
             // a change event. We haven't actually changed the page.
             if (isPropLocatorOnPage) return
-            onLocatorChange(currentLocator.toJSON().toMap())
+            emitLocatorChange(currentLocator)
             return
         }
 
@@ -406,14 +683,115 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             return
         }
 
-        onLocatorChange(merged.toJSON().toMap())
+        emitLocatorChange(merged)
     }
 
-    fun go(locator: Locator) {
+    fun go(locator: Locator, scrollAfterNavigation: Boolean = false) {
         if (locator.href != navigator?.currentLocator?.value?.href) {
             changingResource = true
         }
         navigator!!.go(locator, true)
+        val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
+        if (scrollAfterNavigation) {
+            activity?.lifecycleScope?.launch {
+                scrollFragmentIntoView(locator)
+            }
+        }
+    }
+
+    private suspend fun scrollFragmentIntoView(locator: Locator) {
+        val id = locator.locations.fragments.firstOrNull() ?: return
+        navigator?.evaluateJavascript(
+            """
+            (function() {
+                if (!globalThis.storyteller || !storyteller.scrollElementIntoView) return false;
+                const element = document.getElementById(${JSONObject.quote(id)});
+                return storyteller.scrollElementIntoView(element);
+            })();
+            """.trimIndent()
+        )
+    }
+
+    private suspend fun isAtScrollBoundary(end: Boolean): Boolean {
+        val result = navigator?.evaluateJavascript(
+            """
+            (function() {
+                const scroller = document.scrollingElement || document.documentElement;
+                const viewportHeight = window.innerHeight;
+                const maxScrollTop = Math.max(0, scroller.scrollHeight - viewportHeight);
+                const tolerance = 1;
+
+                return ${if (end) {
+                    "scroller.scrollTop >= maxScrollTop - tolerance"
+                } else {
+                    "scroller.scrollTop <= tolerance"
+                }};
+            })();
+            """.trimIndent()
+        ) ?: return false
+
+        return Json.decodeFromString<Boolean?>(result) ?: false
+    }
+
+    private fun handleScrollModeEdgeTap(goForward: Boolean) {
+        activity?.lifecycleScope?.launch {
+            if (!isAtScrollBoundary(end = goForward)) return@launch
+
+            if (goForward) {
+                navigator?.goForward(animated = true)
+            } else {
+                navigator?.goBackward(animated = true)
+            }
+        }
+    }
+
+    private suspend fun isScrollProgressionVisible(progression: Double): Boolean? {
+        val result = navigator?.evaluateJavascript(
+            """
+            (function() {
+                const scroller = document.scrollingElement || document.documentElement;
+                const viewportHeight = window.innerHeight;
+                const visibleTopProgression = scroller.scrollHeight > 0
+                    ? scroller.scrollTop / scroller.scrollHeight
+                    : 0;
+                const visibleBottomProgression = scroller.scrollHeight > 0
+                    ? (scroller.scrollTop + viewportHeight) / scroller.scrollHeight
+                    : 1;
+
+                return $progression >= visibleTopProgression &&
+                    $progression <= visibleBottomProgression;
+            })();
+            """.trimIndent()
+        ) ?: return null
+
+        return Json.decodeFromString<Boolean?>(result)
+    }
+
+    private suspend fun isPagedProgressionVisible(
+        currentLocator: Locator,
+        progression: Double
+    ): Boolean? {
+        val result = navigator?.evaluateJavascript(
+            """
+            (function() {
+                const width = Android.getViewportWidth();
+                const pageWidth = width / window.devicePixelRatio;
+
+                function snapOffset(offset) {
+                    const value = offset + 1;
+                    return value - (value % pageWidth);
+                }
+
+                const documentWidth = document.scrollingElement.scrollWidth;
+                const currentPageStart = snapOffset(documentWidth * ${currentLocator.locations.progression});
+                const currentPageEnd = currentPageStart + pageWidth;
+                return $progression * documentWidth >= currentPageStart &&
+                    $progression * documentWidth < currentPageEnd;
+            })();
+            """.trimIndent()
+        ) ?: return null
+
+        return Json.decodeFromString<Boolean?>(result)
     }
 
     suspend fun getFragmentPageProportion(fragmentId: String): Map<String, Any>? {
@@ -437,9 +815,23 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     fun handleClipChanged(fragmentId: String, player: AudiobookPlayer) {
-        val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
+        layoutBehavior().handlePlayingFragmentChanged(
+            this,
+            LayoutChange(
+                finalProps = props ?: return,
+                layoutModeChanged = false,
+                enteredPageLayout = false,
+                locatorChangedFromExternalUpdate = false,
+            ),
+            newFragment = fragmentId,
+            oldFragment = null
+        )
+    }
 
-        activity?.lifecycleScope?.launch {
+    private fun schedulePagedClipChanged(fragmentId: String, player: AudiobookPlayer) {
+        val activity = activity ?: return
+
+        activity.lifecycleScope.launch {
             val result = getFragmentPageProportion(fragmentId) ?: return@launch
             val crossesPage = result["crossesPage"] as? Boolean ?: return@launch
             if (!crossesPage) return@launch
@@ -448,6 +840,8 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
             player.scheduleClipEvent(fragmentId, proportion) {
                 activity.lifecycleScope.launch {
+                    if (!layoutBehavior().supportsPagedClipScheduling) return@launch
+
                     val recheck = getFragmentPageProportion(fragmentId)
                     val overflowsRight = (recheck?.get("crossesPage") as? Boolean) ?: false
 
@@ -504,7 +898,76 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     suspend fun findOnPage(locator: Locator) {
+        layoutBehavior().findOnPage(this, locator)
+    }
+
+    private suspend fun findOnPageInScrollLayout(locator: Locator) {
         val epubNav = navigator ?: return
+
+        val bookmarkCandidates = props!!.bookmarks.mapIndexedNotNull { index, bookmark ->
+            if (bookmark.href != locator.href) return@mapIndexedNotNull null
+
+            JSONObject().apply {
+                put("index", index)
+                bookmark.locations.fragments.firstOrNull()?.let { put("fragment", it) }
+                bookmark.locations.progression?.let { put("progression", it) }
+            }
+        }
+
+        val jsBookmarksArray = JSONArray(bookmarkCandidates).toString()
+        val result = epubNav.evaluateJavascript(
+            """
+                (function() {
+                    const bookmarks = $jsBookmarksArray;
+                    const scroller = document.scrollingElement || document.documentElement;
+                    const viewportHeight = window.innerHeight;
+                    const visibleTopProgression = scroller.scrollHeight > 0
+                        ? scroller.scrollTop / scroller.scrollHeight
+                        : 0;
+                    const visibleBottomProgression = scroller.scrollHeight > 0
+                        ? (scroller.scrollTop + viewportHeight) / scroller.scrollHeight
+                        : 1;
+
+                    return bookmarks.filter((bookmark) => {
+                        if (bookmark.fragment) {
+                            const element = document.getElementById(bookmark.fragment);
+                            if (element) {
+                                const rects = Array.from(element.getClientRects());
+                                const visibleRects = rects.length > 0 ? rects : [element.getBoundingClientRect()];
+                                const isVisible = visibleRects.some((rect) => {
+                                    const isVerticallyVisible = rect.bottom >= 0 && rect.top <= viewportHeight;
+                                    const isHorizontallyVisible = rect.right >= 0 && rect.left <= window.innerWidth;
+                                    return isVerticallyVisible && isHorizontallyVisible;
+                                });
+
+                                if (isVisible) return true;
+                            }
+                        }
+
+                        if (typeof bookmark.progression === 'number') {
+                            return bookmark.progression >= visibleTopProgression &&
+                                bookmark.progression <= visibleBottomProgression;
+                        }
+
+                        return false;
+                    }).map((bookmark) => bookmark.index);
+                })();
+                """.trimIndent()
+        ) ?: return onBookmarksActivate(mapOf("activeBookmarks" to listOf<Locator>()))
+
+        val activeIndexes = try {
+            Json.decodeFromString<List<Int>>(result).toSet()
+        } catch (e: Exception) {
+            emptySet()
+        }
+        val found = props!!.bookmarks.filterIndexed { index, _ -> activeIndexes.contains(index) }
+
+        onBookmarksActivate(mapOf("activeBookmarks" to found.map { it.toJSON().toMap() }))
+    }
+
+    private suspend fun findOnPageInPagedLayout(locator: Locator) {
+        val epubNav = navigator ?: return
+
         val currentProgression = locator.locations.progression ?: return
 
         val joinedProgressions =
@@ -627,6 +1090,36 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                         const isHorizontallyWithin = rect.right >= 0 && rect.left <= window.innerWidth;
                         return isVerticallyWithin && isHorizontallyWithin;
                     });
+                }
+
+                storyteller.scrollElementIntoView = function scrollElementIntoView(element) {
+                    if (!element) return false;
+
+                    const rects = Array.from(element.getClientRects())
+                        .filter((rect) => rect.width > 0 && rect.height > 0);
+                    if (rects.length === 0) return false;
+
+                    const top = Math.min(...rects.map((rect) => rect.top));
+                    const bottom = Math.max(...rects.map((rect) => rect.bottom));
+                    const viewportHeight = window.innerHeight;
+                    const viewportCenter = viewportHeight / 2;
+                    const elementCenter = top + ((bottom - top) / 2);
+                    const deadZone = Math.min(36, Math.max(16, viewportHeight * 0.04));
+                    const delta = elementCenter - viewportCenter;
+
+                    if (Math.abs(delta) < deadZone) return false;
+
+                    const scroller = document.scrollingElement || document.documentElement;
+                    const maxScrollTop = Math.max(0, scroller.scrollHeight - viewportHeight);
+                    const targetScrollTop = Math.min(maxScrollTop, Math.max(0, scroller.scrollTop + delta));
+                    if (Math.abs(targetScrollTop - scroller.scrollTop) < 1) return false;
+
+                    try {
+                        scroller.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+                    } catch (_) {
+                        scroller.scrollTop = targetScrollTop;
+                    }
+                    return true;
                 }
 
                 readium.findFirstVisibleLocator = function findFirstVisibleLocator() {

@@ -249,6 +249,7 @@ export type EPUBViewProps = {
   textAlign?: "justify" | "left" | undefined
   fontFamily?: string | undefined
   readaloudColor?: string | undefined
+  scrollMode?: boolean | undefined
   customFonts?: CustomFont[] | undefined
   marginLeft?: number | undefined
   marginRight?: number | undefined

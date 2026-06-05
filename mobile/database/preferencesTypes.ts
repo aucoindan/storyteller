@@ -46,6 +46,7 @@ export const defaultPreferences: Preferences = {
     marginRight: 0,
     columns: "auto",
     animation: true,
+    scroll: false,
   },
   floatingToolbar: false,
   readaloudColor: "yellow",
@@ -84,7 +85,7 @@ type LayoutPreferences = {
   marginRight?: number
   columns: 1 | 2 | "auto"
   animation: boolean
-  // scroll: boolean
+  scroll?: boolean
 }
 
 type AudioPreferences = {

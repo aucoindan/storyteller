@@ -12,6 +12,7 @@ import {
 } from "@/store/selectors/bookshelfSelectors"
 
 import { BookmarkItem } from "./toolbarItems/BookmarkItem"
+import { LayoutItem } from "./toolbarItems/LayoutItem"
 import { NavigationItem } from "./toolbarItems/NavigationItem"
 import { SettingsItem } from "./toolbarItems/SettingsItem"
 import { SleepTimerItem } from "./toolbarItems/SleepTimerItem"
@@ -37,8 +38,14 @@ export function Toolbar({ mode, activeBookmarks }: Props) {
   return (
     <>
       <View className="flex-row items-center gap-1">
+        {mode === "text" && <LayoutItem />}
         {mode === "text" && <SettingsItem />}
-        <SleepTimerItem />
+        {mode === "audio" && <SleepTimerItem />}
+        {mode === "text" && (
+          <View className="xs:flex hidden">
+            <SleepTimerItem />
+          </View>
+        )}
         <SpeedItem />
         <NavigationItem mode={mode} />
         <BookmarkItem activeBookmarks={activeBookmarks} />
