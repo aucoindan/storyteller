@@ -68,6 +68,7 @@ class EpubFragment(
         ).createFragmentFactory(
             listener.props!!.locator,
             listener = listener,
+            paginationListener = listener,
             configuration = EpubNavigatorFragment.Configuration {
                 servedAssets = listOf(
                     "fonts/OpenDyslexic.otf",

@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -85,7 +86,8 @@ data class FinalizedProps(
 
 @SuppressLint("ViewConstructor", "ResourceType")
 class EpubView(context: Context, appContext: AppContext) : ExpoView(context, appContext),
-    EpubNavigatorFragment.Listener, DecorableNavigator.Listener {
+    EpubNavigatorFragment.Listener, EpubNavigatorFragment.PaginationListener,
+    DecorableNavigator.Listener {
 
     companion object {
         var current: EpubView? = null
@@ -160,6 +162,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private var changingResource = false
     private var lastEmittedLocator: Locator? = null
+    private var firstPageLoaded = CompletableDeferred<Unit>()
 
     private val activity: FragmentActivity?
         get() = appContext.currentActivity as FragmentActivity?
@@ -538,7 +541,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             activity?.lifecycleScope?.launch { findOnPage(finalProps.locator!!) }
         }
 
-        if (finalProps.readaloudColor != oldProps?.readaloudColor && finalProps.locator != null) {
+        if (oldProps != null && finalProps.readaloudColor != oldProps.readaloudColor && finalProps.locator != null) {
             clearHighlightFragment()
             highlightFragment(finalProps.locator!!)
         }
@@ -556,6 +559,8 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
         val fragmentTag = resources.getString(R.string.epub_fragment_tag)
         val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
+
+        firstPageLoaded = CompletableDeferred()
 
         val listener = this
         val epubFragment = EpubFragment(
@@ -603,6 +608,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         })
 
         locationEmitter = activity?.lifecycleScope?.launch {
+            firstPageLoaded.await()
             navigator?.currentLocator?.collect {
                 onLocatorChanged(it)
             }
@@ -613,6 +619,9 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     fun destroyNavigator() {
+        locationEmitter?.cancel()
+        locationEmitter = null
+
         val navigator = this.navigator ?: return
         val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
         activity?.supportFragmentManager?.commitNow {
@@ -650,8 +659,9 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             val result = navigator?.evaluateJavascript(
                 """
             (function() {
-                const element = document.getElementById("$it")
-                return storyteller.isEntirelyOnScreen(element);
+                if (!globalThis.storyteller || !storyteller.isFirstClientRectOnScreen) return false;
+                const element = document.getElementById(${JSONObject.quote(it)});
+                return storyteller.isFirstClientRectOnScreen(element);
             })();
             """.trimIndent()
             )
@@ -1092,6 +1102,17 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                     });
                 }
 
+                storyteller.isFirstClientRectOnScreen = function isFirstClientRectOnScreen(element) {
+                    if (!element) return false;
+
+                    const rect = element.getClientRects()[0];
+                    if (!rect) return false;
+
+                    const isVerticallyWithin = rect.bottom >= 0 && rect.top <= window.innerHeight;
+                    const isHorizontallyWithin = rect.right >= 0 && rect.left <= window.innerWidth;
+                    return isVerticallyWithin && isHorizontallyWithin;
+                }
+
                 storyteller.scrollElementIntoView = function scrollElementIntoView(element) {
                     if (!element) return false;
 
@@ -1187,7 +1208,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                     const proportion = visibleWidth / totalWidth;
                     return { crossesPage: overflowsRight, proportionOnCurrentPage: proportion };
                 };
-                
+
                 document.body.firstElementChild.style.paddingLeft = "var(--st-padding-left)";
                 document.body.firstElementChild.style.paddingRight = "var(--st-padding-right)";
                 """.trimIndent()
@@ -1247,4 +1268,12 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     override fun onExternalLinkActivated(url: AbsoluteUrl) {
         TODO("Not yet implemented")
     }
+
+    override fun onPageLoaded() {
+        if (!firstPageLoaded.isCompleted) {
+            firstPageLoaded.complete(Unit)
+        }
+    }
+
+    override fun onPageChanged(pageIndex: Int, totalPages: Int, locator: Locator) = Unit
 }

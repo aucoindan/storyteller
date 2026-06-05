@@ -584,8 +584,9 @@ class EPUBView: ExpoView {
             if let fragment = propLocator?.locations.fragments.first {
                 let result = await epubNav.evaluateJavaScript("""
                     (function() {
-                        const element = document.getElementById("\(fragment)")
-                        return storyteller.isEntirelyOnScreen(element);
+                        if (!globalThis.storyteller || !storyteller.isFirstClientRectOnScreen) return false;
+                        const element = document.getElementById("\(fragment)");
+                        return storyteller.isFirstClientRectOnScreen(element);
                     })();
                 """)
 
@@ -1142,6 +1143,17 @@ extension EPUBView: EPUBNavigatorDelegate {
                     const isHorizontallyWithin = rect.right >= 0 && rect.left <= window.innerWidth;
                     return isVerticallyWithin && isHorizontallyWithin;
                 });
+            }
+
+            storyteller.isFirstClientRectOnScreen = function isFirstClientRectOnScreen(element) {
+                if (!element) return false;
+
+                const rect = element.getClientRects()[0];
+                if (!rect) return false;
+
+                const isVerticallyWithin = rect.bottom >= 0 && rect.top <= window.innerHeight;
+                const isHorizontallyWithin = rect.right >= 0 && rect.left <= window.innerWidth;
+                return isVerticallyWithin && isHorizontallyWithin;
             }
 
             storyteller.scrollElementIntoView = function scrollElementIntoView(element) {
