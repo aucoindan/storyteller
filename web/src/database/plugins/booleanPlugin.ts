@@ -79,7 +79,7 @@ export class BooleanPlugin<DB> implements KyselyPlugin {
     return Object.keys(row).reduce<UnknownRow>((obj, key) => {
       let value = row[key]
       if (Array.isArray(value)) {
-        value = value.map((it) => this.mapRow(it as UnknownRow))
+        value = value.map((it: unknown) => (canMap(it) ? this.mapRow(it) : it))
       } else if (canMap(value)) {
         value = this.mapRow(value)
       }
