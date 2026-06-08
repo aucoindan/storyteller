@@ -2,8 +2,7 @@ import assert from "assert"
 import { describe, it } from "node:test"
 import { join } from "path"
 
-import epubchecker from "epubchecker"
-
+import { epubcheck } from "./epubcheck.ts"
 import { Epub, type XmlTextNode } from "./index.ts"
 
 void describe("upgradeToEpub3", () => {
@@ -34,7 +33,7 @@ void describe("upgradeToEpub3", () => {
     const titleText = (Epub.getXmlChildren(title)[0] as XmlTextNode)["#text"]
     assert.strictEqual(titleText, '"Cover"')
 
-    const report = await epubchecker(outputFilepath)
+    const report = await epubcheck(outputFilepath)
 
     const { messages } = report
     messages

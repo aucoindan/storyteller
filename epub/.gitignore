@@ -11,3 +11,6 @@ __fixtures__/__output__
 gen/
 
 dist/
+
+# extracted on demand from vendors/epubcheck-*.zip by scripts/install-epubcheck.mjs
+vendors/epubcheck-*/
