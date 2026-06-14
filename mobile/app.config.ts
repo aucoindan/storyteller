@@ -27,6 +27,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             "Allow Storyteller to use the camera to scan QR codes for device sign-in.",
         },
       ],
+      "expo-image",
+      "expo-sharing",
       "expo-web-browser",
       "expo-router",
       "expo-secure-store",
@@ -34,7 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "expo-build-properties",
         {
           ios: {
-            deploymentTarget: "16.0",
+            deploymentTarget: "16.4",
             extraPods: [
               { name: "Minizip", modular_headers: true },
               { name: "ZIPFoundation", version: "~> 0.9" },
@@ -73,9 +75,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             ],
           },
           android: {
-            compileSdkVersion: 35,
-            targetSdkVersion: 35,
-            buildToolsVersion: "35.0.0",
+            compileSdkVersion: 36,
+            targetSdkVersion: 36,
+            buildToolsVersion: "36.0.0",
             usesCleartextTraffic: true,
           },
         },
@@ -115,12 +117,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       ],
       [
-        "react-native-edge-to-edge",
+        "expo-navigation-bar",
         {
-          android: {
-            parentTheme: "Default",
-            enforceNavigationBarContrast: false,
-          },
+          enforceContrast: false,
         },
       ],
       ["./plugins/withAndroidJetifier.ts"],
