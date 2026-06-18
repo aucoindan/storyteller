@@ -43,6 +43,22 @@ export default function BookScreen() {
     dispatch(bookshelfSlice.actions.bookOpened({ bookUuid: uuid, format }))
   }, [dispatch, format, uuid])
 
+  useEffect(() => {
+    dispatch(
+      bookshelfSlice.actions.playbackSpeedContextChanged({
+        context: format === "readaloud" && showEpub ? "reading" : "listening",
+      }),
+    )
+
+    return () => {
+      dispatch(
+        bookshelfSlice.actions.playbackSpeedContextChanged({
+          context: "listening",
+        }),
+      )
+    }
+  }, [dispatch, format, showEpub])
+
   if (!showEpub || !book || !locator) return <LoadingView />
 
   return <Epub key={book.uuid} format={format} book={book} locator={locator} />

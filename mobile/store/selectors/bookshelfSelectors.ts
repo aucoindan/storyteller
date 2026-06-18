@@ -1,5 +1,6 @@
 import { createSelector } from "@reduxjs/toolkit"
 
+import { type BookPreferences } from "@/database/preferencesTypes"
 import { type RootState } from "@/store/appState"
 import { localApi } from "@/store/localApi"
 import { type UUID } from "@/uuid"
@@ -79,7 +80,21 @@ export function getPlaybackRate(state: RootState) {
   const preferences = localApi.endpoints.getBookPreferences.select({
     uuid: bookUuid,
   })(state)
-  return preferences.data?.audio?.speed ?? 1
+  return getPlaybackRateFromAudioPreferences(
+    preferences.data?.audio,
+    state.bookshelf.playbackSpeedContext,
+  )
+}
+
+export function getPlaybackRateFromAudioPreferences(
+  audioPreferences: BookPreferences["audio"],
+  context: "listening" | "reading",
+) {
+  const listeningSpeed = audioPreferences?.speed ?? 1
+  if (context === "reading") {
+    return audioPreferences?.readaloudSpeed ?? listeningSpeed
+  }
+  return listeningSpeed
 }
 
 export const getFormattedPosition = createSelector(

@@ -90,6 +90,7 @@ type LayoutPreferences = {
 
 type AudioPreferences = {
   speed: number
+  readaloudSpeed: number
 }
 
 type AutomaticRewindPreferences = {

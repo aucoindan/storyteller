@@ -23,6 +23,7 @@ import {
   getLocalBookExtractedUrl,
   getLocalBookFileUrl,
 } from "@/store/persistence/files"
+import { getPlaybackRateFromAudioPreferences } from "@/store/selectors/bookshelfSelectors"
 import { getCoverUrl } from "@/store/serverApi"
 import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 import { randomUUID } from "@/uuid"
@@ -293,7 +294,10 @@ startAppListening({
 
       listenerApi.throwIfCancelled()
 
-      const playerSpeed = bookPreferences.audio?.speed ?? 1
+      const playerSpeed = getPlaybackRateFromAudioPreferences(
+        bookPreferences.audio,
+        listenerApi.getState().bookshelf.playbackSpeedContext,
+      )
       logger.debug(`Loading tracks into audio player`)
       await Storyteller.loadTracks(tracks)
       logger.debug(`Setting playback rate to ${playerSpeed}`)

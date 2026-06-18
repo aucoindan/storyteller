@@ -22,6 +22,7 @@ export type ReturnToPosition = {
 export type BookshelfState = {
   currentlyPlayingBookUuid: UUID | null
   currentlyPlayingFormat: "readaloud" | "ebook" | "audiobook" | null
+  playbackSpeedContext: "listening" | "reading"
   isAudioLoading: boolean
   sleepTimer: number | null | undefined
   tracks: StorytellerTrack[]
@@ -36,6 +37,7 @@ export type BookshelfState = {
 const initialState: BookshelfState = {
   currentlyPlayingBookUuid: null,
   currentlyPlayingFormat: null,
+  playbackSpeedContext: "listening",
   isAudioLoading: false,
   sleepTimer: null,
   tracks: [],
@@ -89,6 +91,12 @@ export const bookshelfSlice = createSlice({
       state.isAudioLoading = false
       state.tracks = action.payload.tracks
     },
+    playbackSpeedContextChanged(
+      state,
+      action: PayloadAction<{ context: "listening" | "reading" }>,
+    ) {
+      state.playbackSpeedContext = action.payload.context
+    },
     audioPositionChanged(state, action: PayloadAction<{ position: number }>) {
       state.position = action.payload.position
     },
@@ -135,6 +143,7 @@ export const bookshelfSlice = createSlice({
       if (state.currentlyPlayingBookUuid === bookUuid) {
         state.currentlyPlayingBookUuid = null
         state.currentlyPlayingFormat = null
+        state.playbackSpeedContext = "listening"
         state.isAudioLoading = false
         state.tracks = []
         state.position = 0
@@ -153,6 +162,7 @@ export const bookshelfSlice = createSlice({
       state.isPlaying = false
       state.currentlyPlayingBookUuid = null
       state.currentlyPlayingFormat = null
+      state.playbackSpeedContext = "listening"
       state.currentTrack = null
       state.currentTrackIndex = 0
     },
@@ -181,6 +191,7 @@ export const bookshelfSlice = createSlice({
           state.isAudioLoading = false
           state.currentlyPlayingBookUuid = null
           state.currentlyPlayingFormat = null
+          state.playbackSpeedContext = "listening"
           state.tracks = []
           state.position = 0
           state.isPlaying = false

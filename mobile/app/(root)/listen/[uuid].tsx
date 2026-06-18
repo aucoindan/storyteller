@@ -96,6 +96,14 @@ export default function PlayerScreen() {
   }, [eagerProgress, rate, duration])
 
   useEffect(() => {
+    dispatch(
+      bookshelfSlice.actions.playbackSpeedContextChanged({
+        context: "listening",
+      }),
+    )
+  }, [dispatch])
+
+  useEffect(() => {
     dispatch(bookshelfSlice.actions.bookOpened({ bookUuid: uuid, format }))
   }, [dispatch, format, uuid])
 

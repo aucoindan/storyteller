@@ -110,7 +110,9 @@ export function SpeedMenuContent({
         }
       : skipToken,
   )
-  const speed = bookPreferences?.audio?.speed ?? 1
+  const listeningSpeed = bookPreferences?.audio?.speed ?? 1
+  const readaloudSpeed =
+    bookPreferences?.audio?.readaloudSpeed ?? listeningSpeed
 
   const [updateBookPreference] = useUpdateBookPreferenceMutation()
 
@@ -122,8 +124,8 @@ export function SpeedMenuContent({
         <Text>Playback speed</Text>
       </Group>
       <SpeedControl
-        label="Playback"
-        value={speed}
+        label="Listening"
+        value={listeningSpeed}
         onChange={(speed) => {
           updateBookPreference({
             bookUuid,
@@ -131,6 +133,20 @@ export function SpeedMenuContent({
             value: {
               ...bookPreferences?.audio,
               speed,
+            },
+          })
+        }}
+      />
+      <SpeedControl
+        label="Readaloud"
+        value={readaloudSpeed}
+        onChange={(readaloudSpeed) => {
+          updateBookPreference({
+            bookUuid,
+            name: "audio",
+            value: {
+              ...bookPreferences?.audio,
+              readaloudSpeed,
             },
           })
         }}

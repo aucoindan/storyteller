@@ -20,6 +20,7 @@ import { localApi } from "@/store/localApi"
 import {
   getCurrentlyPlayingBookUuid,
   getCurrentlyPlayingFormat,
+  getPlaybackRateFromAudioPreferences,
 } from "@/store/selectors/bookshelfSelectors"
 import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 import { type UUID } from "@/uuid"
@@ -36,7 +37,7 @@ const speedChangedPredicate = (
       originalArgs: {
         bookUuid: UUID
         name: "audio"
-        value: Required<NonNullable<BookPreferences["audio"]>>
+        value: NonNullable<BookPreferences["audio"]>
       }
     }
   }
@@ -44,18 +45,62 @@ const speedChangedPredicate = (
   return (
     localApi.endpoints.updateBookPreference.matchFulfilled(action) &&
     action.meta.arg.originalArgs.name === "audio" &&
-    (action.meta.arg.originalArgs.value as BookPreferences["audio"])?.speed !==
-      undefined
+    ((action.meta.arg.originalArgs.value as BookPreferences["audio"])?.speed !==
+      undefined ||
+      (action.meta.arg.originalArgs.value as BookPreferences["audio"])
+        ?.readaloudSpeed !== undefined)
   )
 }
 
 startAppListening({
   predicate: speedChangedPredicate,
-  effect: async (action) => {
-    const speed = action.meta.arg.originalArgs.value.speed
+  effect: async (action, listenerApi) => {
+    const state = listenerApi.getState()
+    if (
+      action.meta.arg.originalArgs.bookUuid !==
+      getCurrentlyPlayingBookUuid(state)
+    ) {
+      return
+    }
+
+    const speed = getPlaybackRateFromAudioPreferences(
+      action.meta.arg.originalArgs.value,
+      state.bookshelf.playbackSpeedContext,
+    )
 
     logger.debug(
       `Playback speed changed for current book, updating to ${speed}`,
+    )
+    await Storyteller.setRate(speed)
+  },
+})
+
+startAppListening({
+  actionCreator: bookshelfSlice.actions.playbackSpeedContextChanged,
+  effect: async (action, listenerApi) => {
+    listenerApi.cancelActiveListeners()
+
+    const bookUuid = getCurrentlyPlayingBookUuid(listenerApi.getState())
+    if (!bookUuid) return
+
+    const bookPreferences = await listenerApi
+      .dispatch(
+        localApi.endpoints.getBookPreferences.initiate(
+          { uuid: bookUuid },
+          { subscribe: false },
+        ),
+      )
+      .unwrap()
+
+    listenerApi.throwIfCancelled()
+
+    const speed = getPlaybackRateFromAudioPreferences(
+      bookPreferences.audio,
+      action.payload.context,
+    )
+
+    logger.debug(
+      `Playback speed context changed to ${action.payload.context}, updating to ${speed}`,
     )
     await Storyteller.setRate(speed)
   },
