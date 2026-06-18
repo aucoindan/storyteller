@@ -75,6 +75,7 @@ class EpubFragment(
                     "fonts/Literata_500Medium.ttf"
                 )
                 shouldApplyInsetsPadding = false
+                disablePageTurnsWhileScrolling = true
 
                 addFontFamilyDeclaration(FontFamily("OpenDyslexic")) {
                     addFontFace {

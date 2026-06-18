@@ -163,6 +163,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     private var changingResource = false
     private var lastEmittedLocator: Locator? = null
     private var firstPageLoaded = CompletableDeferred<Unit>()
+    private val scrollModeChapterNavigator = ScrollModeChapterNavigator()
 
     private val activity: FragmentActivity?
         get() = appContext.currentActivity as FragmentActivity?
@@ -184,7 +185,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         textAlign = null,
         marginLeft = null,
         marginRight = null,
-        scrollMode = null,
+        scrollMode = null
     )
     var props: FinalizedProps? = null
 
@@ -396,12 +397,17 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             val horizontalEdgeSize = maxOf(80.0, 0.3 * width)
             val x = event.point.x.toDouble()
 
-            when {
-                x <= horizontalEdgeSize -> view.handleScrollModeEdgeTap(goForward = false)
-                x >= width - horizontalEdgeSize -> view.handleScrollModeEdgeTap(goForward = true)
+            return when {
+                x <= horizontalEdgeSize -> {
+                    view.handleScrollModeEdgeTap(goForward = false)
+                    true
+                }
+                x >= width - horizontalEdgeSize -> {
+                    view.handleScrollModeEdgeTap(goForward = true)
+                    true
+                }
+                else -> false
             }
-
-            return false
         }
 
         override suspend fun isProgressionVisible(
@@ -473,7 +479,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                 textAlign = pendingProps.textAlign ?: oldProps?.textAlign ?: TextAlign.JUSTIFY,
                 marginLeft = pendingProps.marginLeft ?: oldProps?.marginLeft ?: 0,
                 marginRight = pendingProps.marginRight ?: oldProps?.marginRight ?: 0,
-                scrollMode = pendingProps.scrollMode ?: oldProps?.scrollMode ?: false,
+                scrollMode = pendingProps.scrollMode ?: oldProps?.scrollMode ?: false
             )
 
         props = finalProps
@@ -490,7 +496,10 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         )
         val layoutBehavior = layoutBehavior(finalProps)
 
-        if (finalProps.bookUuid != oldProps?.bookUuid || finalProps.customFonts != oldProps?.customFonts) {
+        if (
+            finalProps.bookUuid != oldProps?.bookUuid ||
+            finalProps.customFonts != oldProps?.customFonts
+        ) {
             destroyNavigator()
             initializeNavigator()
         }
@@ -745,14 +754,44 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private fun handleScrollModeEdgeTap(goForward: Boolean) {
         activity?.lifecycleScope?.launch {
-            if (!isAtScrollBoundary(end = goForward)) return@launch
-
-            if (goForward) {
-                navigator?.goForward(animated = true)
+            if (isAtScrollBoundary(end = goForward)) {
+                val navigator = navigator ?: return@launch
+                if (goForward) {
+                    scrollModeChapterNavigator.goForward(navigator, animated = true)
+                } else {
+                    scrollModeChapterNavigator.goBackward(navigator, animated = true)
+                }
             } else {
-                navigator?.goBackward(animated = true)
+                scrollCurrentResource(goForward = goForward)
             }
         }
+    }
+
+    private suspend fun scrollCurrentResource(goForward: Boolean): Boolean {
+        val direction = if (goForward) 1 else -1
+        val result = navigator?.evaluateJavascript(
+            """
+            (function() {
+                const scroller = document.scrollingElement || document.documentElement;
+                const viewportHeight = window.innerHeight;
+                const maxScrollTop = Math.max(0, scroller.scrollHeight - viewportHeight);
+                const delta = Math.max(96, viewportHeight * 0.65) * $direction;
+                const targetScrollTop = Math.min(maxScrollTop, Math.max(0, scroller.scrollTop + delta));
+
+                if (Math.abs(targetScrollTop - scroller.scrollTop) < 1) return false;
+
+                try {
+                    scroller.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+                } catch (_) {
+                    scroller.scrollTop = targetScrollTop;
+                }
+
+                return true;
+            })();
+            """.trimIndent()
+        ) ?: return false
+
+        return Json.decodeFromString<Boolean?>(result) ?: false
     }
 
     private suspend fun isScrollProgressionVisible(progression: Double): Boolean? {

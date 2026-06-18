@@ -253,13 +253,19 @@ private struct ScrollEPUBLayoutBehavior: EPUBLayoutBehavior {
     }
 
     func goBackwardFromScript(on view: EPUBView) async {
-        guard await view.isAtScrollBoundary(end: false) else { return }
-        await view.navigator?.goBackward(options: .animated)
+        if await view.isAtScrollBoundary(end: false) {
+            await view.navigator?.goBackward(options: .animated)
+        } else {
+            await view.scrollCurrentResource(goForward: false)
+        }
     }
 
     func goForwardFromScript(on view: EPUBView) async {
-        guard await view.isAtScrollBoundary(end: true) else { return }
-        await view.navigator?.goForward(options: .animated)
+        if await view.isAtScrollBoundary(end: true) {
+            await view.navigator?.goForward(options: .animated)
+        } else {
+            await view.scrollCurrentResource(goForward: true)
+        }
     }
 }
 
@@ -514,6 +520,7 @@ class EPUBView: ExpoView {
                 defaults: EPUBDefaults(
                     publisherStyles: false
                 ),
+                disablePageTurnsWhileScrolling: true,
                 decorationTemplates: templates,
                 fontFamilyDeclarations: fontFamilyDeclarations
             ),
@@ -723,6 +730,31 @@ class EPUBView: ExpoView {
             print(e)
             return false
         }
+    }
+
+    func scrollCurrentResource(goForward: Bool) async {
+        guard let navigator else { return }
+
+        let direction = goForward ? 1 : -1
+        _ = await navigator.evaluateJavaScript("""
+            (function() {
+                const scroller = document.scrollingElement || document.documentElement;
+                const viewportHeight = window.innerHeight;
+                const maxScrollTop = Math.max(0, scroller.scrollHeight - viewportHeight);
+                const delta = Math.max(96, viewportHeight * 0.65) * \(direction);
+                const targetScrollTop = Math.min(maxScrollTop, Math.max(0, scroller.scrollTop + delta));
+
+                if (Math.abs(targetScrollTop - scroller.scrollTop) < 1) return false;
+
+                try {
+                    scroller.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+                } catch (_) {
+                    scroller.scrollTop = targetScrollTop;
+                }
+
+                return true;
+            })();
+        """)
     }
 
     fileprivate func isScrollProgressionVisible(progression: Double) async -> Bool? {
