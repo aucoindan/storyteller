@@ -27,7 +27,7 @@ export default async function SettingsPage() {
         <Title order={2}>Settings</Title>
         <Button
           component="a"
-          href="/api/v2/settings"
+          href="/api/v2/settings?exportConfig=true"
           download="storyteller-config.json"
           variant="subtle"
           size="sm"

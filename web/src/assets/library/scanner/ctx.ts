@@ -1,6 +1,7 @@
 import { type Logger } from "pino"
 
 import {
+  type Epub2ImportStrategy,
   type ImportMode,
   type MetadataFieldOverrides,
 } from "@/database/settingsTypes"
@@ -21,6 +22,8 @@ export type ScanOptions = {
   concurrency?: number
   /** Override the resolved import mode for this scan run. */
   importMode?: ImportMode
+  /** Override the EPUB 2 import strategy for this scan run. */
+  epub2ImportStrategy?: Epub2ImportStrategy
 }
 
 export type ScanCtx = {

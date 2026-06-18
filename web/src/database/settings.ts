@@ -9,6 +9,7 @@ import { logger } from "@/logging"
 import { db } from "./connection"
 import {
   ConfigFileSchema,
+  type Epub2ImportStrategy,
   type ImportMode,
   ImportRuleSchema,
   type Settings,
@@ -35,6 +36,7 @@ export type ConfigImportRuleEntry = {
   kind: "watch" | "ignore"
   path: string
   importMode: ImportMode | null
+  epub2ImportStrategy: Epub2ImportStrategy | null
 }
 
 type ConfigFileCache = {
@@ -139,6 +141,7 @@ function loadConfigFile(): ConfigFileCache {
       kind: "watch" as const,
       path: e.path,
       importMode: ("importMode" in e ? e.importMode : null) ?? null,
+      epub2ImportStrategy: null,
     }))
   }
 
@@ -155,6 +158,7 @@ function loadConfigFile(): ConfigFileCache {
       kind: rule.kind,
       path: rule.path,
       importMode: rule.importMode ?? null,
+      epub2ImportStrategy: rule.epub2ImportStrategy ?? null,
     })
   }
 

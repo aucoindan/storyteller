@@ -23,6 +23,7 @@ type Relocator = (source: string, destination: string) => Promise<void>
 function resolveRelocator(
   importMode: Exclude<ImportMode, "reference">,
   bookUuid: BookWithRelations["uuid"],
+  ignorePath?: string,
 ): Relocator {
   let resolver: Relocator
 
@@ -44,8 +45,10 @@ function resolveRelocator(
     try {
       // doesn't make sense to add for move
       if (importMode === "hardlink" || importMode === "copy") {
-        // make sure og file that's left behind isnt reimported
-        await addIgnoreRule(source, {
+        // make sure og file that's left behind isnt reimported. ignorePath
+        // lets callers ignore the original source when the bytes we copy from
+        // live somewhere else (e.g. the tmp epub3 upgrade in copy mode).
+        await addIgnoreRule(ignorePath ?? source, {
           source: "import-relocate",
           bookUuid,
         })
@@ -69,17 +72,18 @@ export type RelocateResult = {
 }
 
 /**
- * For non-reference import modes, move/hardlink/reflink the file into the
- * book's internal directory and update the corresponding format-relation's
- * filepath in the DB. Returns the post-relocation book and filepath.
+ * move the file depending on the import mode, and update the format in the db.
  *
- * For `reference` mode, no-op: returns the original book and filepath.
+ * `ignorePath` overrides which path the import-relocate ignore rule records.
+ * pass it when `filepath` is a copy of the real source (e.g. a tmp epub3
+ * upgrade) so the original on-disk file gets ignored, not the throwaway copy.
  */
 export async function relocateIfNeeded(
   book: BookWithRelations,
   filepath: string,
   format: ScanFormat,
   importMode: ImportMode,
+  ignorePath?: string,
 ): Promise<RelocateResult> {
   if (importMode === "reference") {
     return { book, filepath }
@@ -88,7 +92,7 @@ export async function relocateIfNeeded(
     return { book, filepath }
   }
 
-  const relocator = resolveRelocator(importMode, book.uuid)
+  const relocator = resolveRelocator(importMode, book.uuid, ignorePath)
 
   if (format === "ebook") {
     const dest = getInternalEpubFilepath(book)

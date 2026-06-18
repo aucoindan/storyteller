@@ -522,7 +522,8 @@ CREATE TABLE import_rule (
       'prevent-reimport'
     )
   ),
-  book_uuid text DEFAULT NULL REFERENCES book (uuid) ON DELETE CASCADE
+  book_uuid text DEFAULT NULL REFERENCES book (uuid) ON DELETE CASCADE,
+  epub2_import_strategy TEXT DEFAULT NULL
 );
 
 CREATE UNIQUE INDEX idx_import_rule_path ON import_rule (path);

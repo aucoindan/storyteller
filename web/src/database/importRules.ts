@@ -8,8 +8,11 @@ import { type UUID } from "@/uuid"
 import { db } from "./connection"
 import { type DB } from "./schema"
 import { getConfigImportRules } from "./settings"
+import { type Epub2ImportStrategy } from "./settingsTypes"
 
-export type ImportRule = Selectable<DB["importRule"]>
+export type ImportRule = Omit<Selectable<DB["importRule"]>, "source"> & {
+  source: Selectable<DB["importRule"]>["source"] | "config"
+}
 export type ImportRuleKind = ImportRule["kind"]
 
 export type ImportRuleWithCollections = ImportRule & {
@@ -39,19 +42,26 @@ function getConfigRuleObjects(): ImportRuleWithCollections[] {
     kind: entry.kind,
     path: entry.path,
     importMode: entry.importMode ?? null,
+    epub2ImportStrategy: entry.epub2ImportStrategy ?? null,
     source: "config" as const,
     bookUuid: null,
     createdAt: now,
     updatedAt: now,
     collections: [],
     bookTitle: null,
-  }))
+  })) as ImportRuleWithCollections[]
 
   return globalThis._configImportRuleObjects
 }
 
-export function isConfigImportRule(uuid: UUID): boolean {
-  return getConfigRuleObjects().some((r) => r.uuid === uuid)
+/**
+ * Check if a rule is a config rule.
+ */
+export function isConfigImportRule(
+  kind: ImportRuleKind,
+  path: string,
+): boolean {
+  return getConfigRuleObjects().some((r) => r.kind === kind && r.path === path)
 }
 
 export async function getImportRules(
@@ -151,13 +161,14 @@ export type CreateImportRuleInput = {
   kind: ImportRuleKind
   path: string
   importMode?: ImportMode | null
+  epub2ImportStrategy?: Epub2ImportStrategy | null
   collectionUuids?: UUID[]
 }
 
 export async function createImportRule(
   input: CreateImportRuleInput,
 ): Promise<ImportRuleWithCollections> {
-  const { kind, path, importMode, collectionUuids } = input
+  const { kind, path, importMode, epub2ImportStrategy, collectionUuids } = input
 
   return await db.transaction().execute(async (tr) => {
     const { uuid } = await tr
@@ -166,6 +177,7 @@ export async function createImportRule(
         kind,
         path,
         importMode: importMode ?? null,
+        epub2ImportStrategy: epub2ImportStrategy ?? null,
       })
       .returning(["uuid"])
       .executeTakeFirstOrThrow()
@@ -214,6 +226,7 @@ export async function createImportRule(
 export type UpdateImportRuleInput = {
   path?: string
   importMode?: string | null
+  epub2ImportStrategy?: string | null
   collectionUuids?: UUID[]
 }
 
@@ -228,6 +241,9 @@ export async function updateImportRule(
     }
     if (input.importMode !== undefined) {
       updates["importMode"] = input.importMode
+    }
+    if (input.epub2ImportStrategy !== undefined) {
+      updates["epub2ImportStrategy"] = input.epub2ImportStrategy
     }
 
     if (Object.keys(updates).length > 0) {
@@ -296,7 +312,10 @@ export async function deleteImportRules(uuids: UUID[]) {
 
 export async function addIgnoreRule(
   path: string,
-  attribution?: { source?: ImportRuleSource; bookUuid?: UUID | null },
+  attribution?: {
+    source?: Exclude<ImportRuleSource, "config">
+    bookUuid?: UUID | null
+  },
 ) {
   await db
     .insertInto("importRule")

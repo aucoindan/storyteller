@@ -1,7 +1,10 @@
 import { type BookWithRelations, getBooks } from "@/database/books"
 import { getWatchRules } from "@/database/importRules"
 import { getSetting } from "@/database/settings"
-import { type ImportMode } from "@/database/settingsTypes"
+import {
+  type Epub2ImportStrategy,
+  type ImportMode,
+} from "@/database/settingsTypes"
 import { logger } from "@/logging"
 import { type UUID } from "@/uuid"
 
@@ -30,7 +33,12 @@ export type ScanRequest =
   | { kind: "folders"; folders: string[]; collections?: UUID[] }
   | {
       kind: "roots"
-      roots: { path: string; collections?: UUID[]; importMode?: ImportMode }[]
+      roots: {
+        path: string
+        collections?: UUID[]
+        importMode?: ImportMode
+        epub2ImportStrategy?: Epub2ImportStrategy
+      }[]
       includeOrphanedBooks?: boolean
     }
   | { kind: "candidates"; candidates: Candidate[] }
@@ -145,6 +153,7 @@ async function materializeCandidates(
           books,
           collections: request.collections,
           importMode: ctx.options.importMode,
+          epub2ImportStrategy: ctx.options.epub2ImportStrategy,
         },
         ctx,
       )
@@ -180,6 +189,7 @@ async function materializeCandidates(
           warnIfFileAtRoot: true,
           importRoot: canonicalRoot,
           importMode: root.importMode,
+          epub2ImportStrategy: root.epub2ImportStrategy,
         },
         ctx,
       )
@@ -307,6 +317,7 @@ export async function scanLibrary(opts: {
     path: rule.path,
     collections: rule.collections.map((c) => c.uuid),
     importMode: rule.importMode ?? undefined,
+    epub2ImportStrategy: rule.epub2ImportStrategy ?? undefined,
   }))
 
   return scan({

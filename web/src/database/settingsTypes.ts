@@ -125,9 +125,21 @@ export const ImportRuleSchema = z.object({
   kind: z.enum(["watch", "ignore"]),
   path: z.string(),
   importMode: ImportModeSchema.nullish(),
+  epub2ImportStrategy: Epub2ImportStrategySchema.nullish(),
 })
 
 export type ImportRule = z.infer<typeof ImportRuleSchema>
+
+export const ImportRuleInputSchema = z.object({
+  uuid: z.string().optional(),
+  kind: z.enum(["watch", "ignore"]),
+  path: z.string(),
+  importMode: ImportModeSchema.nullish(),
+  epub2ImportStrategy: Epub2ImportStrategySchema.nullish(),
+  collectionUuids: z.array(z.string()).optional(),
+})
+
+export type ImportRuleInput = z.infer<typeof ImportRuleInputSchema>
 
 // Main settings schema
 export const SettingsSchema = z.object({
@@ -189,6 +201,21 @@ export const SettingsSchema = z.object({
   // EPUB 2 import settings
   epub2ImportStrategy: Epub2ImportStrategySchema,
   epub2BackupSuffix: z.string(),
+  // Import rules (user-managed, editable)
+  importRules: z.array(ImportRuleInputSchema).optional(),
+  // Auto-ignore rules (system-generated, read-only display)
+  autoIgnoreRules: z
+    .array(
+      z.object({
+        uuid: z.string(),
+        path: z.string(),
+        source: z.string(),
+        bookTitle: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
+  // UUIDs of auto-ignore rules to delete on save
+  deleteRuleUuids: z.array(z.string()).optional(),
   // Cache cleanup
   cleanCacheAfterReadaloud: z.boolean(),
 })

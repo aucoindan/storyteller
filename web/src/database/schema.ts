@@ -170,11 +170,14 @@ export interface Ebook {
 export interface ImportRule {
   bookUuid: import("@/uuid").UUID | null
   createdAt: Generated<string>
+  epub2ImportStrategy:
+    | import("@/database/settingsTypes").Epub2ImportStrategy
+    | null
   importMode: import("@/database/settingsTypes").ImportMode | null
   kind: "watch" | "ignore"
   path: string
   source: Generated<
-    "user" | "import-relocate" | "import-backup" | "prevent-reimport" | "config"
+    "user" | "import-relocate" | "import-backup" | "prevent-reimport"
   >
   updatedAt: Generated<string>
   uuid: Generated<import("@/uuid").UUID>

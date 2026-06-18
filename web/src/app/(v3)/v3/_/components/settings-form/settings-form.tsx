@@ -366,7 +366,7 @@ export function SettingsForm({
                   <TooltipTrigger
                     render={
                       <Link
-                        href="/api/v2/settings"
+                        href="/api/v2/settings?exportConfig=true"
                         aria-label="Export settings as JSON"
                         download="storyteller-config.json"
                       >

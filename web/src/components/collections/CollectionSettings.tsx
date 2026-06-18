@@ -1,7 +1,6 @@
 "use client"
 import {
   ActionIcon,
-  Anchor,
   Button,
   Checkbox,
   Group,
@@ -20,50 +19,11 @@ import { useEffect, useRef } from "react"
 import { UserSelect } from "@/components/books/edit/UserSelect"
 import {
   useDeleteCollectionMutation,
-  useGetImportRulesQuery,
   useListCollectionsQuery,
   useListUsersQuery,
   useUpdateCollectionMutation,
 } from "@/store/api"
 import { type UUID } from "@/uuid"
-
-function LinkedImportRules({ collectionUuid }: { collectionUuid: UUID }) {
-  const { data: allRules = [] } = useGetImportRulesQuery()
-
-  const linkedRules = allRules.filter(
-    (r) =>
-      r.kind === "watch" &&
-      r.collections.some((c) => c.uuid === collectionUuid),
-  )
-
-  if (linkedRules.length === 0) {
-    return (
-      <Text className="text-sm opacity-70">
-        No import rules are configured for this collection.{" "}
-        <Anchor href="/settings" size="sm">
-          Configure in settings
-        </Anchor>
-      </Text>
-    )
-  }
-
-  return (
-    <Stack gap="xs">
-      <Text className="text-sm font-medium">Import rules</Text>
-
-      {linkedRules.map((rule) => (
-        <Text key={rule.uuid} className="text-sm opacity-70">
-          Watch: {rule.path}
-          {rule.importMode ? ` (${rule.importMode})` : ""}
-        </Text>
-      ))}
-
-      <Anchor href="/settings" size="sm">
-        Edit import rules in settings
-      </Anchor>
-    </Stack>
-  )
-}
 
 interface Props {
   uuid: UUID
@@ -177,7 +137,6 @@ export function CollectionSettings({ uuid }: Props) {
               description="Whether this collection (and its books) should be visible to all users"
               {...form.getInputProps("public", { type: "checkbox" })}
             />
-            <LinkedImportRules collectionUuid={uuid} />
             {!form.values.public && (
               <UserSelect
                 label="Share with"

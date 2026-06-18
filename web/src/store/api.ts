@@ -20,7 +20,6 @@ import {
 import { type ChangelogEntry } from "@/database/changelog"
 import { type CollectionWithRelations } from "@/database/collections"
 import { type Creator } from "@/database/creators"
-import { type ImportRuleWithCollections } from "@/database/importRules"
 import { type Position } from "@/database/positions"
 import {
   type NewSeries,
@@ -28,6 +27,7 @@ import {
   type Series,
 } from "@/database/series"
 import {
+  type Epub2ImportStrategy,
   type ImportMode,
   type MetadataFieldOverrides,
 } from "@/database/settingsTypes"
@@ -263,61 +263,6 @@ export const api = createApi({
         params: { format },
       }),
     }),
-    getImportRules: build.query<ImportRuleWithCollections[], void>({
-      query: () => `/import-rules`,
-      providesTags: ["ImportRules"],
-    }),
-    getUserImportRules: build.query<ImportRuleWithCollections[], void>({
-      query: () => `/import-rules?source=user`,
-      providesTags: ["ImportRules"],
-    }),
-    createImportRule: build.mutation<
-      ImportRuleWithCollections,
-      {
-        kind: "watch" | "ignore"
-        path: string
-        importMode?: string | null
-        collectionUuids?: UUID[]
-      }
-    >({
-      query: (body) => ({
-        url: `/import-rules`,
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: ["ImportRules"],
-    }),
-    updateImportRule: build.mutation<
-      ImportRuleWithCollections,
-      {
-        uuid: UUID
-        path?: string
-        importMode?: string | null
-        collectionUuids?: UUID[]
-      }
-    >({
-      query: ({ uuid, ...body }) => ({
-        url: `/import-rules/${uuid}`,
-        method: "PUT",
-        body,
-      }),
-      invalidatesTags: ["ImportRules"],
-    }),
-    deleteImportRule: build.mutation<void, { uuid: UUID }>({
-      query: ({ uuid }) => ({
-        url: `/import-rules/${uuid}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: ["ImportRules"],
-    }),
-    deleteImportRules: build.mutation<void, { uuids: UUID[] }>({
-      query: ({ uuids }) => ({
-        url: `/import-rules`,
-        method: "DELETE",
-        body: { uuids },
-      }),
-      invalidatesTags: ["ImportRules"],
-    }),
     getPosition: build.query<Position, { uuid: UUID }>({
       query: ({ uuid }) => `/books/${uuid}/positions`,
     }),
@@ -489,11 +434,12 @@ export const api = createApi({
       }),
     }),
     createBook: build.mutation<
-      BookWithRelations,
+      BookWithRelations | { epub2Detected: true; paths: string[] },
       {
         collection: UUID | undefined
         paths: string[]
         importMode?: ImportMode
+        epub2Strategy?: Epub2ImportStrategy | "auto"
       }
     >({
       query: (body) => ({
@@ -998,12 +944,6 @@ export const {
   useGetChangelogQuery,
   useGetLatestVersionQuery,
   useUpgradeBookEpubMutation,
-  useGetImportRulesQuery,
-  useGetUserImportRulesQuery,
-  useCreateImportRuleMutation,
-  useUpdateImportRuleMutation,
-  useDeleteImportRuleMutation,
-  useDeleteImportRulesMutation,
   useGetBookRatingQuery,
   useSetBookRatingMutation,
   useDeleteBookRatingMutation,

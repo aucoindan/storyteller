@@ -49,6 +49,9 @@ const jsMigrations: Record<string, () => Promise<void>> = {
     await import("./migrations/77_importrule_source.sql")
   ).default,
   "78_asset_dir.sql": (await import("./migrations/78_asset_dir.sql")).default,
+  "80_import_rule_epub2_strategy.sql": (
+    await import("./migrations/80_import_rule_epub2_strategy.sql")
+  ).default,
 }
 
 async function isFirstStartup() {

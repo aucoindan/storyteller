@@ -21,7 +21,8 @@ export const openEpubStep = defineStep(
     // upgrade EPUB 2 in place using the user's strategy. existing books that
     // never went through openAndClassifyEpub (rescans) get the same treatment
     // as fresh ingests, so downstream steps always see an EPUB 3 reader.
-    const epub = ctx.scope.use(await openOrUpgradeEpub(input.filepath))
+    const { reader } = await openOrUpgradeEpub(input.filepath)
+    const epub = ctx.scope.use(reader)
     return { ...input, isEpub2: false as const, epub }
   },
 )

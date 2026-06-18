@@ -10,7 +10,10 @@ import { isAudioFile } from "@/audio"
 import { type BookWithRelations } from "@/database/books"
 import { getIgnorePaths } from "@/database/importRules"
 import { getSetting } from "@/database/settings"
-import { type ImportMode } from "@/database/settingsTypes"
+import {
+  type Epub2ImportStrategy,
+  type ImportMode,
+} from "@/database/settingsTypes"
 import { isEpubVersionError } from "@/epub"
 import { logger } from "@/logging"
 
@@ -168,6 +171,7 @@ export type ListCandidatesOpts = {
   warnIfFileAtRoot?: boolean
   importRoot?: string
   importMode?: ImportMode
+  epub2ImportStrategy?: Epub2ImportStrategy
 }
 
 type UUIDList = Candidate["collections"]
@@ -267,6 +271,9 @@ export async function listBookCandidates(
       filepath: regularEpub,
       collections: opts.collections,
       ...(opts.importMode && { importMode: opts.importMode }),
+      ...(opts.epub2ImportStrategy && {
+        epub2ImportStrategy: opts.epub2ImportStrategy,
+      }),
       ...(folderOwner && !folderOwner.ebook && { existingBook: folderOwner }),
     })
   }
@@ -279,6 +286,9 @@ export async function listBookCandidates(
       filepath: readaloudEpub,
       collections: opts.collections,
       ...(opts.importMode && { importMode: opts.importMode }),
+      ...(opts.epub2ImportStrategy && {
+        epub2ImportStrategy: opts.epub2ImportStrategy,
+      }),
       ...(folderOwner &&
         !folderOwner.readaloud && { existingBook: folderOwner }),
     })
@@ -291,6 +301,9 @@ export async function listBookCandidates(
       filepath: audiobookDir,
       collections: opts.collections,
       ...(opts.importMode && { importMode: opts.importMode }),
+      ...(opts.epub2ImportStrategy && {
+        epub2ImportStrategy: opts.epub2ImportStrategy,
+      }),
       ...(folderOwner &&
         !folderOwner.audiobook && { existingBook: folderOwner }),
     })

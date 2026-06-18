@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { getMessages, getTranslations } from "next-intl/server"
 
 import { nextAuth } from "@/auth/auth"
+import { getImportRules } from "@/database/importRules"
 import { getConfigLockedKeys, getSettings } from "@/database/settings"
 import { getCurrentVersion } from "@/versions"
 
@@ -65,10 +66,11 @@ export default async function SettingsPage() {
     notFound()
   }
 
-  const [settings, messages, configLockedKeys] = await Promise.all([
+  const [settings, messages, configLockedKeys, allRules] = await Promise.all([
     getSettings(),
     getMessages(),
     getConfigLockedKeys(),
+    getImportRules(),
   ])
 
   const settingsMessages = messages.SettingsPage as {
@@ -78,12 +80,36 @@ export default async function SettingsPage() {
 
   const currentVersion = getCurrentVersion()
 
+  const editableRules = allRules.filter(
+    (r) => r.source === "user" || r.source === "config",
+  )
+  const autoIgnoreRules = allRules.filter(
+    (r) => r.source !== "user" && r.source !== "config" && r.kind === "ignore",
+  )
+
+  const settingsWithRules = {
+    ...settings,
+    importRules: editableRules.map((r) => ({
+      uuid: r.uuid,
+      kind: r.kind,
+      path: r.path,
+      importMode: r.importMode,
+      epub2ImportStrategy: r.epub2ImportStrategy,
+      collectionUuids: r.collections.map((c) => c.uuid),
+      source: r.source,
+    })),
+    autoIgnoreRules: autoIgnoreRules.map((r) => ({
+      uuid: r.uuid,
+      path: r.path,
+      source: r.source,
+      bookTitle: r.bookTitle,
+    })),
+  }
+
   return (
     <SettingsForm
-      settings={settings}
+      settings={settingsWithRules}
       sectionKeywords={sectionKeywords}
-      // cant pass set through client component
-
       configLockedKeys={Array.from(configLockedKeys)}
       currentVersion={currentVersion}
     />

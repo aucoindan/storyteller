@@ -14,7 +14,7 @@ import {
 
 import { move } from "@/assets/fs"
 import { type PipelineCtx, type ScanCtx } from "@/assets/library/scanner/ctx"
-import { type Candidate, type ScanFormat } from "@/assets/library/scanner/types"
+import { type Candidate } from "@/assets/library/scanner/types"
 import { isAudioFile } from "@/audio"
 import {
   type BookWithRelations,
@@ -50,75 +50,68 @@ async function resolveEpub2Strategy(
   return { strategy, backupSuffix }
 }
 
+export type OpenOrUpgradeResult = {
+  reader: InMemoryEpubReader
+  /** path where the usable epub3 file lives on disk (may differ from input
+   *  when the upgrade wrote to a separate writable location) */
+  effectivePath: string
+}
+
 /**
- * Always returns a reader for an EPUB 3 file at `filepath`. Pass a
- * `strategyOverride` to bypass the user's default
- * uploads use this to force "replace" so the unupgraded copy doesn't linger in UPLOADS_DIR.
+ * Returns a reader for an EPUB 3 file at `filepath`, upgrading from EPUB 2 if
+ * needed according to the resolved strategy.
+ *
+ * `strategyOverride` forces upgraded path to be written to `upgradeTo`.
+ * needed for `copy` mode
+ *
  */
 export async function openOrUpgradeEpub(
   filepath: string,
-  strategyOverride?: Epub2ImportStrategy,
-): Promise<InMemoryEpubReader> {
+  epub2ImportStrategy?: Epub2ImportStrategy,
+  upgradeTo?: string,
+): Promise<OpenOrUpgradeResult> {
   try {
-    return await Epub.using(MemoryAdapter).from(filepath)
+    const reader = await Epub.using(MemoryAdapter).from(filepath)
+    return { reader, effectivePath: filepath }
   } catch (error) {
     if (!isEpubVersionError(error)) throw error
 
     const { strategy, backupSuffix } =
-      await resolveEpub2Strategy(strategyOverride)
+      await resolveEpub2Strategy(epub2ImportStrategy)
 
     if (strategy === "skip") throw error
 
-    if (strategy === "backup-and-convert") {
+    // backup-and-convert: move the source to a backup path, then upgrade from
+    // backup to the original location. only valid for non-copy modes
+    if (strategy === "backup-and-convert" && !upgradeTo) {
       const backupPath = filepath.replace(/\.epub$/i, `${backupSuffix}.epub`)
-      // attribute with bookUuid null: the book isn't created yet and the
-      // backup persists across the book's lifetime regardless.
       await addIgnoreRule(backupPath, { source: "import-backup" })
       await move(filepath, backupPath)
       using upgraded = await Epub.upgrade(backupPath, { outputPath: filepath })
       await upgraded.saveAndClose()
-    } else {
-      using upgraded = await Epub.upgrade(filepath)
-      await upgraded.saveAndClose()
+
+      const reader = await Epub.using(MemoryAdapter).from(filepath)
+      return { reader, effectivePath: filepath }
     }
 
-    return await Epub.using(MemoryAdapter).from(filepath)
-  }
-}
-
-export type OpenedEpubResult = {
-  epub: InMemoryEpubReader
-  format: Extract<ScanFormat, "ebook" | "readaloud">
-}
-
-/**
- * registers the opened epub on ctx.scope so it's disposed at end of pipeline.
- * downstream pipeline steps reuse the same reader instead of re-opening.
- */
-export async function openAndClassifyEpub(
-  candidate: Candidate,
-  ctx: PipelineCtx,
-): Promise<OpenedEpubResult | null> {
-  let epub: InMemoryEpubReader
-  try {
-    epub = ctx.scope.use(
-      await openOrUpgradeEpub(
-        candidate.filepath,
-        candidate.epub2ImportStrategy,
-      ),
-    )
-  } catch (error) {
-    ctx.report.warn({
-      step: "open-epub",
-      msg: `Failed to open epub at ${candidate.filepath}; skipping`,
-      err: error,
+    // "replace": upgrade in place, or write to upgradeTo when the source must
+    // remain untouched (copy mode).
+    const outputPath = upgradeTo ?? filepath
+    using upgraded = await Epub.upgrade(filepath, {
+      ...(upgradeTo && { outputPath: upgradeTo }),
     })
-    return null
-  }
+    await upgraded.saveAndClose()
 
-  const isReadaloud =
-    candidate.format === "readaloud" || (await isReadaloudEpub(epub))
-  return { epub, format: isReadaloud ? "readaloud" : "ebook" }
+    const reader = await Epub.using(MemoryAdapter).from(outputPath)
+    return { reader, effectivePath: outputPath }
+  }
+}
+
+export type OpenEpubOpts = {
+  /** override the candidate's epub2ImportStrategy */
+  strategyOverride?: Epub2ImportStrategy
+  /** writable path for the upgrade output when the source must stay untouched */
+  upgradeTo?: string
 }
 
 export type OpenedAudiobookResult = {
@@ -167,7 +160,8 @@ export async function openAudiobookDir(
 
 export async function createBookFromOpenedEpub(
   candidate: Candidate,
-  opened: OpenedEpubResult,
+  epub: InMemoryEpubReader,
+  format: "ebook" | "readaloud",
   ctx: ScanCtx,
 ): Promise<BookWithRelations | null> {
   const fallbackTitle =
@@ -176,12 +170,12 @@ export async function createBookFromOpenedEpub(
   let book: BookWithRelations
   try {
     book = await createBookFromEpub(
-      opened.epub,
+      epub,
       {
         ...(candidate.bookUuidHint && { uuid: candidate.bookUuidHint }),
         title: fallbackTitle,
       },
-      opened.format === "readaloud"
+      format === "readaloud"
         ? {
             readaloud: {
               filepath: candidate.filepath,

@@ -1,13 +1,20 @@
+import { randomUUID } from "node:crypto"
+import { rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { type Audiobook } from "@storyteller-platform/audiobook"
 import { type InMemoryEpubReader } from "@storyteller-platform/epub"
 
 import { reserveBookDirectory } from "@/assets/fs"
 import {
+  type OpenEpubOpts,
   createBookFromOpenedAudiobook,
   createBookFromOpenedEpub,
   ensureCollections,
-  openAndClassifyEpub,
+  isReadaloudEpub,
   openAudiobookDir,
+  openOrUpgradeEpub,
 } from "@/assets/library/scanner/create-book"
 import { type PipelineCtx } from "@/assets/library/scanner/ctx"
 import {
@@ -102,15 +109,63 @@ async function placeForExistingBook(
   return await relocateIfNeeded(book, srcFilepath, format, importMode)
 }
 
+/**
+ * for copy mode, we write the upgraded epub3 to a writable tmp path, then copy it to the library.
+ * this kind of breaks the nice step-by-step logic for ingestion but ehh
+ */
+function resolveEpubOpenOpts(importMode: ImportMode): OpenEpubOpts {
+  if (importMode === "copy") {
+    return {
+      strategyOverride: "replace",
+      upgradeTo: join(tmpdir(), `storyteller-upgrade-${randomUUID()}.epub`),
+    }
+  }
+
+  return {}
+}
+
 async function ingestNewEbook(
   candidate: Candidate,
   ctx: PipelineCtx,
   importMode: ImportMode,
 ): Promise<IngestedEpub | null> {
-  const opened = await openAndClassifyEpub(candidate, ctx)
-  if (!opened) return null
+  const opts = resolveEpubOpenOpts(importMode)
+  let openedEpub: InMemoryEpubReader | null = null
+  let effectivePath: string | null = null
 
-  const created = await createBookFromOpenedEpub(candidate, opened, ctx)
+  ctx.scope.defer(async () => {
+    // delete the upgrade tmp file if it exists
+    if (opts.upgradeTo) {
+      await rm(opts.upgradeTo, { force: true })
+    }
+  })
+
+  try {
+    const opened = await openOrUpgradeEpub(
+      candidate.filepath,
+      opts.strategyOverride ?? candidate.epub2ImportStrategy,
+      opts.upgradeTo,
+    )
+    openedEpub = ctx.scope.use(opened.reader)
+    effectivePath = opened.effectivePath
+  } catch (error) {
+    ctx.report.warn({
+      step: "open-epub",
+      msg: `Failed to open epub at ${candidate.filepath}; skipping`,
+      err: error,
+    })
+    return null
+  }
+
+  const epubFormat = (await isReadaloudEpub(openedEpub)) ? "readaloud" : "ebook"
+
+  const created = await createBookFromOpenedEpub(
+    candidate,
+    openedEpub,
+    epubFormat,
+    ctx,
+  )
+
   if (!created) return null
 
   // reserve a unique asset dir before any pipeline step (cover writes, text
@@ -120,19 +175,22 @@ async function ingestNewEbook(
 
   const relocated = await relocateIfNeeded(
     reserved,
-    candidate.filepath,
-    opened.format,
+    effectivePath,
+    epubFormat,
     importMode,
+    // ignore the original on-disk epub, not effectivePath, which may be the
+    // throwaway tmp epub3 upgrade in copy mode.
+    candidate.filepath,
   )
 
   return {
     book: relocated.book,
     filepath: relocated.filepath,
-    format: opened.format,
+    format: epubFormat,
     isNew: true,
     // unix rename/unlink keeps the fd valid against the original inode, so
     // the handle still reads correctly after relocateIfNeeded.
-    preopenedEpub: opened.epub,
+    preopenedEpub: openedEpub,
   }
 }
 
@@ -157,11 +215,8 @@ async function ingestNewAudiobook(
     importMode,
   )
 
-  // unlike epub (which is MemoryAdapter-backed and survives the move), the
-  // audiobook reader holds file paths and re-reads on demand via ffmpeg.
-  // after a "move" relocate those paths are stale, so cover extraction and
-  // any other on-demand read fails silently. force a fresh open from the
-  // post-relocate path by dropping the preopen handle.
+  // if we're moving the audiobook, we shouldnt keep the ref to the original audiobook
+  // will reopen during scan
   const preopenedAudiobook = importMode === "move" ? null : opened.audiobook
 
   return {

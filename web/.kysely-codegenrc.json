@@ -56,6 +56,7 @@
       "import_rule.kind": "\"watch\" | \"ignore\"",
       "import_rule.source": "Generated<\"user\" | \"import-relocate\" | \"import-backup\" | \"prevent-reimport\">",
       "import_rule.import_mode": "import(\"@/database/settingsTypes\").ImportMode | null",
+      "import_rule.epub2_import_strategy": "import(\"@/database/settingsTypes\").Epub2ImportStrategy | null",
       "import_rule_to_collection.import_rule_uuid": "import(\"@/uuid\").UUID",
       "import_rule_to_collection.collection_uuid": "import(\"@/uuid\").UUID",
       "position.book_uuid": "import(\"@/uuid\").UUID",

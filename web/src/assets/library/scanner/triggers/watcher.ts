@@ -17,7 +17,10 @@ import {
   type ImportRuleWithCollections,
   getWatchRules,
 } from "@/database/importRules"
-import { type ImportMode } from "@/database/settingsTypes"
+import {
+  type Epub2ImportStrategy,
+  type ImportMode,
+} from "@/database/settingsTypes"
 import { ASSETS_DIR } from "@/directories"
 import { logger } from "@/logging"
 import { type UUID } from "@/uuid"
@@ -99,6 +102,7 @@ export class Watcher {
       ASSETS_DIR,
       assetController,
       undefined,
+      undefined,
       (event) =>
         // do not create new books on asset folder changes
         event.type !== "create" && assetRegex.test(event.path),
@@ -117,6 +121,7 @@ export class Watcher {
         rule.path,
         rulesController,
         rule.importMode,
+        rule.epub2ImportStrategy,
       )
     }
   }
@@ -158,6 +163,7 @@ export class Watcher {
     importPath: string,
     controller: AbortController,
     importMode?: ImportMode | null,
+    epub2ImportStrategy?: Epub2ImportStrategy | null,
     filter?: (event: WatcherEvent) => boolean,
   ) {
     let entryLock = this.entryLocks.get(importPath)
@@ -256,7 +262,11 @@ export class Watcher {
               folders,
               collections,
             },
-            options: { concurrency: 2, importMode: importMode ?? undefined },
+            options: {
+              concurrency: 2,
+              importMode: importMode ?? undefined,
+              epub2ImportStrategy: epub2ImportStrategy ?? undefined,
+            },
             signal: controller.signal,
           })
         }

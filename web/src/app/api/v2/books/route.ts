@@ -3,13 +3,19 @@ import { basename, dirname, extname, sep } from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { Epub, MemoryAdapter } from "@storyteller-platform/epub"
+
 import { deleteAssets } from "@/assets/fs"
 import { filepathFolder, scan } from "@/assets/library/scanner/scan"
 import { type Candidate } from "@/assets/library/scanner/types"
 import { isAudioFile, isZipArchive } from "@/audio"
 import { withHasPermission } from "@/auth/auth"
 import { deleteBook, getBook, getBooks } from "@/database/books"
-import { type ImportMode } from "@/database/settingsTypes"
+import {
+  type Epub2ImportStrategy,
+  type ImportMode,
+} from "@/database/settingsTypes"
+import { isEpubVersionError } from "@/epub"
 import { type UUID } from "@/uuid"
 
 export const dynamic = "force-dynamic"
@@ -47,21 +53,60 @@ export const DELETE = withHasPermission("bookDelete")(async (request) => {
   return new Response(null, { status: 204 })
 })
 
+async function probeEpub2(filepath: string): Promise<boolean> {
+  try {
+    using _epub = await Epub.using(MemoryAdapter).from(filepath)
+    return false
+  } catch (error) {
+    if (isEpubVersionError(error)) return true
+    throw error
+  }
+}
+
+/**
+ * @summary Import a book from file paths on the server
+ * @desc When `epub2Strategy` is `"auto"` (or omitted), the endpoint probes
+ *       each epub to check its version. If any epub is version 2 and the
+ *       import mode is not "copy" (which always upgrades automatically), the
+ *       response is `{ epub2Detected: true, paths: [...] }` with status 200 -
+ *       the caller should re-submit with an explicit `epub2Strategy` value.
+ *
+ *       When `epub2Strategy` is an explicit value ("replace", "skip",
+ *       "backup-and-convert"), the import proceeds using that strategy.
+ */
 export const POST = withHasPermission("bookCreate")(async (request) => {
   const {
     paths,
     collection,
     importMode = "reference",
+    epub2Strategy = "auto",
   } = (await request.json()) as {
     paths: string[]
     collection: UUID | undefined
     importMode: ImportMode
+    epub2Strategy?: Epub2ImportStrategy | "auto"
   }
-
-  const newBookUuid = randomUUID()
 
   const epubs = paths.filter((path) => extname(path) === ".epub")
   const audio = paths.filter((path) => isAudioFile(path) || isZipArchive(path))
+
+  // when strategy is "auto" and import mode could be affected by the user's
+  // choice, probe all epubs and ask if any are epub2.
+  if (epub2Strategy === "auto" && importMode !== "copy" && epubs.length > 0) {
+    const epub2Paths: string[] = []
+
+    for (const epubPath of epubs) {
+      const is2 = await probeEpub2(epubPath)
+      if (is2) epub2Paths.push(epubPath)
+    }
+
+    if (epub2Paths.length > 0) {
+      return Response.json({ epub2Detected: true, paths: epub2Paths })
+    }
+  }
+
+  const newBookUuid = randomUUID()
+  const resolvedStrategy = epub2Strategy === "auto" ? undefined : epub2Strategy
 
   const candidates: Candidate[] = []
 
@@ -74,11 +119,11 @@ export const POST = withHasPermission("bookCreate")(async (request) => {
       titleHint: basename(epubPath, extname(epubPath)),
       ...(collection && { collections: [collection] }),
       importMode,
+      ...(resolvedStrategy && { epub2ImportStrategy: resolvedStrategy }),
     })
   }
 
   if (audio.length) {
-    // if the audio files are not in a single directory, yell
     if (audio.length > 1) {
       const longestPrefx = longestPrefix(audio).split(sep)
       const notDirectlyUnderLongestPrefix = audio.find(
