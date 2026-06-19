@@ -1,6 +1,6 @@
 {
   "name": "@storyteller-platform/docs",
-  "version": "2.6.9",
+  "version": "2.6.10",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
