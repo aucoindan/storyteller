@@ -5,6 +5,14 @@ import ReadiumShared
 import ReadiumNavigator
 import ReadiumAdapterGCDWebServer
 
+// On newer Xcode/Swift toolchains, `Color` and `TextAlignment` are ambiguous
+// here because SwiftUI (pulled in transitively) also vends those names. These
+// module-level aliases pin the bare references to Readium's preference types,
+// which is what this file has always meant. (Left non-private so the internal
+// struct properties below may expose the type.)
+typealias Color = ReadiumNavigator.Color
+typealias TextAlignment = ReadiumNavigator.TextAlignment
+
 struct Highlight: Equatable {
     var id: String
     var color: UIColor

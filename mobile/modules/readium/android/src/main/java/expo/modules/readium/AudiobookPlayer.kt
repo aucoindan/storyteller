@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import androidx.annotation.RequiresApi
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -64,6 +65,7 @@ import org.readium.r2.shared.util.fromEpubHref
 import java.io.File
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -217,8 +219,8 @@ class PlaybackService : MediaLibraryService() {
             // Pause when headphones disconnected
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
-            .setSeekBackIncrementMs(1500)
-            .setSeekForwardIncrementMs(1500)
+            .setSeekBackIncrementMs(15.seconds.inWholeMilliseconds)
+            .setSeekForwardIncrementMs(15.seconds.inWholeMilliseconds)
             .setName("Storyteller")
             .build()
 
@@ -819,6 +821,30 @@ class PlaybackService : MediaLibraryService() {
             ) {
                 automotiveControllers.remove(controller.packageName)
                 super.onDisconnected(session, controller)
+            }
+            
+            override fun onMediaButtonEvent(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                intent: Intent,
+            ): Boolean {
+                val event = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
+                    ?: return false
+        
+                if (event.action != KeyEvent.ACTION_DOWN) return false
+        
+                return when (event.keyCode) {
+                    // AVRCP "next/previous" mappings from Bluetooth headsets.
+                    KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                        session.player.seekForward()
+                        true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                        session.player.seekBack()
+                        true
+                    }
+                    else -> false
+                }
             }
         }
     }

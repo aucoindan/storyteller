@@ -163,16 +163,18 @@ public actor AudiobookPlayerActor {
             return .success
         }
 
+        // Most headphones only have buttons/gestures for next/prev track, but
+        // users almost always want seek forward/back
         remoteCommandCenter.nextTrackCommand.addTarget { event in
             Task { @AudiobookPlayerActor in
-                await AudiobookPlayerActor.shared.next()
+                await AudiobookPlayerActor.shared.seekBy(amount: 15.0, bounded: false)()
             }
             return .success
         }
 
         remoteCommandCenter.previousTrackCommand.addTarget { event in
             Task { @AudiobookPlayerActor in
-                await AudiobookPlayerActor.shared.prev()
+                await AudiobookPlayerActor.shared.seekBy(amount: -15.0, bounded: false)()
             }
 
             return .success
@@ -297,7 +299,7 @@ public actor AudiobookPlayerActor {
         guard let clip = searchForClip(clips: trackClips, position: positionSeconds) else {
             return
         }
-        
+
         guard let bookUuid = bookUuid, let locator = try? await BookService.shared.getLocatorFor(bookId: bookUuid, href: clip.textResource, fragment: clip.fragmentId) else {
             return
         }
