@@ -9,6 +9,7 @@ export default defineConfig({
   entry: [
     "./**/*.ts",
     "!node_modules",
+    "!./scripts/*",
     "!./**/*.test.ts",
     "!./**/*.d.ts",
     "!tsup.config.ts",
