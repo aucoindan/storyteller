@@ -121,6 +121,7 @@ public actor AudiobookPlayerActor {
         remoteCommandCenter.nextTrackCommand.removeTarget(nil)
         remoteCommandCenter.previousTrackCommand.removeTarget(nil)
         remoteCommandCenter.skipForwardCommand.removeTarget(nil)
+        remoteCommandCenter.skipBackwardCommand.removeTarget(nil)
         remoteCommandCenter.changePlaybackPositionCommand.removeTarget(nil)
 
         remoteCommandCenter.pauseCommand.isEnabled = true
@@ -129,8 +130,11 @@ public actor AudiobookPlayerActor {
         remoteCommandCenter.nextTrackCommand.isEnabled = true
         remoteCommandCenter.previousTrackCommand.isEnabled = true
         remoteCommandCenter.skipForwardCommand.isEnabled = true
+        remoteCommandCenter.skipBackwardCommand.isEnabled = true
         remoteCommandCenter.changePlaybackPositionCommand.isEnabled = true
 
+        remoteCommandCenter.skipForwardCommand.preferredIntervals = [30]
+        remoteCommandCenter.skipBackwardCommand.preferredIntervals = [15]
 
         remoteCommandCenter.pauseCommand.addTarget { event in
             Task { @AudiobookPlayerActor in
@@ -167,7 +171,7 @@ public actor AudiobookPlayerActor {
         // users almost always want seek forward/back
         remoteCommandCenter.nextTrackCommand.addTarget { event in
             Task { @AudiobookPlayerActor in
-                await AudiobookPlayerActor.shared.seekBy(amount: 15.0, bounded: false)()
+                await AudiobookPlayerActor.shared.seekBy(amount: 30.0, bounded: false)()
             }
             return .success
         }

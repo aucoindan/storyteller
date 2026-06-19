@@ -220,7 +220,7 @@ class PlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .setSeekBackIncrementMs(15.seconds.inWholeMilliseconds)
-            .setSeekForwardIncrementMs(15.seconds.inWholeMilliseconds)
+            .setSeekForwardIncrementMs(30.seconds.inWholeMilliseconds)
             .setName("Storyteller")
             .build()
 
@@ -822,7 +822,7 @@ class PlaybackService : MediaLibraryService() {
                 automotiveControllers.remove(controller.packageName)
                 super.onDisconnected(session, controller)
             }
-            
+
             override fun onMediaButtonEvent(
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo,
@@ -830,9 +830,9 @@ class PlaybackService : MediaLibraryService() {
             ): Boolean {
                 val event = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
                     ?: return false
-        
+
                 if (event.action != KeyEvent.ACTION_DOWN) return false
-        
+
                 return when (event.keyCode) {
                     // AVRCP "next/previous" mappings from Bluetooth headsets.
                     KeyEvent.KEYCODE_MEDIA_NEXT -> {

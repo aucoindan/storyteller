@@ -1,4 +1,3 @@
-import { devToolsEnhancer } from "@redux-devtools/remote"
 import { configureStore } from "@reduxjs/toolkit"
 import "react-native-get-random-values"
 
@@ -36,12 +35,6 @@ export const store = configureStore({
       localApi.middleware,
     ]),
   devTools: false,
-  enhancers: (getDefaultEnhancers) =>
-    getDefaultEnhancers().concat(
-      devToolsEnhancer({
-        name: "Storyteller React Native",
-      }),
-    ),
 })
 
 addStorytellerEventListeners(store)

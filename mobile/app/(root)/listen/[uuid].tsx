@@ -323,11 +323,11 @@ export default function PlayerScreen() {
             </Button>
             <PlayPause size={80} />
             <Button
-              accessibilityLabel="Forward 15 seconds"
+              accessibilityLabel="Forward 30 seconds"
               variant="ghost"
               size="icon"
               onPress={() => {
-                Storyteller.seekBy(15)
+                Storyteller.seekBy(30)
               }}
             >
               <Icon as={RotateCw} size={32} />
