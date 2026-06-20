@@ -47,6 +47,7 @@ repositories {
 
 dependencies {
     implementation project(':expo-modules-core')
+    implementation "com.facebook.react:react-android"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.9.24')}"
     implementation "org.readium.kotlin-toolkit:readium-shared:$readium_version"
     implementation "org.readium.kotlin-toolkit:readium-streamer:$readium_version"

@@ -53,6 +53,14 @@ declare class ReadiumModule extends NativeModule<ReadiumEvents> {
   ): Promise<ReadiumTextFragment | null>
 
   loadTracks(tracks: StorytellerTrack[]): Promise<void>
+  /**
+   * Attaches a controller to a playback session that is already running (e.g.
+   * one started from Android Auto) without re-queueing or seeking the player,
+   * so the existing native -> JS event pipeline starts emitting for it. The
+   * tracks are used to populate the player's lookup maps; they must match the
+   * queue the session is already playing.
+   */
+  connectToActiveSession(tracks: StorytellerTrack[]): Promise<void>
   getPosition(): Promise<number>
   getCurrentTrack(): Promise<StorytellerTrack | null>
   getCurrentTrackIndex(): Promise<number>

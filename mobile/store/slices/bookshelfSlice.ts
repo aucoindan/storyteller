@@ -97,6 +97,23 @@ export const bookshelfSlice = createSlice({
     ) {
       state.playbackSpeedContext = action.payload.context
     },
+    // Seeds the currently-playing book + tracks when attaching to a session that
+    // was started outside the app (e.g. Android Auto). Unlike bookOpened, this
+    // has no listener side-effects: the native session is already playing, so we
+    // only mirror its state into the store, never (re)load or seek the player.
+    playerAttached(
+      state,
+      action: PayloadAction<{
+        bookUuid: UUID
+        format: "readaloud" | "audiobook"
+        tracks: StorytellerTrack[]
+      }>,
+    ) {
+      state.currentlyPlayingBookUuid = action.payload.bookUuid
+      state.currentlyPlayingFormat = action.payload.format
+      state.tracks = action.payload.tracks
+      state.isAudioLoading = false
+    },
     audioPositionChanged(state, action: PayloadAction<{ position: number }>) {
       state.position = action.payload.position
     },

@@ -1,7 +1,7 @@
 {
   "name": "@storyteller-platform/mobile",
   "version": "2.9.1",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start:device": "APP_VARIANT=development expo start --dev-client",
     "sim:android": "APP_VARIANT=development expo start --android",

@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -153,12 +154,29 @@ class PlaybackService : MediaLibraryService() {
 
         // mediaId format for playable book placeholders: "book:{uuid}:{format}"
         const val BOOK_ID_PREFIX = "book:"
+
+        // Headless JS task that boots the Redux store and attaches it to this
+        // session. Must match ANDROID_AUTO_SESSION_TASK in androidAutoSessionTask.ts.
+        const val ANDROID_AUTO_SESSION_TASK = "StorytellerAndroidAutoSession"
     }
 
     private var mediaSession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
     private var mediaIdToClips = mapOf<String, List<OverlayPar>>()
     private var clipEventMessage: PlayerMessage? = null
+
+    @Volatile
+    private var appControllerCount = 0
+
+    private val hasAppController: Boolean
+        get() = appControllerCount > 0
+
+    // Guards against launching the headless JS session more than once before its
+    // controller connects. Reset when the last app controller disconnects so a
+    // later Android Auto session can boot JS again.
+    @Volatile
+    private var headlessSessionRequested = false
+
     private var root = MediaItem.Builder()
         .setMediaId(ROOT_ID)
         .setMediaMetadata(
@@ -239,6 +257,16 @@ class PlaybackService : MediaLibraryService() {
             }
         })
 
+        // When Android Auto starts playback and no JS context is attached, boot
+        // the headless JS session so the normal store/listeners take over progress
+        // persistence and sync. Once it attaches, hasAppController becomes true and
+        // this no-ops.
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) maybeStartAndroidAutoSession()
+            }
+        })
+
         mediaSession =
             with(
                 MediaLibrarySession.Builder(this, player, getCallback())
@@ -295,6 +323,34 @@ class PlaybackService : MediaLibraryService() {
         this.player = player
     }
 
+    // Boots the headless JS session for the currently-playing book if the app
+    // isn't already attached. The JS task imports the store and calls
+    // connectToActiveSession, which connects an app controller (incrementing
+    // appControllerCount) — so this only fires for sessions started outside the app.
+    private fun maybeStartAndroidAutoSession() {
+        if (hasAppController || headlessSessionRequested) return
+        val player = player ?: return
+        val item = player.currentMediaItem ?: return
+        val extras = item.mediaMetadata.extras ?: return
+        val bookUuid = extras.getString("bookUuid") ?: return
+        val format = extras.getString("format") ?: return
+
+        headlessSessionRequested = true
+        try {
+            HeadlessJsBridge.run(
+                this,
+                ANDROID_AUTO_SESSION_TASK,
+                Bundle().apply {
+                    putString("bookUuid", bookUuid)
+                    putString("format", format)
+                }
+            )
+        } catch (e: Exception) {
+            headlessSessionRequested = false
+            Log.w("StorytellerPlayback", "Failed to start Android Auto session task", e)
+        }
+    }
+
     /** Called when swiping the activity away from recents. */
     override fun onTaskRemoved(rootIntent: Intent?) {
         // If the player is playing, trigger a pause so that the
@@ -329,6 +385,10 @@ class PlaybackService : MediaLibraryService() {
 
     private fun sortClips(bookUuid: String) {
         val clips = BookService.getOverlayClips(bookUuid)
+        setMediaIdToClips(clips)
+    }
+
+    private fun setMediaIdToClips(clips: List<OverlayPar>) {
         val mediaIdToClipsMutable =
             mutableMapOf<String, MutableList<OverlayPar>>().withDefault { mutableListOf() }
         for (clip in clips) {
@@ -337,6 +397,14 @@ class PlaybackService : MediaLibraryService() {
             mediaIdToClipsMutable[clip.audioResource] = trackClips
         }
         mediaIdToClips = mediaIdToClipsMutable
+    }
+
+    private fun seedReadaloudClips(bookUuid: String) {
+        val clips = dbHelper.getReadaloudClips(bookUuid)?.let { parseStoredClips(it) } ?: return
+        if (clips.isEmpty()) return
+
+        BookService.setClips(bookUuid, clips)
+        setMediaIdToClips(clips)
     }
 
     @androidx.annotation.OptIn(UnstableApi::class)
@@ -457,6 +525,10 @@ class PlaybackService : MediaLibraryService() {
             val (bookUuid, format) = parts
             val entry = dbHelper.getBook(bookUuid, format) ?: continue
 
+            if (format == "readaloud") {
+                seedReadaloudClips(bookUuid)
+            }
+
             val tracks = tracksFromManifest(entry)
             if (tracks.isEmpty()) continue
 
@@ -527,7 +599,10 @@ class PlaybackService : MediaLibraryService() {
                 .setMediaType(MediaMetadata.MEDIA_TYPE_AUDIO_BOOK_CHAPTER)
                 .apply {
                     entry.author?.let { setArtist(it) }
-                    setExtras(Bundle().apply { putString("bookUuid", entry.uuid) })
+                    setExtras(Bundle().apply {
+                        putString("bookUuid", entry.uuid)
+                        putString("format", entry.format)
+                    })
                 }
                 .build()
 
@@ -782,6 +857,12 @@ class PlaybackService : MediaLibraryService() {
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo
             ): MediaSession.ConnectionResult {
+                if (controller.packageName == this@PlaybackService.packageName &&
+                    !session.isMediaNotificationController(controller)
+                ) {
+                    appControllerCount++
+                }
+
                 val isAutomotiveController = session.isAutomotiveController(controller)
                 val isAutoCompanionController =
                     session.isAutoCompanionController(controller)
@@ -819,6 +900,16 @@ class PlaybackService : MediaLibraryService() {
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo
             ) {
+                if (controller.packageName == this@PlaybackService.packageName &&
+                    !session.isMediaNotificationController(controller)
+                ) {
+                    appControllerCount = (appControllerCount - 1).coerceAtLeast(0)
+                    // Allow a future Auto session to boot JS again once the app
+                    // (or a previous headless session) has fully detached.
+                    if (appControllerCount == 0) {
+                        headlessSessionRequested = false
+                    }
+                }
                 automotiveControllers.remove(controller.packageName)
                 super.onDisconnected(session, controller)
             }
@@ -950,6 +1041,73 @@ class AudiobookPlayer(
             getPosition(),
             controller?.currentMediaItemIndex ?: 0
         )
+    }
+
+    // Attaches a controller to a session that is already playing (e.g. one
+    // started from Android Auto) without re-queueing or seeking, so that the
+    // native -> JS event pipeline starts emitting for it. The passed tracks are
+    // used only to identify the book and seed lookups; the queue and playback
+    // position are left untouched.
+    @androidx.annotation.OptIn(UnstableApi::class)
+    suspend fun connectToActiveSession(tracks: List<Track>) {
+        val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+
+        // Already attached (e.g. the app connected first) — nothing to do.
+        if (controller != null) return
+
+        val sessionToken =
+            SessionToken(context, ComponentName(context, PlaybackService::class.java))
+
+        val controllerFuture =
+            MediaController.Builder(context, sessionToken).setListener(this).buildAsync()
+
+        controllerFuture.addListener(
+            {
+                val controller = controllerFuture.get()
+                this.controller = controller
+
+                controller.addListener(listener)
+                controller.addListener(this@AudiobookPlayer)
+
+                val bookUuid =
+                    tracks.firstOrNull()?.bookUuid
+                        ?: controller.currentMediaItem
+                            ?.let { getTrackFromMediaItem(it) }
+                            ?.bookUuid
+                this.bookUuid = bookUuid
+
+                if (bookUuid != null) {
+                    val clips = BookService.getOverlayClips(bookUuid)
+                    val relativeUriToClipsMutable =
+                        mutableMapOf<String, MutableList<OverlayPar>>().withDefault { mutableListOf() }
+                    for (clip in clips) {
+                        val trackClips = relativeUriToClipsMutable.getValue(clip.audioResource)
+                        trackClips.add(clip)
+                        relativeUriToClipsMutable[clip.audioResource] = trackClips
+                    }
+                    relativeUriToClips = relativeUriToClipsMutable
+                }
+
+                // Build the relativeUri -> index map from the queue the session
+                // is already playing; never add or seek media items here.
+                val relativeUriToIndexMutable = mutableMapOf<String, Int>()
+                for (i in 0 until controller.mediaItemCount) {
+                    relativeUriToIndexMutable[controller.getMediaItemAt(i).mediaId] = i
+                }
+                relativeUriToIndex = relativeUriToIndexMutable
+            },
+            MoreExecutors.directExecutor()
+        )
+
+        controllerFuture.await()
+
+        // Catch JS up to the session's current state. onIsPlayingChanged here is
+        // the listener (ReadiumModule) callback, not our Player.Listener override,
+        // so it only forwards state to JS without starting the progress collector.
+        getCurrentTrack()?.let { track ->
+            listener.onTrackChanged(track, getPosition(), getCurrentTrackIndex())
+        }
+        listener.onIsPlayingChanged(getIsPlaying())
     }
 
     fun getIsPlaying(): Boolean {

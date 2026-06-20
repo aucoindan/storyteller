@@ -48,7 +48,7 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
 
   return (
     <>
-      <View className="android:pt-safe bg-background w-full flex-row items-center px-4 pb-4">
+      <View className="bg-background w-full flex-row items-center px-4 pb-4">
         <Button
           accessibilityLabel="Close custom theme editor"
           variant="ghost"

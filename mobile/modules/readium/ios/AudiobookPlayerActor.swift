@@ -171,14 +171,14 @@ public actor AudiobookPlayerActor {
         // users almost always want seek forward/back
         remoteCommandCenter.nextTrackCommand.addTarget { event in
             Task { @AudiobookPlayerActor in
-                await AudiobookPlayerActor.shared.seekBy(amount: 30.0, bounded: false)()
+                await AudiobookPlayerActor.shared.seekBy(amount: 30.0, bounded: false)
             }
             return .success
         }
 
         remoteCommandCenter.previousTrackCommand.addTarget { event in
             Task { @AudiobookPlayerActor in
-                await AudiobookPlayerActor.shared.seekBy(amount: -15.0, bounded: false)()
+                await AudiobookPlayerActor.shared.seekBy(amount: -15.0, bounded: false)
             }
 
             return .success

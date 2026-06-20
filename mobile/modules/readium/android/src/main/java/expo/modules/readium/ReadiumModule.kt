@@ -59,6 +59,11 @@ class ReadiumModule : Module(), Listener {
             player.loadTracks(tracks)
         }
 
+        AsyncFunction("connectToActiveSession") Coroutine { tracksJson: List<Map<String, Any?>> ->
+            val tracks = tracksJson.map { Track.fromJson(it) }
+            player.connectToActiveSession(tracks)
+        }
+
         AsyncFunction("getPosition") Coroutine { ->
             return@Coroutine player.getPosition()
         }
