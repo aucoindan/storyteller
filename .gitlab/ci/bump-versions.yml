@@ -9,43 +9,43 @@ bump-versions:
       https://ci-push-tag-token:${CI_PUSH_TAG_TOKEN}@gitlab.com/storyteller-platform/storyteller.git
     - cd applications/web
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag web-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag web-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../applications/docs
+    - cd ../docs
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag docs-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag docs-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../applications/mobile
+    - cd ../mobile
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag mobile-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag mobile-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/fs
+    - cd ../../libraries/fs
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag fs-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag fs-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/epub
+    - cd ../epub
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag epub-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag epub-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/audiobook
+    - cd ../audiobook
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag audiobook-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag audiobook-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/path
+    - cd ../path
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag path-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag path-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/ghost-story
+    - cd ../ghost-story
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag ghost-story-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag ghost-story-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/align
+    - cd ../align
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag align-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag align-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../libraries/okmain
+    - cd ../okmain
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
-    - ../scripts/if-version-change.sh git tag okmain-v${PACKAGE_VERSION}
+    - ../../scripts/if-version-change.sh git tag okmain-v${PACKAGE_VERSION}
     - git push --tags
 
 pages:
