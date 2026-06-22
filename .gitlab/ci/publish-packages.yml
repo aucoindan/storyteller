@@ -390,11 +390,11 @@ release-ghost-story:
     - if [ -n "${CODESIGNING}" ]; then echo "Signing executable..."; fi
     - if [ -n "${CODESIGNING}" ]; then codesign --sign "$APPLE_SIGNING_IDENTITY"
       --force --options runtime --timestamp --entitlements
-      align/entitlements.plist ./align/stalign; fi
+      libraries/align/entitlements.plist ./align/stalign; fi
     - if [ -n "${CODESIGNING}" ]; then codesign --verify --verbose
-      ./align/stalign; fi
+      ./libraries/align/stalign; fi
     - if [ -n "${CODESIGNING}" ]; then spctl --assess --type execute --verbose
-      ./align/stalign; fi
+      ./libraries/align/stalign; fi
 
     - echo "Uploading to GitLab Generic Package Registry..."
     - VERSION_PARTS=($(echo "$CI_COMMIT_TAG" | tr 'v' ' '))
@@ -402,7 +402,7 @@ release-ghost-story:
     - |
       curl --fail-with-body --show-error \
            --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-           --upload-file align/stalign \
+           --upload-file libraries/align/stalign \
            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/stalign/${VERSION_PARTS[1]}/stalign-${VARIANT}"
 
 publish-align-sea-darwin-arm64:
@@ -524,7 +524,7 @@ publish-align-sea-windows-x64:
     - $version = $env:CI_COMMIT_TAG -replace '^align-v', ''
     - Write-Output "v${version}"
     - |
-      $filePath = Resolve-Path "align/stalign.exe"
+      $filePath = Resolve-Path "libraries/align/stalign.exe"
       $fileBytes = [System.IO.File]::ReadAllBytes($filePath)
       Invoke-RestMethod `
         -Method PUT `
@@ -636,7 +636,7 @@ release-align:
       --platform --release
   artifacts:
     paths:
-      - okmain/okmain.*.node
+      - libraries/okmain/okmain.*.node
 
 .okmain-build-linux-musl-base:
   stage: build-base
@@ -661,7 +661,7 @@ release-align:
       --platform --release
   artifacts:
     paths:
-      - okmain/okmain.*.node
+      - libraries/okmain/okmain.*.node
 
 .okmain-build-macos-base:
   stage: build-base
@@ -690,7 +690,7 @@ release-align:
       --platform --release
   artifacts:
     paths:
-      - okmain/okmain.*.node
+      - libraries/okmain/okmain.*.node
 
 .okmain-build-windows-base:
   stage: build-base
@@ -743,7 +743,7 @@ release-align:
       yarn workspace @storyteller-platform/okmain napi build --target $env:TARGET --platform --release
   artifacts:
     paths:
-      - okmain/okmain.*.node
+      - libraries/okmain/okmain.*.node
 
 build-okmain-linux-x64-gnu:
   extends: .okmain-build-linux-base
@@ -843,12 +843,12 @@ publish-okmain:
     - rm rustup.sh
     - export PATH="$HOME/.cargo/bin:$PATH"
     - yarn workspaces focus @storyteller-platform/okmain
-    - ls -lah okmain/*.node
-    - mkdir -p okmain/artifacts
-    - mv okmain/*.node okmain/artifacts/
+    - ls -lah libraries/okmain/*.node
+    - mkdir -p libraries/okmain/artifacts
+    - mv okmain/*.node libraries/okmain/artifacts/
     - yarn workspace @storyteller-platform/okmain napi create-npm-dirs # creates the npm dirs
     - yarn workspace @storyteller-platform/okmain napi artifacts # moves all the artifacts to the correct npm dir
-    - ls -latR okmain/npm
+    - ls -latR libraries/okmain/npm
     - export npm_config_tag="$TAG" # necessary because napi prepublish script reads the tag from this env var as the republish the subpackages w/ npm
     - yarn workspace @storyteller-platform/okmain npm publish --tag="$TAG"
       --access public

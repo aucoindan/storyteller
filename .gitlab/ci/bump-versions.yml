@@ -7,43 +7,43 @@ bump-versions:
     - apt update && apt install -y --no-install-recommends git-lfs
     - git remote set-url origin
       https://ci-push-tag-token:${CI_PUSH_TAG_TOKEN}@gitlab.com/storyteller-platform/storyteller.git
-    - cd web
+    - cd applications/web
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag web-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../docs
+    - cd ../applications/docs
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag docs-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../mobile
+    - cd ../applications/mobile
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag mobile-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../fs
+    - cd ../libraries/fs
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag fs-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../epub
+    - cd ../libraries/epub
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag epub-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../audiobook
+    - cd ../libraries/audiobook
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag audiobook-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../path
+    - cd ../libraries/path
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag path-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../ghost-story
+    - cd ../libraries/ghost-story
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag ghost-story-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../align
+    - cd ../libraries/align
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag align-v${PACKAGE_VERSION}
     - git push --tags
-    - cd ../okmain
+    - cd ../libraries/okmain
     - PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
     - ../scripts/if-version-change.sh git tag okmain-v${PACKAGE_VERSION}
     - git push --tags

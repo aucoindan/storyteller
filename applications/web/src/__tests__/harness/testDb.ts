@@ -12,7 +12,7 @@ import { createKyselyDb } from "@/database/factory"
 import type { DB } from "@/database/schema"
 import type { Settings } from "@/database/settingsTypes"
 
-const SCHEMA_PATH = join(cwd(), "..", "schema.sql")
+const SCHEMA_PATH = join(cwd(), "schema.sql")
 
 const DEFAULT_SETTINGS: Settings = {
   smtpHost: "",

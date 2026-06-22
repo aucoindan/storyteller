@@ -2,34 +2,34 @@
   "include": [".eslintrc.cjs", "lint-staged.config.js"],
   "references": [
     {
-      "path": "docs"
+      "path": "applications/docs"
     },
     {
-      "path": "web"
+      "path": "applications/web"
     },
     {
-      "path": "mobile"
+      "path": "applications/mobile"
     },
     {
-      "path": "fs"
+      "path": "libraries/fs"
     },
     {
-      "path": "epub"
+      "path": "libraries/epub"
     },
     {
-      "path": "audiobook"
+      "path": "libraries/audiobook"
     },
     {
-      "path": "path"
+      "path": "libraries/path"
     },
     {
-      "path": "ghost-story"
+      "path": "libraries/ghost-story"
     },
     {
-      "path": "align"
+      "path": "libraries/align"
     },
     {
-      "path": "okmain"
+      "path": "libraries/okmain"
     }
   ]
 }

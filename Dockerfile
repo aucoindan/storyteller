@@ -11,16 +11,16 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/cache ./.yarn/cache
 COPY .yarn/patches ./.yarn/patches
 
-COPY web/package.json ./web/package.json
-COPY align/package.json ./align/package.json
-COPY align/binding.gyp ./align/binding.gyp
-COPY align/prebuilds/linux-x64 ./align/prebuilds/linux-x64
-COPY align/prebuilds/linux-arm64 ./align/prebuilds/linux-arm64
-COPY fs/package.json ./fs/package.json
-COPY epub/package.json ./epub/package.json
-COPY path/package.json ./path/package.json
-COPY audiobook/package.json ./audiobook/package.json
-COPY ghost-story/package.json ./ghost-story/package.json
+COPY applications/web/package.json ./applications/web/package.json
+COPY libraries/align/package.json ./libraries/align/package.json
+COPY libraries/align/binding.gyp ./libraries/align/binding.gyp
+COPY libraries/align/prebuilds/linux-x64 ./libraries/align/prebuilds/linux-x64
+COPY libraries/align/prebuilds/linux-arm64 ./libraries/align/prebuilds/linux-arm64
+COPY libraries/fs/package.json ./libraries/fs/package.json
+COPY libraries/epub/package.json ./libraries/epub/package.json
+COPY libraries/path/package.json ./libraries/path/package.json
+COPY libraries/audiobook/package.json ./libraries/audiobook/package.json
+COPY libraries/ghost-story/package.json ./libraries/ghost-story/package.json
 COPY config/tsup/package.json ./config/tsup/package.json
 COPY config/eslint/package.json ./config/eslint/package.json
 
@@ -32,7 +32,7 @@ COPY . .
 
 RUN cp docker-scripts/* ./scripts/
 
-RUN gcc -g -fPIC -rdynamic -shared web/sqlite/uuid.c -o web/sqlite/uuid.c.so
+RUN gcc -g -fPIC -rdynamic -shared applications/web/sqlite/uuid.c -o applications/web/sqlite/uuid.c.so
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -53,13 +53,13 @@ RUN if [ -z "$WHISPER_VARIANT" ]; then \
         *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
       esac; \
     fi && \
-    node ./ghost-story/dist/cli/bin.js \
+    node ./libraries/ghost-story/dist/cli/bin.js \
       install binary "$WHISPER_VARIANT" && \
-    node ./ghost-story/dist/cli/bin.js \
+    node ./libraries/ghost-story/dist/cli/bin.js \
       install model tiny.en && \
     if [ "$WHISPER_VARIANT" = "linux-x64-cpu" ]; then \
       echo "Also installing legacy CPU variant for older hardware..." && \
-      node ./ghost-story/dist/cli/bin.js \
+      node ./libraries/ghost-story/dist/cli/bin.js \
         install binary linux-x64-cpu-legacy; \
     fi
 
@@ -80,30 +80,30 @@ COPY --from=ghcr.io/readium/readium:0.6.5 /opt/readium /opt/readium
 RUN ln -sf /opt/readium /usr/local/bin/readium
 
 
-COPY --from=builder /app/web/.next/standalone ./.next/standalone
-COPY --from=builder /app/web/public ./.next/standalone/web/public
-COPY --from=builder /app/web/.next/static ./.next/standalone/web/.next/static
-COPY --from=builder /app/web/sqlite/uuid.c.so ./.next/standalone/web/sqlite/uuid.c.so
+COPY --from=builder /app/applications/web/.next/standalone ./.next/standalone
+COPY --from=builder /app/applications/web/public ./.next/standalone/applications/web/public
+COPY --from=builder /app/applications/web/.next/static ./.next/standalone/applications/web/.next/static
+COPY --from=builder /app/applications/web/sqlite/uuid.c.so ./.next/standalone/applications/web/sqlite/uuid.c.so
 
-RUN mkdir -p ./.next/standalone/web/.next/cache \
-    && chown storyteller:storyteller ./.next/standalone/web/.next/cache
+RUN mkdir -p ./.next/standalone/applications/web/.next/cache \
+    && chown storyteller:storyteller ./.next/standalone/applications/web/.next/cache
 
 # Copy SQL migrations
-COPY --from=builder /app/web/migrations ./.next/standalone/web/migrations
+COPY --from=builder /app/applications/web/migrations ./.next/standalone/applications/web/migrations
 
 # scripts
 # just so its in the right place and we dont have to modify the docs
-COPY --from=builder /app/scripts/ ./.next/standalone/web/scripts/
+COPY --from=builder /app/scripts/ ./.next/standalone/applications/web/scripts/
 
 # worker bundles (ESM with code-split chunks)
-COPY --from=builder /app/web/work-dist ./.next/standalone/web/work-dist
-COPY --from=builder /app/web/file-write-dist ./.next/standalone/web/file-write-dist
+COPY --from=builder /app/applications/web/work-dist ./.next/standalone/applications/web/work-dist
+COPY --from=builder /app/applications/web/file-write-dist ./.next/standalone/applications/web/file-write-dist
 
-COPY --from=builder /app/align/prebuilds/linux-x64 ./.next/standalone/web/work-dist/@storyteller-platform/align/prebuilds/linux-x64
-COPY --from=builder /app/align/prebuilds/linux-arm64 ./.next/standalone/web/work-dist/@storyteller-platform/align/prebuilds/linux-arm64
+COPY --from=builder /app/libraries/align/prebuilds/linux-x64 ./.next/standalone/applications/web/work-dist/@storyteller-platform/align/prebuilds/linux-x64
+COPY --from=builder /app/libraries/align/prebuilds/linux-arm64 ./.next/standalone/applications/web/work-dist/@storyteller-platform/align/prebuilds/linux-arm64
 
 # Echogarden tries to naively resolve its own wasm builds
-COPY --from=builder /app/node_modules/@echogarden/icu-segmentation-wasm/wasm/*.wasm ./.next/standalone/web/work-dist/
+COPY --from=builder /app/node_modules/@echogarden/icu-segmentation-wasm/wasm/*.wasm ./.next/standalone/applications/web/work-dist/
 
 # @parcel/watcher native binaries are loaded dynamically at runtime and
 # not traced by next.js into the standalone output
@@ -130,7 +130,7 @@ ENV READIUM_PORT=9000
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-ENV ERROR_ALIGN_NATIVE_BINDING=/app/.next/standalone/web/work-dist/@storyteller-platform/align/
+ENV ERROR_ALIGN_NATIVE_BINDING=/app/.next/standalone/applications/web/work-dist/@storyteller-platform/align/
 ENV SQLITE_NATIVE_BINDING=/app/.next/standalone/node_modules/better-sqlite3/build/Release/better_sqlite3.node
 ENV STORYTELLER_WORKER=worker.mjs
 ENV STORYTELLER_FILE_WRITE_WORKER=fileWriteWorker.mjs
@@ -140,7 +140,7 @@ ENV STORYTELLER_FILE_WRITE_WORKER=fileWriteWorker.mjs
 ARG WHISPER_VARIANT
 ENV STORYTELLER_WHISPER_VARIANT=${WHISPER_VARIANT}
 
-WORKDIR /app/.next/standalone/web
+WORKDIR /app/.next/standalone/applications/web
 
 COPY --from=builder /app/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

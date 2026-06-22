@@ -2,11 +2,12 @@ import assert from "node:assert"
 import { createHash } from "node:crypto"
 import { mkdir, open, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { cwd } from "node:process"
 import { after, before, describe, it } from "node:test"
 
 import { computeFileHash } from "@/assets/fs"
 
-const TEST_DIR = join("src", "__fixtures__", "__output__", "hash-tests")
+const TEST_DIR = join(cwd(), "src", "__fixtures__", "__output__", "hash-tests")
 
 void describe("computeFileHash", () => {
   before(async () => {

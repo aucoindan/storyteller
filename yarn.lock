@@ -14798,9 +14798,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@storyteller-platform/align@workspace:*, @storyteller-platform/align@workspace:align":
+"@storyteller-platform/align@workspace:*, @storyteller-platform/align@workspace:libraries/align":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/align@workspace:align"
+  resolution: "@storyteller-platform/align@workspace:libraries/align"
   dependencies:
     "@echogarden/icu-segmentation-wasm": "npm:^0.2.2"
     "@echogarden/text-segmentation": "npm:^0.4.1"
@@ -14847,9 +14847,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/audiobook@workspace:^, @storyteller-platform/audiobook@workspace:audiobook":
+"@storyteller-platform/audiobook@workspace:^, @storyteller-platform/audiobook@workspace:libraries/audiobook":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/audiobook@workspace:audiobook"
+  resolution: "@storyteller-platform/audiobook@workspace:libraries/audiobook"
   dependencies:
     "@storyteller-platform/eslint": "workspace:*"
     "@storyteller-platform/fs": "workspace:^"
@@ -14876,9 +14876,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/docs@workspace:docs":
+"@storyteller-platform/docs@workspace:applications/docs":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/docs@workspace:docs"
+  resolution: "@storyteller-platform/docs@workspace:applications/docs"
   dependencies:
     "@docusaurus/core": "npm:^3.9.2"
     "@docusaurus/faster": "npm:^3.9.2"
@@ -14907,9 +14907,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/epub@workspace:*, @storyteller-platform/epub@workspace:^, @storyteller-platform/epub@workspace:epub":
+"@storyteller-platform/epub@workspace:*, @storyteller-platform/epub@workspace:^, @storyteller-platform/epub@workspace:libraries/epub":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/epub@workspace:epub"
+  resolution: "@storyteller-platform/epub@workspace:libraries/epub"
   dependencies:
     "@readium/shared": "npm:^2.2.0"
     "@storyteller-platform/eslint": "workspace:*"
@@ -14959,9 +14959,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/fs@workspace:*, @storyteller-platform/fs@workspace:^, @storyteller-platform/fs@workspace:fs":
+"@storyteller-platform/fs@workspace:*, @storyteller-platform/fs@workspace:^, @storyteller-platform/fs@workspace:libraries/fs":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/fs@workspace:fs"
+  resolution: "@storyteller-platform/fs@workspace:libraries/fs"
   dependencies:
     "@storyteller-platform/eslint": "workspace:*"
     "@storyteller-platform/tsup": "workspace:^"
@@ -14972,9 +14972,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/ghost-story@workspace:*, @storyteller-platform/ghost-story@workspace:^, @storyteller-platform/ghost-story@workspace:ghost-story":
+"@storyteller-platform/ghost-story@workspace:*, @storyteller-platform/ghost-story@workspace:^, @storyteller-platform/ghost-story@workspace:libraries/ghost-story":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/ghost-story@workspace:ghost-story"
+  resolution: "@storyteller-platform/ghost-story@workspace:libraries/ghost-story"
   dependencies:
     "@aws-sdk/client-s3": "npm:^3.994.0"
     "@aws-sdk/client-transcribe": "npm:^3.994.0"
@@ -15006,9 +15006,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/mobile@workspace:mobile":
+"@storyteller-platform/mobile@workspace:applications/mobile":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/mobile@workspace:mobile"
+  resolution: "@storyteller-platform/mobile@workspace:applications/mobile"
   dependencies:
     "@babel/core": "npm:^7.29.0"
     "@babel/plugin-proposal-nullish-coalescing-operator": "npm:^7.18.6"
@@ -15134,9 +15134,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/okmain@workspace:okmain":
+"@storyteller-platform/okmain@workspace:libraries/okmain":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/okmain@workspace:okmain"
+  resolution: "@storyteller-platform/okmain@workspace:libraries/okmain"
   dependencies:
     "@napi-rs/cli": "npm:^3.2.0"
     "@oxc-node/core": "npm:^0.0.35"
@@ -15145,9 +15145,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/path@workspace:^, @storyteller-platform/path@workspace:path":
+"@storyteller-platform/path@workspace:^, @storyteller-platform/path@workspace:libraries/path":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/path@workspace:path"
+  resolution: "@storyteller-platform/path@workspace:libraries/path"
   dependencies:
     "@storyteller-platform/eslint": "workspace:*"
     "@storyteller-platform/tsup": "workspace:^"
@@ -15184,9 +15184,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/web@workspace:^, @storyteller-platform/web@workspace:web":
+"@storyteller-platform/web@workspace:^, @storyteller-platform/web@workspace:applications/web":
   version: 0.0.0-use.local
-  resolution: "@storyteller-platform/web@workspace:web"
+  resolution: "@storyteller-platform/web@workspace:applications/web"
   dependencies:
     "@base-ui/react": "npm:^1.5.0"
     "@dotenvx/dotenvx": "npm:^1.44.1"

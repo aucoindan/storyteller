@@ -11,7 +11,7 @@ import { createKyselyDb } from "@/database/factory"
 import { migrate } from "@/database/migrate"
 import { logger } from "@/logging"
 
-const SCHEMA_SQL_PATH = join(cwd(), "..", "schema.sql")
+const SCHEMA_SQL_PATH = join(cwd(), "schema.sql")
 const SCHEMA_TS_PATH = join(cwd(), "src", "database", "schema.ts")
 const UUID_EXT_PATH = join(cwd(), "sqlite", "uuid.c")
 

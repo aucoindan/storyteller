@@ -59,19 +59,19 @@
   ],
   "references": [
     {
-      "path": "../epub"
+      "path": "../../libraries/epub"
     },
     {
-      "path": "../fs"
+      "path": "../../libraries/fs"
     },
     {
-      "path": "../audiobook"
+      "path": "../../libraries/audiobook"
     },
     {
-      "path": "../ghost-story"
+      "path": "../../libraries/ghost-story"
     },
     {
-      "path": "../align"
+      "path": "../../libraries/align"
     }
   ]
 }

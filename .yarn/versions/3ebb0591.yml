@@ -1,0 +1,11 @@
+declined:
+  - "@storyteller-platform/docs"
+  - "@storyteller-platform/mobile"
+  - "@storyteller-platform/web"
+  - "@storyteller-platform/align"
+  - "@storyteller-platform/audiobook"
+  - "@storyteller-platform/epub"
+  - "@storyteller-platform/fs"
+  - "@storyteller-platform/ghost-story"
+  - "@storyteller-platform/okmain"
+  - "@storyteller-platform/path"

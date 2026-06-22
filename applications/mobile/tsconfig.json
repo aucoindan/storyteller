@@ -13,19 +13,19 @@
       "path": "../web"
     },
     {
-      "path": "../audiobook"
+      "path": "../../libraries/audiobook"
     },
     {
-      "path": "../epub"
+      "path": "../../libraries/epub"
     },
     {
-      "path": "../path"
+      "path": "../../libraries/path"
     },
     {
-      "path": "../fs"
+      "path": "../../libraries/fs"
     },
     {
-      "path": "../align"
+      "path": "../../libraries/align"
     }
   ]
 }
