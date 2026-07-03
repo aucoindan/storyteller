@@ -35,16 +35,24 @@ configureReanimatedLogger({
 
 interface Props {
   initialTheme: ColorTheme
+  existingNames: string[]
   onSave: (theme: ColorTheme) => void
 }
 
-export function CustomThemeEditor({ initialTheme, onSave }: Props) {
+export function CustomThemeEditor({
+  initialTheme,
+  existingNames,
+  onSave,
+}: Props) {
   const router = useRouter()
 
   const [foreground, setForeground] = useState(initialTheme.foreground)
   const [background, setBackground] = useState(initialTheme.background)
   const [name, setName] = useState(initialTheme.name)
   const [isDark, setIsDark] = useState(initialTheme.isDark)
+
+  const trimmedName = name.trim()
+  const isDuplicateName = existingNames.some((n) => n === trimmedName)
 
   return (
     <>
@@ -85,6 +93,12 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
           onChangeText={setName}
           style={{ color: foreground }}
         />
+        {isDuplicateName && (
+          <Text className="text-sm" style={{ color: foreground }}>
+            A theme named “{trimmedName}” already exists. Choose a different
+            name.
+          </Text>
+        )}
         <Text
           className="mt-4 self-center text-lg"
           style={{ color: foreground }}
@@ -136,10 +150,10 @@ export function CustomThemeEditor({ initialTheme, onSave }: Props) {
           <Button
             accessibilityLabel="Save custom theme"
             className="mb-6 w-full"
-            disabled={!name.trim()}
+            disabled={!trimmedName || isDuplicateName}
             onPress={() => {
               onSave({
-                name,
+                name: trimmedName,
                 isDark,
                 foreground: foreground.slice(0, 7),
                 background: background.slice(0, 7),

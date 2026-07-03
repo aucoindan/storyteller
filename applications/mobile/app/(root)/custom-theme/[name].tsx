@@ -23,18 +23,31 @@ export default function EditCustomThemeScreen() {
   return (
     <CustomThemeEditor
       initialTheme={initialTheme}
-      onSave={(theme) => {
+      existingNames={(preferences?.colorThemes ?? [])
+        .filter((theme) => theme.name !== name)
+        .map((theme) => theme.name)}
+      onSave={(updated) => {
+        const oldName = name
         const updatedThemes = [...(preferences?.colorThemes ?? [])]
 
-        const updatedIndex = updatedThemes.findIndex(
-          (theme) => theme.name === name,
-        )
-        updatedThemes.splice(updatedIndex, 1, theme)
+        const updatedIndex = updatedThemes.findIndex((t) => t.name === oldName)
+        if (updatedIndex !== -1) {
+          updatedThemes.splice(updatedIndex, 1, updated)
+        }
 
         updatePreference({
           name: "colorThemes",
           value: updatedThemes,
         })
+
+        if (updated.name !== oldName) {
+          if (preferences?.lightTheme === oldName) {
+            updatePreference({ name: "lightTheme", value: updated.name })
+          }
+          if (preferences?.darkTheme === oldName) {
+            updatePreference({ name: "darkTheme", value: updated.name })
+          }
+        }
 
         router.back()
       }}

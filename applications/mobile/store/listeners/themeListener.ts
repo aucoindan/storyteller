@@ -32,13 +32,7 @@ startAppListening({
     const preferenceName =
       Uniwind.currentTheme === "dark" ? "darkTheme" : "lightTheme"
 
-    if (
-      originalPreferences?.[preferenceName] === preferences?.[preferenceName]
-    ) {
-      return
-    }
-
-    const originalTheme = originalPreferences.colorThemes.find(
+    const originalTheme = originalPreferences?.colorThemes.find(
       (theme) => theme.name === originalPreferences[preferenceName],
     )
     const theme = preferences.colorThemes.find(
@@ -49,7 +43,7 @@ startAppListening({
 
     if (
       originalTheme?.foreground === theme.foreground &&
-      originalTheme.background === theme.background
+      originalTheme?.background === theme.background
     ) {
       return
     }

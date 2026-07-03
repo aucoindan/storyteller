@@ -18,6 +18,9 @@ export default function NewCustomThemeScreen() {
   return (
     <CustomThemeEditor
       initialTheme={{ name: "", foreground, background, isDark: false }}
+      existingNames={(preferences?.colorThemes ?? []).map(
+        (theme) => theme.name,
+      )}
       onSave={(theme) => {
         updatePreference({
           name: "colorThemes",
