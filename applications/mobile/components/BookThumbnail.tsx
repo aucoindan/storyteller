@@ -1,7 +1,7 @@
-import { Link } from "expo-router"
+import { Link, useRouter } from "expo-router"
 import { BookOpen, Headphones } from "lucide-react-native"
-import { Pressable, View, type ViewStyle } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { useRef } from "react"
+import { Platform, Pressable, View, type ViewStyle } from "react-native"
 
 import { type BookWithRelations } from "@/database/books"
 import { useAvailableFormats } from "@/hooks/useAvailableFormats"
@@ -19,18 +19,9 @@ import { DownloadingIndicator } from "./DownloadingIndicator"
 import { EbookCover } from "./EbookCover"
 import { Stack } from "./ui/Stack"
 import { Button } from "./ui/button"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "./ui/context-menu"
 import { Icon } from "./ui/icon"
 import { ReadaloudIcon } from "./ui/icon-readaloud"
+import { Menu, type MenuAction, type MenuRef } from "./ui/menu"
 import { Text } from "./ui/text"
 
 const DEFAULT_THUMBNAIL_WIDTH = 116
@@ -45,17 +36,11 @@ export function BookThumbnail({
   book,
   width = DEFAULT_THUMBNAIL_WIDTH,
 }: Props) {
+  const router = useRouter()
+  const androidMenuRef = useRef<MenuRef>(null)
   const height = Math.round(width * THUMBNAIL_HEIGHT_RATIO)
   const titleFontSize = Math.max(11, Math.min(16, Math.round(width * 0.11)))
   const authorFontSize = Math.max(10, Math.min(14, Math.round(width * 0.1)))
-
-  const insets = useSafeAreaInsets()
-  const contentInsets = {
-    top: insets.top,
-    bottom: insets.bottom,
-    left: 12,
-    right: 12,
-  }
 
   const downloadedFormats = useDownloadedFormats(book)
   const availableFormats = useAvailableFormats(book)
@@ -70,135 +55,180 @@ export function BookThumbnail({
   const { data: statuses } = useListStatusesQuery()
 
   const [updateStatus] = useUpdateStatusMutation()
+  function openBookDetails() {
+    router.push({
+      pathname: "/book/[uuid]",
+      params: { uuid: book.uuid },
+    })
+  }
 
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        {/* asChild + Pressable instead of Link for Boox device compat */}
-        <Link asChild href={`/book/${book.uuid}`}>
+  const statusActions: MenuAction[] =
+    statuses
+      ?.filter((status) => status.uuid !== book.status?.uuid)
+      .map((status) => ({
+        id: `status-${status.uuid}`,
+        title: `Move to "${status.name}"`,
+        onPress: () => {
+          updateStatus({
+            bookUuid: book.uuid,
+            statusUuid: status.uuid,
+          })
+        },
+      })) ?? []
+
+  const menuActions: MenuAction[] = [
+    {
+      id: "book-details",
+      title: "Book details",
+      onPress: openBookDetails,
+    },
+    ...(downloadedFormats.length
+      ? [
+          {
+            id: "open-book",
+            title: audioOnly ? "Play audiobook" : "Open book",
+            onPress: () => {
+              router.push({
+                pathname: audioOnly ? "/listen/[uuid]" : "/read/[uuid]",
+                params: {
+                  uuid: book.uuid,
+                  format: audioOnly
+                    ? "audiobook"
+                    : downloadedFormats.includes("readaloud")
+                      ? "readaloud"
+                      : "ebook",
+                },
+              })
+            },
+          },
+        ]
+      : []),
+    ...(statusActions.length
+      ? [
+          {
+            id: "reading-status",
+            title: "Reading status",
+            subactions: statusActions,
+          },
+        ]
+      : []),
+    ...(availableFormats.length
+      ? [
+          {
+            id: "downloads",
+            title: "Downloads",
+            subactions: availableFormats.map((format) => ({
+              id: `download-${format}`,
+              title: downloadedFormats.includes(format)
+                ? `Remove ${format}`
+                : `${format[0]?.toUpperCase()}${format.slice(1)}`,
+              ...(downloadedFormats.includes(format)
+                ? { attributes: { destructive: true } }
+                : {}),
+              onPress: () => {
+                if (downloadedFormats.includes(format)) {
+                  deleteBook({
+                    bookUuid: book.uuid,
+                    format,
+                    deleteRecord: book.serverUuid === null,
+                  })
+                  return
+                }
+                downloadBook({
+                  bookUuid: book.uuid,
+                  format: format,
+                })
+              },
+            })),
+          },
+        ]
+      : []),
+  ]
+
+  const cover = (
+    <Stack
+      // should be a more elegant way to get the text a little closer
+      className="relative -mb-3 flex-col justify-center"
+      style={{ height, width }}
+    >
+      <View style={{ height, width }}>
+        <BookThumbnailImage
+          book={book}
+          height={height}
+          showActions={false}
+          width={width}
+        />
+      </View>
+    </Stack>
+  )
+
+  const renderMetadata = (maxWidth: number) => (
+    <>
+      <Text
+        className="text-muted-foreground"
+        numberOfLines={1}
+        style={{ maxWidth, fontSize: authorFontSize }}
+      >
+        {book.authors[0]?.name}
+      </Text>
+
+      <Text
+        className="leading-none font-semibold"
+        numberOfLines={2}
+        style={{ maxWidth, fontSize: titleFontSize }}
+      >
+        {book.title}
+      </Text>
+    </>
+  )
+
+  const thumbnail = (
+    // Pressable instead of Link alone for Boox device compat
+    <View className="overflow-visible" style={{ width }}>
+      <Link asChild href={`/book/${book.uuid}`}>
+        <Pressable
+          accessibilityLabel={`Open details for ${book.title}`}
+          accessibilityRole="button"
+          style={{ width }}
+          className="overflow-visible"
+        >
+          {cover}
+          {renderMetadata(width)}
+        </Pressable>
+      </Link>
+      <BookThumbnailActionButtons book={book} height={height} width={width} />
+    </View>
+  )
+
+  if (Platform.OS === "android") {
+    return (
+      <Menu actions={menuActions} androidManualTrigger menuRef={androidMenuRef}>
+        <View className="overflow-visible" style={{ width }}>
           <Pressable
             accessibilityLabel={`Open details for ${book.title}`}
-            accessibilityRole="button"
-            style={{ width }}
+            accessibilityRole="link"
             className="overflow-visible"
+            onLongPress={() => androidMenuRef.current?.show()}
+            onPress={openBookDetails}
+            style={{ width }}
           >
-            <Stack
-              // should be a more elegant way to get the text a little closer
-              className="relative -mb-3 flex-col justify-center"
-              style={{ height, width }}
-            >
-              <View style={{ height, width }}>
-                <BookThumbnailImage book={book} height={height} width={width} />
-              </View>
-            </Stack>
-
-            <Text
-              className="text-muted-foreground"
-              numberOfLines={1}
-              style={{ maxWidth: width, fontSize: authorFontSize }}
-            >
-              {book.authors[0]?.name}
-            </Text>
-
-            <Text
-              className="leading-none font-semibold"
-              numberOfLines={2}
-              style={{ maxWidth: width, fontSize: titleFontSize }}
-            >
-              {book.title}
-            </Text>
+            {cover}
+            {renderMetadata(width)}
           </Pressable>
-        </Link>
-      </ContextMenuTrigger>
-      <ContextMenuContent insets={contentInsets}>
-        <ContextMenuItem asChild>
-          <Link href={`/book/${book.uuid}`}>
-            <Text>Book details</Text>
-          </Link>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {!!downloadedFormats.length && (
-          <>
-            <ContextMenuItem asChild>
-              <Link
-                href={{
-                  pathname: audioOnly ? "/listen/[uuid]" : "/read/[uuid]",
-                  params: {
-                    uuid: book.uuid,
-                    format: audioOnly
-                      ? "audiobook"
-                      : downloadedFormats.includes("readaloud")
-                        ? "readaloud"
-                        : "ebook",
-                  },
-                }}
-              >
-                <Text>{audioOnly ? "Play audiobook" : "Open book"}</Text>
-              </Link>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
-        )}
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Text>Reading status</Text>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            {statuses
-              ?.filter((status) => status.uuid !== book.status?.uuid)
-              .map((status) => (
-                <ContextMenuItem
-                  key={status.uuid}
-                  onPress={() => {
-                    updateStatus({
-                      bookUuid: book.uuid,
-                      statusUuid: status.uuid,
-                    })
-                  }}
-                >
-                  <Text>Move to “{status.name}”</Text>
-                </ContextMenuItem>
-              ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuSeparator />
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Text>Downloads</Text>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            {availableFormats.map((format) => (
-              <ContextMenuItem
-                key={format}
-                onPress={() => {
-                  if (downloadedFormats.includes(format)) {
-                    deleteBook({
-                      bookUuid: book.uuid,
-                      format,
-                      deleteRecord: book.serverUuid === null,
-                    })
-                    return
-                  }
-                  downloadBook({
-                    bookUuid: book.uuid,
-                    format: format,
-                  })
-                }}
-                variant={
-                  downloadedFormats.includes(format) ? "destructive" : "default"
-                }
-              >
-                <Text>
-                  {downloadedFormats.includes(format)
-                    ? `Remove ${format}`
-                    : `${format[0]?.toUpperCase()}${format.slice(1)}`}
-                </Text>
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-      </ContextMenuContent>
-    </ContextMenu>
+          <BookThumbnailActionButtons
+            book={book}
+            height={height}
+            width={width}
+          />
+        </View>
+      </Menu>
+    )
+  }
+
+  return (
+    <Menu actions={menuActions} shouldOpenOnLongPress>
+      {thumbnail}
+    </Menu>
   )
 }
 
@@ -206,11 +236,13 @@ export function BookThumbnailImage({
   className,
   book,
   height,
+  showActions = true,
   width,
 }: {
   className?: string | undefined
   book: BookWithRelations
   height: number
+  showActions?: boolean
   width: number
 }) {
   const downloadingFormat = [book.readaloud, book.ebook, book.audiobook].find(
@@ -258,11 +290,79 @@ export function BookThumbnailImage({
           />
         </>
       )}
+      {showActions && (
+        <BookThumbnailActionButtons book={book} height={height} width={width} />
+      )}
+      {hasBothCovers ? (
+        <>
+          <AudiobookCoverImage
+            book={book}
+            height={width}
+            width={width}
+            className="absolute z-10 translate-x-[10%] scale-[0.8]"
+            style={{
+              top: (height - width) / 2,
+            }}
+          />
+          <EbookCoverImage
+            book={book}
+            height={height}
+            width={width}
+            className="absolute z-20 -translate-x-[10%] scale-[0.8]"
+          />
+        </>
+      ) : book.ebook ? (
+        <EbookCoverImage
+          book={book}
+          height={height}
+          width={width}
+          className="-translate-x-[10%] scale-[0.8]"
+        />
+      ) : (
+        <AudiobookCoverImage
+          book={book}
+          height={width}
+          width={width}
+          className="relative"
+          style={{
+            top: (height - width) / 2,
+          }}
+        />
+      )}
+    </View>
+  )
+}
+
+function BookThumbnailActionButtons({
+  book,
+  height,
+  width,
+}: {
+  book: BookWithRelations
+  height: number
+  width: number
+}) {
+  const downloadedFormats = useDownloadedFormats(book)
+  const hasBothCovers = book.readaloud || (book.ebook && book.audiobook)
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        height,
+        width,
+        position: "absolute",
+        top: 0,
+        left: 0,
+        zIndex: 50,
+      }}
+    >
       <Stack
         className={cn(
           "absolute top-0 bottom-0 z-50 justify-center gap-4",
           hasBothCovers ? "right-2" : "right-1/2 translate-x-1/2",
         )}
+        pointerEvents="box-none"
       >
         {(downloadedFormats.includes("ebook") ||
           downloadedFormats.includes("readaloud")) && (
@@ -325,42 +425,6 @@ export function BookThumbnailImage({
           </Link>
         )}
       </Stack>
-      {hasBothCovers ? (
-        <>
-          <AudiobookCoverImage
-            book={book}
-            height={width}
-            width={width}
-            className="absolute z-10 translate-x-[10%] scale-[0.8]"
-            style={{
-              top: (height - width) / 2,
-            }}
-          />
-          <EbookCoverImage
-            book={book}
-            height={height}
-            width={width}
-            className="absolute z-20 -translate-x-[10%] scale-[0.8]"
-          />
-        </>
-      ) : book.ebook ? (
-        <EbookCoverImage
-          book={book}
-          height={height}
-          width={width}
-          className="-translate-x-[10%] scale-[0.8]"
-        />
-      ) : (
-        <AudiobookCoverImage
-          book={book}
-          height={width}
-          width={width}
-          className="relative"
-          style={{
-            top: (height - width) / 2,
-          }}
-        />
-      )}
     </View>
   )
 }

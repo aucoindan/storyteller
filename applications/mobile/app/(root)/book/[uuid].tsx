@@ -29,16 +29,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/ui/icon"
+import { Menu } from "@/components/ui/menu"
 import {
   Select,
-  SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -229,97 +223,74 @@ export default function BookDetailsScreen() {
                   }}
                 >
                   <SelectTrigger
-                    className=""
                     accessibilityLabel={`Reading status, ${book.status.name}`}
                   >
                     <SelectValue placeholder="" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {statuses?.map((status) => (
-                      <SelectItem
-                        key={status.uuid}
-                        label={status.name}
-                        value={status.uuid}
-                        accessibilityLabel={`Set reading status to ${status.name}`}
-                      />
-                    ))}
-                  </SelectContent>
+                  {statuses?.map((status) => (
+                    <SelectItem
+                      key={status.uuid}
+                      label={status.name}
+                      value={status.uuid}
+                    />
+                  ))}
                 </Select>
               )}
               <Stack className="gap-1">
                 <Group className="self-end rounded-md px-2 py-[0.05rem]">
                   {availableFormats.length > 1 ? (
-                    <>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="border-primary dark:border-primary"
-                            accessibilityLabel="Open download options"
-                          >
-                            <Text className="text-primary">Downloads</Text>
-                            <Icon
-                              as={ChevronDown}
-                              size={16}
-                              className="text-primary"
-                            />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {availableFormats.map((format) => {
-                            const status = book[format]?.downloadStatus
-                            const isActiveDownload =
-                              status === "DOWNLOADING" || status === "QUEUED"
-                            const isDownloaded =
-                              downloadedFormats.includes(format)
-                            const label = isDownloaded
-                              ? `Remove ${format}`
-                              : isActiveDownload
-                                ? `Cancel ${format} download`
-                                : `Download ${format}`
+                    <Menu
+                      actions={availableFormats.map((format) => {
+                        const status = book[format]?.downloadStatus
+                        const isActiveDownload =
+                          status === "DOWNLOADING" || status === "QUEUED"
+                        const isDownloaded = downloadedFormats.includes(format)
+                        const label = isDownloaded
+                          ? `Remove ${format}`
+                          : isActiveDownload
+                            ? `Cancel ${format} download`
+                            : `Download ${format}`
 
-                            return (
-                              <DropdownMenuItem
-                                key={format}
-                                accessibilityLabel={label}
-                                onPress={() => {
-                                  if (isActiveDownload) {
-                                    cancelDownload({
-                                      bookUuid: book.uuid,
-                                      format,
-                                    })
-                                    return
-                                  }
+                        return {
+                          id: `download-${format}`,
+                          title: label,
+                          ...(isDownloaded
+                            ? { attributes: { destructive: true } }
+                            : {}),
+                          onPress: () => {
+                            if (isActiveDownload) {
+                              cancelDownload({
+                                bookUuid: book.uuid,
+                                format,
+                              })
+                              return
+                            }
 
-                                  if (isDownloaded) {
-                                    setPendingDeleteFormat(format)
-                                    return
-                                  }
-                                  downloadBook({
-                                    bookUuid: book.uuid,
-                                    format: format,
-                                  })
-                                }}
-                                variant={
-                                  isDownloaded ? "destructive" : "default"
-                                }
-                                className={
-                                  status === "DOWNLOADED" ||
-                                  status === "DOWNLOADING"
-                                    ? "border-destructive"
-                                    : "border-primary"
-                                }
-                              >
-                                <Text>{label}</Text>
-                                {isActiveDownload && (
-                                  <Icon as={CircleX} size={16} />
-                                )}
-                              </DropdownMenuItem>
-                            )
-                          })}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </>
+                            if (isDownloaded) {
+                              setPendingDeleteFormat(format)
+                              return
+                            }
+                            downloadBook({
+                              bookUuid: book.uuid,
+                              format: format,
+                            })
+                          },
+                        }
+                      })}
+                    >
+                      <Button
+                        variant="outline"
+                        className="border-primary dark:border-primary"
+                        accessibilityLabel="Open download options"
+                      >
+                        <Text className="text-primary">Downloads</Text>
+                        <Icon
+                          as={ChevronDown}
+                          size={16}
+                          className="text-primary"
+                        />
+                      </Button>
+                    </Menu>
                   ) : (
                     onlyFormat && (
                       <>

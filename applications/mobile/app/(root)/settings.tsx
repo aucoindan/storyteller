@@ -118,14 +118,19 @@ export default function Settings() {
               }
             />
           </View>
-          <View className="my-3 w-full flex-row items-center justify-between gap-4">
-            <Text maxFontSizeMultiplier={1} className="text-lg">
-              Long break
-            </Text>
+          <View className="my-3 w-full gap-2">
+            <View className="w-full flex-row items-center justify-between gap-4">
+              <Text maxFontSizeMultiplier={1} className="text-lg">
+                Long break
+              </Text>
+              <Text maxFontSizeMultiplier={1} className="shrink-0 text-sm">
+                {preferences.automaticRewind.afterBreak}s
+              </Text>
+            </View>
             <Slider
               accessibilityLabel="Automatic rewind after long break"
               disabled={!preferences.automaticRewind.enabled}
-              className="h-4 grow"
+              className="w-full"
               start={1}
               stop={30}
               step={1}
@@ -141,18 +146,20 @@ export default function Settings() {
                 })
               }}
             />
-            <Text maxFontSizeMultiplier={1} className="w-8 shrink-0 text-sm">
-              {preferences.automaticRewind.afterBreak}s
-            </Text>
           </View>
-          <View className="my-3 w-full flex-row items-center justify-between gap-4">
-            <Text maxFontSizeMultiplier={1} className="text-lg">
-              Interruption
-            </Text>
+          <View className="my-3 w-full gap-2">
+            <View className="w-full flex-row items-center justify-between gap-4">
+              <Text maxFontSizeMultiplier={1} className="text-lg">
+                Interruption
+              </Text>
+              <Text maxFontSizeMultiplier={1} className="shrink-0 text-sm">
+                {preferences.automaticRewind.afterInterruption}s
+              </Text>
+            </View>
             <Slider
               accessibilityLabel="Automatic rewind after interruption"
               disabled={!preferences.automaticRewind.enabled}
-              className="h-4 grow"
+              className="w-full"
               start={1}
               stop={30}
               step={1}
@@ -168,9 +175,6 @@ export default function Settings() {
                 })
               }}
             />
-            <Text maxFontSizeMultiplier={1} className="w-8 text-sm">
-              {preferences.automaticRewind.afterInterruption}s
-            </Text>
           </View>
         </View>
         <ReadingSettings />

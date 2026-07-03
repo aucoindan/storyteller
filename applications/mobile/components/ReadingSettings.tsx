@@ -3,8 +3,7 @@ import deepmerge from "deepmerge"
 import { dequal } from "dequal"
 import { Link } from "expo-router"
 import { useMemo } from "react"
-import { Platform, Pressable, StyleSheet, View } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Pressable, StyleSheet, View } from "react-native"
 
 import { Switch } from "@/components/ui/switch"
 import {
@@ -26,14 +25,7 @@ import { ColorPickerDialog } from "./ColorPickerDialog"
 import { LoadingView } from "./LoadingView"
 import { ButtonGroup, ButtonGroupButton } from "./ui/ButtonGroup"
 import { Button } from "./ui/button"
-import {
-  NativeSelectScrollView,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select"
+import { Select, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 import { Slider } from "./ui/slider"
 import { Text } from "./ui/text"
 import { colors } from "./ui/tokens/colors"
@@ -42,6 +34,17 @@ import { spacing } from "./ui/tokens/spacing"
 
 type Props = {
   bookUuid?: UUID
+}
+
+function getFontPreviewFamily(fontFamily: string) {
+  switch (fontFamily) {
+    case "Literata":
+      return "Literata_500Medium"
+    case "OpenDyslexic":
+      return "OpenDyslexic-Regular"
+    default:
+      return fontFamily
+  }
 }
 
 export function ReadingSettings({ bookUuid }: Props) {
@@ -73,17 +76,6 @@ export function ReadingSettings({ bookUuid }: Props) {
     () => dequal(preferences?.typography, defaultPreferences.typography),
     [preferences?.typography],
   )
-
-  const insets = useSafeAreaInsets()
-  const contentInsets = {
-    top: insets.top,
-    bottom: Platform.select({
-      android: insets.bottom + 24,
-      default: insets.bottom,
-    }),
-    left: 12,
-    right: 12,
-  }
 
   if (!preferences) return <LoadingView />
 
@@ -130,18 +122,16 @@ export function ReadingSettings({ bookUuid }: Props) {
             updateGlobalPreference({ name: "lightTheme", value: option.value })
           }}
         >
-          <SelectTrigger accessibilityLabel="Light theme">
+          <SelectTrigger
+            accessibilityLabel={`Light theme, ${preferences.lightTheme}`}
+          >
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent insets={contentInsets}>
-            <NativeSelectScrollView>
-              {preferences.colorThemes
-                .filter(({ isDark }) => !isDark)
-                .map(({ name }) => (
-                  <SelectItem key={name} label={name} value={name} />
-                ))}
-            </NativeSelectScrollView>
-          </SelectContent>
+          {preferences.colorThemes
+            .filter(({ isDark }) => !isDark)
+            .map(({ name }) => (
+              <SelectItem key={name} label={name} value={name} />
+            ))}
         </Select>
       </View>
       <View className="my-3 w-full flex-row items-center justify-between">
@@ -156,18 +146,16 @@ export function ReadingSettings({ bookUuid }: Props) {
             updateGlobalPreference({ name: "darkTheme", value: option.value })
           }}
         >
-          <SelectTrigger accessibilityLabel="Dark theme">
+          <SelectTrigger
+            accessibilityLabel={`Dark theme, ${preferences.darkTheme}`}
+          >
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent insets={contentInsets}>
-            <NativeSelectScrollView>
-              {preferences.colorThemes
-                .filter(({ isDark }) => isDark)
-                .map(({ name }) => (
-                  <SelectItem key={name} label={name} value={name} />
-                ))}
-            </NativeSelectScrollView>
-          </SelectContent>
+          {preferences.colorThemes
+            .filter(({ isDark }) => isDark)
+            .map(({ name }) => (
+              <SelectItem key={name} label={name} value={name} />
+            ))}
         </Select>
       </View>
       <Link href="/custom-theme" asChild>
@@ -257,12 +245,18 @@ export function ReadingSettings({ bookUuid }: Props) {
       <Text variant="h2" className="mt-4">
         Margins
       </Text>
-      <View className="my-3 w-full flex-row items-center justify-between gap-4">
-        <Text maxFontSizeMultiplier={1} className="text-lg">
-          Left margin
-        </Text>
+      <View className="my-3 w-full gap-2">
+        <View className="w-full flex-row items-center justify-between gap-4">
+          <Text maxFontSizeMultiplier={1} className="text-lg">
+            Left margin
+          </Text>
+          <Text maxFontSizeMultiplier={1} className="shrink-0 text-sm">
+            {preferences.layout.marginLeft ?? 0}px
+          </Text>
+        </View>
         <Slider
-          className="h-2 grow"
+          accessibilityLabel="Left margin"
+          className="w-full"
           start={0}
           stop={50}
           step={1}
@@ -283,16 +277,19 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         />
-        <Text maxFontSizeMultiplier={1} className="text-right text-sm">
-          {preferences.layout.marginLeft ?? 0}px
-        </Text>
       </View>
-      <View className="my-3 w-full flex-row items-center justify-between gap-4">
-        <Text maxFontSizeMultiplier={1} className="text-lg">
-          Right margin
-        </Text>
+      <View className="my-3 w-full gap-2">
+        <View className="w-full flex-row items-center justify-between gap-4">
+          <Text maxFontSizeMultiplier={1} className="text-lg">
+            Right margin
+          </Text>
+          <Text maxFontSizeMultiplier={1} className="shrink-0 text-sm">
+            {preferences.layout.marginRight ?? 0}px
+          </Text>
+        </View>
         <Slider
-          className="h-2 grow"
+          accessibilityLabel="Right margin"
+          className="w-full"
           start={0}
           stop={50}
           step={1}
@@ -313,9 +310,6 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         />
-        <Text maxFontSizeMultiplier={1} className="text-right text-sm">
-          {preferences.layout.marginRight ?? 0}px
-        </Text>
       </View>
 
       <View>
@@ -429,13 +423,18 @@ export function ReadingSettings({ bookUuid }: Props) {
         )}
       </View>
 
-      <View className="my-3 w-full flex-row items-center justify-between gap-4">
-        <Text maxFontSizeMultiplier={1} className="text-lg">
-          Font scaling
-        </Text>
+      <View className="my-3 w-full gap-2">
+        <View className="w-full flex-row items-center justify-between gap-4">
+          <Text maxFontSizeMultiplier={1} className="text-lg">
+            Font scaling
+          </Text>
+          <Text className="shrink-0 text-sm" maxFontSizeMultiplier={1}>
+            {formatNumber(preferences.typography.scale, 2)}x
+          </Text>
+        </View>
         <Slider
           accessibilityLabel="Font scaling"
-          className="h-2 grow"
+          className="w-full"
           start={0.7}
           stop={2}
           step={0.05}
@@ -457,17 +456,19 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         />
-        <Text className="text-sm" maxFontSizeMultiplier={1}>
-          {formatNumber(preferences.typography.scale, 2)}x
-        </Text>
       </View>
-      <View className="my-3 w-full flex-row items-center justify-between gap-4">
-        <Text maxFontSizeMultiplier={1} className="text-lg">
-          Line height
-        </Text>
+      <View className="my-3 w-full gap-2">
+        <View className="w-full flex-row items-center justify-between gap-4">
+          <Text maxFontSizeMultiplier={1} className="text-lg">
+            Line height
+          </Text>
+          <Text maxFontSizeMultiplier={1} className="shrink-0 text-sm">
+            {formatNumber(preferences.typography.lineHeight, 2)}x
+          </Text>
+        </View>
         <Slider
           accessibilityLabel="Line height"
-          className="h-2 grow"
+          className="w-full"
           start={1.0}
           stop={2.0}
           step={0.05}
@@ -489,9 +490,6 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         />
-        <Text maxFontSizeMultiplier={1} className="text-sm">
-          {formatNumber(preferences.typography.lineHeight, 2)}x
-        </Text>
       </View>
       <View style={styles.field}>
         <Text maxFontSizeMultiplier={1} className="text-lg">
@@ -555,39 +553,23 @@ export function ReadingSettings({ bookUuid }: Props) {
             }
           }}
         >
-          <SelectTrigger accessibilityLabel="Font family">
-            <SelectValue placeholder="" />
+          <SelectTrigger
+            accessibilityLabel={`Font family, ${preferences.typography.fontFamily}`}
+          >
+            <SelectValue
+              placeholder=""
+              style={{
+                fontFamily: getFontPreviewFamily(
+                  preferences.typography.fontFamily,
+                ),
+              }}
+            />
           </SelectTrigger>
-          <SelectContent insets={contentInsets}>
-            <NativeSelectScrollView>
-              <SelectItem label="Literata" value="Literata">
-                <Text
-                  className="text-sm select-none"
-                  style={{ fontFamily: "Literata_500Medium" }}
-                >
-                  Literata
-                </Text>
-              </SelectItem>
-              <SelectItem label="OpenDyslexic" value="OpenDyslexic">
-                <Text
-                  className="text-sm select-none"
-                  style={{ fontFamily: "OpenDyslexic-Regular" }}
-                >
-                  OpenDyslexic
-                </Text>
-              </SelectItem>
-              {preferences.customFonts.map(({ name }) => (
-                <SelectItem key={name} label={name} value={name}>
-                  <Text
-                    className="text-sm select-none"
-                    style={{ fontFamily: name }}
-                  >
-                    {name}
-                  </Text>
-                </SelectItem>
-              ))}
-            </NativeSelectScrollView>
-          </SelectContent>
+          <SelectItem label="Literata" value="Literata" />
+          <SelectItem label="OpenDyslexic" value="OpenDyslexic" />
+          {preferences.customFonts.map(({ name }) => (
+            <SelectItem key={name} label={name} value={name} />
+          ))}
         </Select>
       </View>
       <Link href="custom-fonts" asChild>

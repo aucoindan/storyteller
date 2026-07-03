@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker"
 import { Link, useRouter } from "expo-router"
-import { EllipsisVertical, FileUp, Settings } from "lucide-react-native"
+import { EllipsisVertical } from "lucide-react-native"
 import { useEffect, useMemo, useRef } from "react"
 import {
   Image,
@@ -15,13 +15,8 @@ import { MiniPlayerWidget } from "@/components/MiniPlayerWidget"
 import { Shelf } from "@/components/Shelf"
 import { Group } from "@/components/ui/Group"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/ui/icon"
+import { Menu } from "@/components/ui/menu"
 import { Text } from "@/components/ui/text"
 import { type BookWithRelations } from "@/database/books"
 import { type Collection } from "@/database/collections"
@@ -136,34 +131,31 @@ export default function Home() {
           />
         </TouchableOpacity>
         <BookSearch />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              accessibilityLabel="Open home menu"
-            >
-              <Icon as={EllipsisVertical} size={24} className="text-primary" />
-            </Button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onPress={async () => {
+        <Menu
+          actions={[
+            {
+              id: "import-book",
+              title: "Import book",
+              onPress: async () => {
                 const uri = await pickBookFile()
                 if (uri) dispatch(bookImported({ url: uri, from: "home" }))
-              }}
-            >
-              <Icon as={FileUp} size={18} className="text-foreground" />
-              <Text>Import book</Text>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onPress={() => router.push("/settings")}>
-              <Icon as={Settings} size={18} className="text-foreground" />
-              <Text>Settings</Text>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              },
+            },
+            {
+              id: "settings",
+              title: "Settings",
+              onPress: () => router.push("/settings"),
+            },
+          ]}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            accessibilityLabel="Open home menu"
+          >
+            <Icon as={EllipsisVertical} size={24} className="text-primary" />
+          </Button>
+        </Menu>
       </Group>
       <ScrollView
         className="w-full pl-6"

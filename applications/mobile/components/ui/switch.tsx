@@ -1,41 +1,148 @@
-import * as SwitchPrimitives from "@rn-primitives/switch"
-import { Platform } from "react-native"
+import { Host as BaseHost, Switch as ExpoSwitch } from "@expo/ui"
+import { Switch as BaseComposeSwitch } from "@expo/ui/jetpack-compose"
+import { testID as composeTestID } from "@expo/ui/jetpack-compose/modifiers"
+import {
+  accessibilityLabel as swiftAccessibilityLabel,
+  tint,
+} from "@expo/ui/swift-ui/modifiers"
+import { type ComponentProps } from "react"
+import { type ColorValue, Platform, View } from "react-native"
+import { withUniwind } from "uniwind"
 
 import { cn } from "@/lib/utils"
 
-function Switch({
-  className,
+type IOSSwitchProps = ComponentProps<typeof ExpoSwitch> & {
+  accessibilityLabel?: string | undefined
+  tintColor?: ColorValue | undefined
+}
+
+type AndroidSwitchProps = ComponentProps<typeof BaseComposeSwitch> & {
+  checkedBorderColor?: ColorValue | undefined
+  checkedThumbColor?: ColorValue | undefined
+  checkedTrackColor?: ColorValue | undefined
+}
+
+type Props = {
+  accessibilityLabel?: string | undefined
+  checked: boolean
+  className?: string | undefined
+  disabled?: boolean | undefined
+  onCheckedChange: (checked: boolean) => void
+  testID?: string | undefined
+}
+
+const Host = withUniwind(BaseHost)
+
+function BaseIOSSwitch({
+  accessibilityLabel,
+  modifiers,
+  tintColor,
   ...props
-}: SwitchPrimitives.RootProps & React.RefAttributes<SwitchPrimitives.RootRef>) {
+}: IOSSwitchProps) {
+  const switchModifiers = [
+    ...(tintColor ? [tint(tintColor)] : []),
+    ...(accessibilityLabel
+      ? [swiftAccessibilityLabel(accessibilityLabel)]
+      : []),
+    ...(modifiers ?? []),
+  ]
+
   return (
-    <SwitchPrimitives.Root
-      className={cn(
-        "flex h-[1.15rem] w-8 shrink-0 flex-row items-center rounded-full border border-transparent shadow-xs shadow-black/5",
-        Platform.select({
-          web: "focus-visible:border-ring focus-visible:ring-ring/50 peer inline-flex transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed",
-        }),
-        props.checked ? "bg-primary" : "bg-input dark:bg-input/80",
-        props.disabled && "opacity-50",
-        className,
-      )}
+    <ExpoSwitch
       {...props}
-    >
-      <SwitchPrimitives.Thumb
-        className={cn(
-          "bg-background size-4 rounded-full",
-          // TODO: Figure out why this transition causes the app to crash with
-          // an error about refs not being passed (probably/hopefully a react-native-css-interop bug)
-          // "bg-background size-4 rounded-full transition-transform",
-          Platform.select({
-            web: "pointer-events-none block ring-0",
-          }),
-          props.checked
-            ? "dark:bg-primary-foreground translate-x-3.5"
-            : "dark:bg-foreground translate-x-0",
-        )}
-      />
-    </SwitchPrimitives.Root>
+      {...(switchModifiers.length ? { modifiers: switchModifiers } : {})}
+    />
   )
 }
 
-export { Switch }
+const IOSSwitch = withUniwind(BaseIOSSwitch, {
+  tintColor: {
+    fromClassName: "tintColorClassName",
+    styleProperty: "color",
+  },
+})
+
+function BaseAndroidSwitch({
+  checkedBorderColor,
+  checkedThumbColor,
+  checkedTrackColor,
+  colors,
+  ...props
+}: AndroidSwitchProps) {
+  const switchColors = {
+    ...colors,
+    ...(checkedBorderColor ? { checkedBorderColor } : {}),
+    ...(checkedThumbColor ? { checkedThumbColor } : {}),
+    ...(checkedTrackColor ? { checkedTrackColor } : {}),
+  }
+
+  return (
+    <BaseComposeSwitch
+      {...props}
+      {...(Object.keys(switchColors).length ? { colors: switchColors } : {})}
+    />
+  )
+}
+
+const AndroidSwitch = withUniwind(BaseAndroidSwitch, {
+  checkedBorderColor: {
+    fromClassName: "checkedBorderColorClassName",
+    styleProperty: "borderColor",
+  },
+  checkedThumbColor: {
+    fromClassName: "checkedThumbColorClassName",
+    styleProperty: "color",
+  },
+  checkedTrackColor: {
+    fromClassName: "checkedTrackColorClassName",
+    styleProperty: "backgroundColor",
+  },
+})
+
+export function Switch({
+  accessibilityLabel,
+  checked,
+  className,
+  disabled,
+  onCheckedChange,
+  testID,
+}: Props) {
+  const androidSwitchModifiers =
+    Platform.OS === "android" && testID ? [composeTestID(testID)] : []
+
+  return (
+    <View
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="switch"
+      accessibilityState={{ checked, disabled: disabled ?? false }}
+      className={cn(
+        "shrink-0",
+        disabled ? "opacity-50" : "opacity-100",
+        className,
+      )}
+    >
+      <Host matchContents className="self-center">
+        {Platform.OS === "android" ? (
+          <AndroidSwitch
+            value={checked}
+            onCheckedChange={onCheckedChange}
+            enabled={!disabled}
+            checkedBorderColorClassName="border-primary"
+            checkedThumbColorClassName="text-primary-foreground"
+            checkedTrackColorClassName="bg-primary"
+            modifiers={androidSwitchModifiers}
+          />
+        ) : (
+          <IOSSwitch
+            value={checked}
+            onValueChange={onCheckedChange}
+            disabled={disabled ?? false}
+            accessibilityLabel={accessibilityLabel}
+            tintColorClassName="text-primary"
+            {...(testID ? { testID } : {})}
+          />
+        )}
+      </Host>
+    </View>
+  )
+}
