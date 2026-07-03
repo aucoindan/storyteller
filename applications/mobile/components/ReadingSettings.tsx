@@ -7,7 +7,10 @@ import { Platform, Pressable, StyleSheet, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Switch } from "@/components/ui/switch"
-import { defaultPreferences } from "@/database/preferencesTypes"
+import {
+  type ReadaloudDecoratorStyle,
+  defaultPreferences,
+} from "@/database/preferencesTypes"
 import { formatNumber } from "@/formatting"
 import { cn } from "@/lib/utils"
 import {
@@ -83,6 +86,10 @@ export function ReadingSettings({ bookUuid }: Props) {
   }
 
   if (!preferences) return <LoadingView />
+
+  const readaloudDecoratorStyle =
+    preferences.readaloudDecoratorStyle ??
+    defaultPreferences.readaloudDecoratorStyle
 
   return (
     <View className="mt-8">
@@ -174,27 +181,78 @@ export function ReadingSettings({ bookUuid }: Props) {
           </Text>
         </Button>
       </Link>
-      <View className="my-3 w-full flex-col items-start">
-        <Text className="text-lg">Readaloud color</Text>
-        <ColorPickerDialog
-          key={preferences.readaloudColor}
-          initialValue={preferences.readaloudColor}
-          onSave={(value) => {
-            updateGlobalPreference({ name: "readaloudColor", value })
-          }}
-        />
-        <View className="my-3 w-full flex-row items-center gap-10">
-          <Text className="text-lg">Floating toolbars</Text>
-          <Switch
-            checked={preferences.floatingToolbar}
-            onCheckedChange={(value) =>
-              updateGlobalPreference({
-                name: "floatingToolbar",
-                value,
-              })
-            }
-          />
+      <View className="my-3 w-full gap-3">
+        <View className="w-full flex-row flex-wrap items-center justify-between gap-3">
+          <Text maxFontSizeMultiplier={1.5} className="text-lg">
+            Readaloud decoration
+          </Text>
+          <ButtonGroup
+            value={readaloudDecoratorStyle}
+            onChange={(value: ReadaloudDecoratorStyle) => {
+              if (bookUuid) {
+                updateBookPreference({
+                  bookUuid,
+                  name: "readaloudDecoratorStyle",
+                  value,
+                })
+              } else {
+                updateGlobalPreference({
+                  name: "readaloudDecoratorStyle",
+                  value,
+                })
+              }
+            }}
+          >
+            <ButtonGroupButton
+              accessibilityLabel="Use highlight readaloud decoration"
+              size="sm"
+              value="highlight"
+            >
+              <Text maxFontSizeMultiplier={1.5}>Highlight</Text>
+            </ButtonGroupButton>
+            <ButtonGroupButton
+              accessibilityLabel="Use underline readaloud decoration"
+              size="sm"
+              value="underline"
+            >
+              <Text maxFontSizeMultiplier={1.5}>Underline</Text>
+            </ButtonGroupButton>
+          </ButtonGroup>
         </View>
+        {readaloudDecoratorStyle === "highlight" && (
+          <View className="w-full flex-row items-center justify-between gap-4">
+            <Text maxFontSizeMultiplier={1.5} className="text-lg">
+              Highlight color
+            </Text>
+            <ColorPickerDialog
+              key={preferences.readaloudColor}
+              initialValue={preferences.readaloudColor}
+              onSave={(value) => {
+                if (bookUuid) {
+                  updateBookPreference({
+                    bookUuid,
+                    name: "readaloudColor",
+                    value,
+                  })
+                } else {
+                  updateGlobalPreference({ name: "readaloudColor", value })
+                }
+              }}
+            />
+          </View>
+        )}
+      </View>
+      <View className="my-3 w-full flex-row items-center gap-10">
+        <Text className="text-lg">Floating toolbars</Text>
+        <Switch
+          checked={preferences.floatingToolbar}
+          onCheckedChange={(value) =>
+            updateGlobalPreference({
+              name: "floatingToolbar",
+              value,
+            })
+          }
+        />
       </View>
       <Text variant="h2" className="mt-4">
         Margins
@@ -269,13 +327,19 @@ export function ReadingSettings({ bookUuid }: Props) {
           <ButtonGroup
             value={preferences.layout.scroll ? "scroll" : "page"}
             onChange={(layout: "page" | "scroll") => {
-              updateGlobalPreference({
-                name: "layout",
-                value: {
-                  ...preferences.layout,
-                  scroll: layout === "scroll",
-                },
-              })
+              const update = {
+                ...preferences.layout,
+                scroll: layout === "scroll",
+              }
+              if (bookUuid) {
+                updateBookPreference({
+                  bookUuid,
+                  name: "layout",
+                  value: update,
+                })
+              } else {
+                updateGlobalPreference({ name: "layout", value: update })
+              }
             }}
           >
             <ButtonGroupButton

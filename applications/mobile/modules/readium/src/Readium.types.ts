@@ -7,7 +7,10 @@ import {
 } from "react-native"
 
 import { type Highlight } from "@/database/highlights"
-import { type CustomFont } from "@/database/preferencesTypes"
+import {
+  type CustomFont,
+  type ReadaloudDecoratorStyle,
+} from "@/database/preferencesTypes"
 
 export type ReadiumLocation = {
   fragments?: string[]
@@ -249,6 +252,7 @@ export type EPUBViewProps = {
   textAlign?: "justify" | "left" | undefined
   fontFamily?: string | undefined
   readaloudColor?: string | undefined
+  readaloudDecoratorStyle?: ReadaloudDecoratorStyle | undefined
   scrollMode?: boolean | undefined
   customFonts?: CustomFont[] | undefined
   marginLeft?: number | undefined

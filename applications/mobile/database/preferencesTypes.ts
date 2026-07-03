@@ -50,6 +50,7 @@ export const defaultPreferences: Preferences = {
   },
   floatingToolbar: false,
   readaloudColor: "yellow",
+  readaloudDecoratorStyle: "highlight",
   customFonts: [],
   automaticRewind: {
     enabled: true,
@@ -99,10 +100,14 @@ type AutomaticRewindPreferences = {
   afterBreak: number
 }
 
+export type ReadaloudDecoratorStyle = "highlight" | "underline"
+
 export interface BookPreferences {
   typography?: Partial<TypographyPreferences>
   layout?: Partial<LayoutPreferences>
   audio?: Partial<AudioPreferences>
+  readaloudColor?: string
+  readaloudDecoratorStyle?: ReadaloudDecoratorStyle
   detailView?: {
     mode: "audio" | "text"
     scope: "chapter" | "book"
@@ -128,6 +133,7 @@ export interface Preferences {
   typography: TypographyPreferences
   layout: LayoutPreferences
   readaloudColor: string
+  readaloudDecoratorStyle: ReadaloudDecoratorStyle
   customFonts: CustomFont[]
   hideStatusbar: HideStatusbarPreferences
   automaticRewind: AutomaticRewindPreferences

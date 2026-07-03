@@ -27,6 +27,7 @@ struct Props {
     var highlights: [Highlight]?
     var bookmarks: [Locator]?
     var readaloudColor: Color?
+    var readaloudDecoratorStyle: String?
     var customFonts: [CustomFont]?
     var foreground: Color?
     var background: Color?
@@ -47,6 +48,7 @@ struct FinalizedProps {
     var highlights: [Highlight]
     var bookmarks: [Locator]
     var readaloudColor: Color
+    var readaloudDecoratorStyle: String
     var customFonts: [CustomFont]
     var foreground: Color
     var background: Color
@@ -408,6 +410,7 @@ class EPUBView: ExpoView {
             highlights: pendingProps.highlights ?? oldProps?.highlights ?? [],
             bookmarks: pendingProps.bookmarks ?? oldProps?.bookmarks ?? [],
             readaloudColor: pendingProps.readaloudColor ?? oldProps?.readaloudColor ?? Color(color: .yellow)!,
+            readaloudDecoratorStyle: pendingProps.readaloudDecoratorStyle ?? oldProps?.readaloudDecoratorStyle ?? "highlight",
             customFonts: pendingProps.customFonts ?? oldProps?.customFonts ?? [],
             foreground: pendingProps.foreground ?? oldProps?.foreground ?? Color(hex: "#111111")!,
             background: pendingProps.background ?? oldProps?.background ?? Color(hex: "#FFFFFF")!,
@@ -461,7 +464,7 @@ class EPUBView: ExpoView {
         }
 
         if props!.isPlaying, let locator = finalProps.locator {
-            highlightFragment(locator: locator)
+            applyReadaloudDecoration(locator: locator)
 
             let newFragment = locator.locations.fragments.first
             let oldFragment = oldProps?.locator?.locations.fragments.first
@@ -473,7 +476,7 @@ class EPUBView: ExpoView {
                 oldFragment: oldFragment
             )
         } else {
-            clearHighlightedFragment()
+            clearReadaloudDecoration()
         }
 
         if props!.highlights != oldProps?.highlights {
@@ -482,11 +485,6 @@ class EPUBView: ExpoView {
 
         if props!.bookmarks != oldProps?.bookmarks, let locator = finalProps.locator {
             findOnPage(locator: locator)
-        }
-
-        if props!.readaloudColor != oldProps?.readaloudColor, let locator = finalProps.locator{
-            clearHighlightedFragment()
-            highlightFragment(locator: locator)
         }
 
         layoutBehavior.keepPlayingLocatorVisible(
@@ -726,21 +724,25 @@ class EPUBView: ExpoView {
         navigator?.apply(decorations: decorations, in: "highlights")
     }
 
-    func highlightFragment(locator: Locator) {
+    func applyReadaloudDecoration(locator: Locator) {
         guard let id = locator.locations.fragments.first else {
             return
         }
 
-        let overlayHighlight = Decoration.Style.highlight(tint: props!.readaloudColor.uiColor, isActive: true)
+        let style: Decoration.Style = if props!.readaloudDecoratorStyle == "underline" {
+            .underline(tint: props!.foreground.uiColor)
+        } else {
+            .highlight(tint: props!.readaloudColor.uiColor, isActive: true)
+        }
         let decoration = Decoration(
             id: id,
             locator: locator,
-            style: overlayHighlight)
+            style: style)
 
         navigator?.apply(decorations: [decoration], in: "overlay")
     }
 
-    func clearHighlightedFragment() {
+    func clearReadaloudDecoration() {
         navigator?.apply(decorations: [], in: "overlay")
     }
 
@@ -1441,6 +1443,9 @@ extension EPUBView: EPUBNavigatorDelegate {
                     storyteller.observer.observe(element)
                 });
             """)
+                if props!.isPlaying, props!.locator?.href == locator.href, let propLocator = props!.locator {
+                    applyReadaloudDecoration(locator: propLocator)
+                }
             }
 
             guard !shouldSkipLocatorEmission else {

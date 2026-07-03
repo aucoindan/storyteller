@@ -49,6 +49,7 @@ data class Props(
     var highlights: List<Highlight>?,
     var bookmarks: List<Locator>?,
     var readaloudColor: Int?,
+    var readaloudDecoratorStyle: String?,
     var customFonts: List<CustomFont>?,
     @ColorInt var foreground: Int?,
     @ColorInt var background: Int?,
@@ -70,6 +71,7 @@ data class FinalizedProps(
     var highlights: List<Highlight>,
     var bookmarks: List<Locator>,
     var readaloudColor: Int,
+    var readaloudDecoratorStyle: String,
     var customFonts: List<CustomFont>,
     @ColorInt var foreground: Int,
     @ColorInt var background: Int,
@@ -175,6 +177,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         highlights = null,
         bookmarks = null,
         readaloudColor = null,
+        readaloudDecoratorStyle = null,
         customFonts = null,
         foreground = null,
         background = null,
@@ -465,6 +468,8 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                 bookmarks = pendingProps.bookmarks ?: oldProps?.bookmarks ?: listOf(),
                 readaloudColor = pendingProps.readaloudColor
                     ?: oldProps?.readaloudColor ?: 0xffffff00.toInt(),
+                readaloudDecoratorStyle = pendingProps.readaloudDecoratorStyle
+                    ?: oldProps?.readaloudDecoratorStyle ?: "highlight",
                 customFonts = pendingProps.customFonts ?: oldProps?.customFonts ?: listOf(),
                 foreground = pendingProps.foreground
                     ?: oldProps?.foreground ?: "#111111".toColorInt(),
@@ -527,7 +532,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         }
 
         if (finalProps.isPlaying && finalProps.locator != null) {
-            highlightFragment(finalProps.locator!!)
+            applyReadaloudDecoration(finalProps.locator!!)
 
             val newFragment = finalProps.locator?.locations?.fragments?.firstOrNull()
             val oldFragment = oldProps?.locator?.locations?.fragments?.firstOrNull()
@@ -539,7 +544,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                 oldFragment
             )
         } else {
-            clearHighlightFragment()
+            clearReadaloudDecoration()
         }
 
         if (finalProps.highlights != oldProps?.highlights) {
@@ -548,11 +553,6 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
 
         if (finalProps.bookmarks != oldProps?.bookmarks && finalProps.locator != null) {
             activity?.lifecycleScope?.launch { findOnPage(finalProps.locator!!) }
-        }
-
-        if (oldProps != null && finalProps.readaloudColor != oldProps.readaloudColor && finalProps.locator != null) {
-            clearHighlightFragment()
-            highlightFragment(finalProps.locator!!)
         }
 
         layoutBehavior.keepPlayingLocatorVisible(
@@ -927,11 +927,16 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         }
     }
 
-    fun highlightFragment(locator: Locator) {
+    fun applyReadaloudDecoration(locator: Locator) {
         val id = locator.locations.fragments.firstOrNull() ?: return
 
-        val overlayHighlight = Decoration.Style.Highlight(props!!.readaloudColor, isActive = true)
-        val decoration = Decoration(id, locator, overlayHighlight)
+        val style =
+            if (props!!.readaloudDecoratorStyle == "underline") {
+                Decoration.Style.Underline(props!!.foreground)
+            } else {
+                Decoration.Style.Highlight(props!!.readaloudColor, isActive = true)
+            }
+        val decoration = Decoration(id, locator, style)
 
         val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
         activity?.lifecycleScope?.launch {
@@ -939,7 +944,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         }
     }
 
-    fun clearHighlightFragment() {
+    fun clearReadaloudDecoration() {
         val activity: FragmentActivity? = appContext.currentActivity as FragmentActivity?
         activity?.lifecycleScope?.launch {
             navigator?.applyDecorations(listOf(), "overlay")
@@ -1297,6 +1302,9 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                 })
             """.trimIndent()
             )
+            if (props!!.isPlaying && props!!.locator?.href == locator.href) {
+                applyReadaloudDecoration(props!!.locator!!)
+            }
             emitCurrentLocator()
         } else {
             emitCurrentLocator()

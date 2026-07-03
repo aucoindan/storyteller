@@ -41,6 +41,10 @@ import {
   down as insertFloatingToolbarsPreferenceDown,
   up as insertFloatingToolbarsPreferenceUp,
 } from "./1779757215000_insert_floating_toolbars_preference"
+import {
+  down as addReadaloudDecoratorStylePreferencesDown,
+  up as addReadaloudDecoratorStylePreferencesUp,
+} from "./1782777600001_add_readaloud_decorator_style_preferences"
 
 export const migrations = {
   "1757893743063_init": {
@@ -88,5 +92,9 @@ export const migrations = {
   "1779757215000_insert_floating_toolbars_preference": {
     up: insertFloatingToolbarsPreferenceUp,
     down: insertFloatingToolbarsPreferenceDown,
+  },
+  "1782777600001_add_readaloud_decorator_style_preferences": {
+    up: addReadaloudDecoratorStylePreferencesUp,
+    down: addReadaloudDecoratorStylePreferencesDown,
   },
 }
