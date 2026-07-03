@@ -1,15 +1,28 @@
+import { skipToken } from "@reduxjs/toolkit/query"
+import deepmerge from "deepmerge"
 import { Columns2, ScrollText } from "lucide-react-native"
 
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
+import { useAppSelector } from "@/store/appState"
 import {
+  useGetBookPreferencesQuery,
   useGetGlobalPreferencesQuery,
-  useUpdateGlobalPreferenceMutation,
+  useUpdateBookPreferenceMutation,
 } from "@/store/localApi"
+import { getCurrentlyPlayingBookUuid } from "@/store/selectors/bookshelfSelectors"
 
 export function LayoutItem() {
-  const { data: preferences } = useGetGlobalPreferencesQuery()
-  const [updateGlobalPreference] = useUpdateGlobalPreferenceMutation()
+  const bookUuid = useAppSelector(getCurrentlyPlayingBookUuid)
+  const { data: bookPreferences } = useGetBookPreferencesQuery(
+    bookUuid ? { uuid: bookUuid } : skipToken,
+  )
+  const { data: globalPreferences } = useGetGlobalPreferencesQuery()
+  const [updateBookPreference] = useUpdateBookPreferenceMutation()
+
+  const preferences = bookPreferences
+    ? globalPreferences && deepmerge(globalPreferences, bookPreferences)
+    : globalPreferences
 
   const isScrollLayout = preferences?.layout.scroll ?? false
   const nextLayout = isScrollLayout ? "page" : "scroll"
@@ -24,17 +37,16 @@ export function LayoutItem() {
       accessibilityState={{ selected: isScrollLayout }}
       variant="ghost"
       size="icon"
-      disabled={!preferences}
+      disabled={!bookUuid || !preferences}
       onPress={() => {
-        if (!preferences) return
+        if (!bookUuid || !preferences) return
 
-        updateGlobalPreference({
-          name: "layout",
-          value: {
-            ...preferences.layout,
-            scroll: nextLayout === "scroll",
-          },
-        })
+        const value = {
+          ...preferences.layout,
+          scroll: nextLayout === "scroll",
+        }
+
+        updateBookPreference({ bookUuid, name: "layout", value })
       }}
     >
       <Icon as={isScrollLayout ? ScrollText : Columns2} size={24} />
