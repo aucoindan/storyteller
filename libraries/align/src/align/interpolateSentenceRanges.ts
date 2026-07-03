@@ -10,7 +10,29 @@ type Slot = { chapterId: string; id: number }
 type Anchor = { time: number; audiofile: string }
 
 /**
- * Divide N slots evenly across a time span [left.time, right.time].
+ * Maps a slot to the character length of its sentence text, used to weight
+ * how much of a gap's time it should occupy. Keyed by `${chapterId}\0${id}`.
+ * Slots missing from this map (or with a non-positive length) fall back to
+ * a weight of 1, i.e. even division, same as before this map existed.
+ */
+export type SentenceLengths = Record<string, number>
+
+export function slotKey(slot: Slot): string {
+  return `${slot.chapterId}\0${slot.id}`
+}
+
+function slotWeight(slot: Slot, sentenceLengths: SentenceLengths): number {
+  const length = sentenceLengths[slotKey(slot)]
+  return length && length > 0 ? length : 1
+}
+
+/**
+ * Divide slots across a time span [left.time, right.time], proportionally
+ * to each slot's weight (falling back to even division when weights are
+ * unavailable). Without this weighting, a 5-word sentence and a 40-word
+ * sentence landing in the same gap would get identical durations, which is
+ * what previously produced visibly wrong (early/late) highlighting for any
+ * interpolated stretch.
  *
  * When the left and right anchors are in different audio files the available
  * time is split into two segments:
@@ -26,59 +48,80 @@ function buildGapRanges(
   left: Anchor,
   right: Anchor,
   audioFileDurations: Record<string, number>,
+  sentenceLengths: SentenceLengths,
 ): SentenceRange[] {
   const n = slots.length
   if (n === 0) return []
 
+  const weights = slots.map((slot) => slotWeight(slot, sentenceLengths))
+
   if (left.audiofile === right.audiofile) {
     const span = right.time - left.time
-    return slots.map((slot, i) => ({
-      ...slot,
-      audiofile: left.audiofile,
-      start: left.time + (span * i) / n,
-      end: left.time + (span * (i + 1)) / n,
-    }))
+    const totalWeight = weights.reduce((a, b) => a + b, 0)
+    const result: SentenceRange[] = []
+    let cursor = left.time
+    for (const [i, slot] of slots.entries()) {
+      const start = cursor
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const end = start + (span * weights[i]!) / totalWeight
+      result.push({ ...slot, audiofile: left.audiofile, start, end })
+      cursor = end
+    }
+    return result
   }
 
   const leftDuration = audioFileDurations[left.audiofile] ?? left.time
   const leftAvail = leftDuration - left.time
   const rightAvail = right.time
   const total = leftAvail + rightAvail
+  const totalWeight = weights.reduce((a, b) => a + b, 0)
 
-  // Number of slots in the left vs right segment, proportional to available time.
-  // Guard against division by zero: if there's no available time anywhere,
-  // put everything in the left segment (they'll all get 0-length ranges).
-  let n1 = total > 0 ? Math.round(n * (leftAvail / total)) : n
-  let n2 = n - n1
+  // Weight assigned to the left vs right segment, proportional to available
+  // time in each. Guard against division by zero: if there's no available
+  // time anywhere, put everything in the left segment (0-length ranges).
+  const leftWeightShare =
+    total > 0 ? totalWeight * (leftAvail / total) : totalWeight
 
-  // If one side rounds to 0 but the other has some time, keep it at 0.
-  // Only clamp to avoid negative counts.
-  n1 = Math.max(0, n1)
-  n2 = n - n1
+  let n1 = 0
+  let accumulatedWeight = 0
+  while (
+    n1 < n &&
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    accumulatedWeight + weights[n1]! / 2 <= leftWeightShare
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    accumulatedWeight += weights[n1]!
+    n1++
+  }
+  const n2 = n - n1
 
   const result: SentenceRange[] = []
 
   if (n1 > 0) {
-    for (let i = 0; i < n1; i++) {
-      result.push({
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        ...slots[i]!,
-        audiofile: left.audiofile,
-        start: left.time + (leftAvail * i) / n1,
-        end: left.time + (leftAvail * (i + 1)) / n1,
-      })
+    const leftSlots = slots.slice(0, n1)
+    const leftWeights = weights.slice(0, n1)
+    const leftTotalWeight = leftWeights.reduce((a, b) => a + b, 0)
+    let cursor = left.time
+    for (const [i, slot] of leftSlots.entries()) {
+      const start = cursor
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const end = start + (leftAvail * leftWeights[i]!) / leftTotalWeight
+      result.push({ ...slot, audiofile: left.audiofile, start, end })
+      cursor = end
     }
   }
 
   if (n2 > 0) {
-    for (let i = 0; i < n2; i++) {
-      result.push({
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        ...slots[n1 + i]!,
-        audiofile: right.audiofile,
-        start: (rightAvail * i) / n2,
-        end: (rightAvail * (i + 1)) / n2,
-      })
+    const rightSlots = slots.slice(n1)
+    const rightWeights = weights.slice(n1)
+    const rightTotalWeight = rightWeights.reduce((a, b) => a + b, 0)
+    let cursor = 0
+    for (const [i, slot] of rightSlots.entries()) {
+      const start = cursor
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const end = start + (rightAvail * rightWeights[i]!) / rightTotalWeight
+      result.push({ ...slot, audiofile: right.audiofile, start, end })
+      cursor = end
     }
   }
 
@@ -104,6 +147,7 @@ export function interpolateSentenceRanges(
   sentenceRanges: SentenceRange[],
   chapterSentenceCounts: Record<string, number>,
   audioFileDurations: Record<string, number>,
+  sentenceLengths: SentenceLengths = {},
 ): SentenceRange[] {
   if (sentenceRanges.length === 0) return []
 
@@ -119,7 +163,15 @@ export function interpolateSentenceRanges(
     }))
     const left: Anchor = { time: 0, audiofile: first.audiofile }
     const right: Anchor = { time: first.start, audiofile: first.audiofile }
-    result.push(...buildGapRanges(slots, left, right, audioFileDurations))
+    result.push(
+      ...buildGapRanges(
+        slots,
+        left,
+        right,
+        audioFileDurations,
+        sentenceLengths,
+      ),
+    )
   }
 
   result.push(first)
@@ -152,7 +204,15 @@ export function interpolateSentenceRanges(
     }
 
     if (gapSlots.length > 0) {
-      result.push(...buildGapRanges(gapSlots, left, right, audioFileDurations))
+      result.push(
+        ...buildGapRanges(
+          gapSlots,
+          left,
+          right,
+          audioFileDurations,
+          sentenceLengths,
+        ),
+      )
     }
 
     result.push(curr)
@@ -171,7 +231,15 @@ export function interpolateSentenceRanges(
     const fileEnd = audioFileDurations[last.audiofile] ?? last.end
     const left: Anchor = { time: last.end, audiofile: last.audiofile }
     const right: Anchor = { time: fileEnd, audiofile: last.audiofile }
-    result.push(...buildGapRanges(slots, left, right, audioFileDurations))
+    result.push(
+      ...buildGapRanges(
+        slots,
+        left,
+        right,
+        audioFileDurations,
+        sentenceLengths,
+      ),
+    )
   }
 
   return result

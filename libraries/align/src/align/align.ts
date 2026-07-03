@@ -53,7 +53,11 @@ import {
   getSentenceRanges,
   mapTranscriptionTimeline,
 } from "./getSentenceRanges.ts"
-import { interpolateSentenceRanges } from "./interpolateSentenceRanges.ts"
+import {
+  type SentenceLengths,
+  interpolateSentenceRanges,
+  slotKey,
+} from "./interpolateSentenceRanges.ts"
 import { findBoundaries } from "./search.ts"
 import { slugify } from "./slugify.ts"
 import { TextFragmentFactory } from "./textFragments.ts"
@@ -911,6 +915,7 @@ export class Aligner {
 
     const sentenceRanges: SentenceRange[] = []
     const chapterSentenceCounts: Record<string, number> = {}
+    const sentenceLengths: SentenceLengths = {}
 
     for (const alignedChapter of audioOrderedChapters) {
       sentenceRanges.push(...alignedChapter.sentenceRanges)
@@ -919,12 +924,18 @@ export class Aligner {
         alignedChapter.chapter.id,
       )
       chapterSentenceCounts[alignedChapter.chapter.id] = sentences.length
+
+      for (const [id, sentence] of enumerate(sentences)) {
+        sentenceLengths[slotKey({ chapterId: alignedChapter.chapter.id, id })] =
+          sentence.text.length
+      }
     }
 
     const interpolated = interpolateSentenceRanges(
       sentenceRanges,
       chapterSentenceCounts,
       this.audioFileDurations,
+      sentenceLengths,
     )
 
     const expanded = expandEmptySentenceRanges(interpolated)
