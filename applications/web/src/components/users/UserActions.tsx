@@ -1,13 +1,17 @@
+import { ActionIcon, Button, Group, Menu, Tooltip } from "@mantine/core"
 import {
-  ActionIcon,
-  Stack,
-  Tooltip,
-  useComputedColorScheme,
-} from "@mantine/core"
-import { IconPencil, IconTrash } from "@tabler/icons-react"
+  IconDotsVertical,
+  IconKey,
+  IconPencil,
+  IconTrash,
+} from "@tabler/icons-react"
 
 import { type User } from "@/apiModels"
-import { useDeleteUserMutation, useGetCurrentUserQuery } from "@/store/api"
+import {
+  useDeleteUserMutation,
+  useGetCurrentUserQuery,
+  useSendPasswordResetMutation,
+} from "@/store/api"
 
 type Props = {
   user: User
@@ -22,32 +26,57 @@ export function UserActions({ user, onEdit }: Props) {
   })
 
   const [deleteUser] = useDeleteUserMutation()
+  const [sendPasswordReset] = useSendPasswordResetMutation()
 
-  const theme = useComputedColorScheme()
-  const color = theme === "dark" ? "white" : "black"
+  const showMenu = !!permissions?.userPasswordReset || !!permissions?.userDelete
 
   return (
-    <Stack>
+    <Group gap="xs" wrap="nowrap">
       {permissions?.userUpdate && (
-        <ActionIcon variant="subtle" color={color} onClick={onEdit}>
-          <Tooltip position="right" label="Edit">
-            <IconPencil aria-label="Edit" />
-          </Tooltip>
-        </ActionIcon>
-      )}
-      {permissions?.userDelete && (
-        <ActionIcon
-          variant="subtle"
-          color="red"
-          onClick={async () => {
-            await deleteUser({ uuid: user.id })
-          }}
+        <Button
+          leftSection={<IconPencil size={16} aria-hidden />}
+          onClick={onEdit}
         >
-          <Tooltip position="right" label="Delete user">
-            <IconTrash aria-label="Delete user" />
-          </Tooltip>{" "}
-        </ActionIcon>
+          Edit
+        </Button>
       )}
-    </Stack>
+      {showMenu && (
+        <Menu position="bottom-end">
+          <Menu.Target>
+            <ActionIcon variant="default" aria-label="More actions">
+              <Tooltip position="right" label="More actions">
+                <IconDotsVertical aria-hidden />
+              </Tooltip>
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            {permissions.userPasswordReset && (
+              <Menu.Item
+                leftSection={<IconKey size={16} aria-hidden />}
+                onClick={() => {
+                  void sendPasswordReset({ userId: user.id })
+                }}
+              >
+                Send password reset
+              </Menu.Item>
+            )}
+            {permissions.userPasswordReset && permissions.userDelete && (
+              <Menu.Divider />
+            )}
+            {permissions.userDelete && (
+              <Menu.Item
+                color="red"
+                leftSection={<IconTrash size={16} aria-hidden />}
+                onClick={async () => {
+                  await deleteUser({ uuid: user.id })
+                }}
+              >
+                Delete user
+              </Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
+      )}
+    </Group>
   )
 }

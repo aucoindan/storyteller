@@ -367,6 +367,7 @@ export interface UserPermission {
   userCreate: Generated<boolean>
   userDelete: Generated<boolean>
   userList: Generated<boolean>
+  userPasswordReset: Generated<boolean>
   userRead: Generated<boolean>
   userUpdate: Generated<boolean>
   uuid: Generated<import("@/uuid").UUID>

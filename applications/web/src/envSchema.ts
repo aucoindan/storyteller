@@ -92,6 +92,14 @@ export const documentedServerEnvVars = {
     .number()
     .optional()
     .describe("Upload chunk size limit in megabytes. | `10` (10 MB)"),
+  STORYTELLER_PASSWORD_RESET_EXPIRATION_MINUTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60)
+    .describe(
+      "Number of minutes a password reset link remains valid before it expires.",
+    ),
   STORYTELLER_SECRET_KEY: z
     .string()
     .optional()

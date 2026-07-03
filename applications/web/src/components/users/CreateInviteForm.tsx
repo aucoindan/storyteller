@@ -30,6 +30,7 @@ export const ADMIN_PERMISSIONS: Array<keyof UserPermissionSet> = [
   "userRead",
   "userDelete",
   "userUpdate",
+  "userPasswordReset",
   "settingsUpdate",
 ]
 
@@ -58,6 +59,7 @@ export const PERMISSIONS_VALUES: Array<{
   { value: "userRead", label: "See other users' info" },
   { value: "userDelete", label: "Delete users" },
   { value: "userUpdate", label: "Update other users' permissions" },
+  { value: "userPasswordReset", label: "Reset other users' passwords" },
   { value: "settingsUpdate", label: "Change server settings" },
 ]
 

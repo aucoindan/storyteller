@@ -34,6 +34,7 @@ export const GET = withUser((request) => {
       userList: user.permissions?.userList ?? false,
       userRead: user.permissions?.userRead ?? false,
       userUpdate: user.permissions?.userUpdate ?? false,
+      userPasswordReset: user.permissions?.userPasswordReset ?? false,
     } satisfies UserPermissionSet,
   })
 })
@@ -75,6 +76,7 @@ export const PUT = withUser(async (request) => {
       userList: updated.permissions?.userList ?? false,
       userRead: updated.permissions?.userRead ?? false,
       userUpdate: updated.permissions?.userUpdate ?? false,
+      userPasswordReset: updated.permissions?.userPasswordReset ?? false,
     } satisfies UserPermissionSet,
   })
 })

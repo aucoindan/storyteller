@@ -58,6 +58,7 @@ export async function getUserByUsernameOrEmail(
             "userRead",
             "userDelete",
             "userUpdate",
+            "userPasswordReset",
             "settingsUpdate",
           ])
           .whereRef("user.userPermissionUuid", "=", "userPermission.uuid"),
@@ -102,6 +103,7 @@ export async function getUserByAccount(
             "userRead",
             "userDelete",
             "userUpdate",
+            "userPasswordReset",
             "settingsUpdate",
           ])
           .whereRef("user.userPermissionUuid", "=", "userPermission.uuid"),
@@ -138,6 +140,7 @@ export async function getUser(id: UUID, tr?: Transaction<DB>) {
             "userRead",
             "userDelete",
             "userUpdate",
+            "userPasswordReset",
             "settingsUpdate",
           ])
           .whereRef("user.userPermissionUuid", "=", "userPermission.uuid"),
@@ -182,6 +185,7 @@ export async function getUsers() {
             "userRead",
             "userDelete",
             "userUpdate",
+            "userPasswordReset",
             "settingsUpdate",
           ])
           .whereRef("user.userPermissionUuid", "=", "userPermission.uuid"),
@@ -223,6 +227,7 @@ export async function createAdminUser(
         "userRead",
         "userDelete",
         "userUpdate",
+        "userPasswordReset",
         "settingsUpdate",
       ])
       .expression((eb) =>
@@ -243,6 +248,7 @@ export async function createAdminUser(
             eb.lit(1).as("userRead"),
             eb.lit(1).as("userDelete"),
             eb.lit(1).as("userUpdate"),
+            eb.lit(1).as("userPasswordReset"),
             eb.lit(1).as("settingsUpdate"),
           ])
           .where((web) =>
@@ -545,6 +551,7 @@ export async function updateUserPermissions(
         userRead: !!permissions.userRead,
         userDelete: !!permissions.userDelete,
         userUpdate: !!permissions.userUpdate,
+        userPasswordReset: !!permissions.userPasswordReset,
       })
       .where("uuid", "=", userPermissionUuid)
       .execute()

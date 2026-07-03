@@ -87,9 +87,21 @@ export function UserStatus({ user }: Props) {
             data={PERMISSIONS_VALUES}
             {...form.getInputProps("permissions")}
           />
-          <Button disabled={isLoading} type="submit">
-            {isLoading ? "Saving…" : "Save"}
-          </Button>
+          <Group>
+            <Button
+              type="button"
+              variant="subtle"
+              onClick={() => {
+                form.reset()
+                setShowPermissions(false)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button disabled={isLoading} type="submit">
+              {isLoading ? "Saving…" : "Save"}
+            </Button>
+          </Group>
         </form>
       )}
     </Paper>

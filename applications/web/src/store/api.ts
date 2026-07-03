@@ -129,6 +129,12 @@ export const api = createApi({
         { type: "Users", id: uuid },
       ],
     }),
+    sendPasswordReset: build.mutation<void, { userId: UUID }>({
+      query: ({ userId }) => ({
+        url: `/users/${userId}/reset-password`,
+        method: "POST",
+      }),
+    }),
     getCurrentUser: build.query<User, void>({
       query: () => "/user",
       providesTags: () => ["CurrentUser"],
@@ -1016,6 +1022,7 @@ export const {
   useRemoveBooksFromSeriesMutation,
   useRemoveTagsFromBooksMutation,
   useResendInviteMutation,
+  useSendPasswordResetMutation,
   useUpdateBookMutation,
   useUpdateCollectionMutation,
   useUpdateReadingStatusMutation,

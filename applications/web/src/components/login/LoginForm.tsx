@@ -1,7 +1,15 @@
 "use client"
 
 import { type PublicProvider } from "@auth/core/types"
-import { Button, Divider, PasswordInput, Stack, TextInput } from "@mantine/core"
+import {
+  Anchor,
+  Button,
+  Divider,
+  PasswordInput,
+  Stack,
+  TextInput,
+} from "@mantine/core"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useState } from "react"
 
@@ -18,6 +26,7 @@ type Props = {
   oauthLoginAction: (id: string, callbackUrl?: string) => Promise<void>
   providers: PublicProvider[]
   disablePasswordLogin?: boolean
+  showPasswordReset?: boolean
 }
 
 export function LoginForm({
@@ -25,6 +34,7 @@ export function LoginForm({
   oauthLoginAction,
   providers,
   disablePasswordLogin,
+  showPasswordReset,
 }: Props) {
   const searchParams = useSearchParams()
   const dispatch = useAppDispatch()
@@ -35,6 +45,11 @@ export function LoginForm({
 
   return (
     <>
+      {searchParams.get("reset") === "success" && (
+        <p className="bg-opacity-10 rounded-sm border-2 border-green-800 bg-green-800 p-4 text-green-800">
+          Your password has been reset. Please log in.
+        </p>
+      )}
       {errorState === "bad-creds" && (
         <p className="bg-opacity-10 rounded-sm border-2 border-red-800 bg-red-800 p-4 text-red-800">
           Invalid username or password
@@ -127,6 +142,15 @@ export function LoginForm({
               <Button type="submit" className="mt-3 w-full self-end">
                 Login
               </Button>
+              {showPasswordReset && (
+                <Anchor
+                  component={Link}
+                  href="/forgot-password"
+                  className="self-center"
+                >
+                  Forgot password?
+                </Anchor>
+              )}
             </Stack>
           </form>
         )}

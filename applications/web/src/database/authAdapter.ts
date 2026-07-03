@@ -40,6 +40,7 @@ const NO_PERMISSIONS = {
   userRead: false,
   userDelete: false,
   userUpdate: false,
+  userPasswordReset: false,
   settingsUpdate: false,
 }
 
@@ -208,6 +209,7 @@ export function KyselyAdapter(
                 "userRead",
                 "userDelete",
                 "userUpdate",
+                "userPasswordReset",
                 "settingsUpdate",
               ])
               .whereRef("user.userPermissionUuid", "=", "userPermission.uuid"),

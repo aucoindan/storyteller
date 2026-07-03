@@ -121,6 +121,7 @@
       "user_permission.user_create": "Generated<boolean>",
       "user_permission.user_delete": "Generated<boolean>",
       "user_permission.user_list": "Generated<boolean>",
+      "user_permission.user_password_reset": "Generated<boolean>",
       "user_permission.user_read": "Generated<boolean>",
       "user_permission.user_update": "Generated<boolean>",
       "user_permission.uuid": "Generated<import(\"@/uuid\").UUID>",

@@ -40,6 +40,7 @@ export function createKyselyDb(sqlite: Database): Kysely<DB> {
           userCreate: true,
           userDelete: true,
           userList: true,
+          userPasswordReset: true,
           userRead: true,
           userUpdate: true,
           isEpub2: true,

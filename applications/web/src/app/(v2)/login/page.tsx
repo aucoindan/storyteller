@@ -149,6 +149,9 @@ export default async function Login() {
             oauthLoginAction={oauthLogin}
             providers={Object.values(providers)}
             disablePasswordLogin={settings.disablePasswordLogin}
+            showPasswordReset={
+              !!settings.smtpHost && !settings.disablePasswordLogin
+            }
           />
         </Stack>
       </Paper>

@@ -66,7 +66,8 @@ CREATE TABLE "user_permission" (
   user_update BOOLEAN NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  collection_create BOOLEAN NOT NULL DEFAULT 0
+  collection_create BOOLEAN NOT NULL DEFAULT 0,
+  user_password_reset BOOLEAN NOT NULL DEFAULT 0
 );
 
 CREATE TRIGGER user_permission_update_trigger AFTER

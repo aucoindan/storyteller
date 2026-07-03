@@ -41,6 +41,7 @@ export const GET = withHasPermission("userList")(async () => {
         userList: user.permissions?.userList ?? false,
         userRead: user.permissions?.userRead ?? false,
         userUpdate: user.permissions?.userUpdate ?? false,
+        userPasswordReset: user.permissions?.userPasswordReset ?? false,
       } satisfies UserPermissionSet,
     })),
   )
