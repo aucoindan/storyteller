@@ -294,6 +294,25 @@ class EPUBView: ExpoView {
     private var lastEmittedLocator: Locator?
     private let pagedLayoutBehavior = PagedEPUBLayoutBehavior()
     private let scrollLayoutBehavior = ScrollEPUBLayoutBehavior()
+    private var initialLocatorEmissionInProgress = false
+
+    private func javascriptStringLiteral(_ value: String) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let string = String(data: data, encoding: .utf8) else {
+            return "\"\""
+        }
+
+        return string
+    }
+
+    private func javascriptStringArrayLiteral(_ values: [String]) -> String {
+        guard let data = try? JSONEncoder().encode(values),
+              let string = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+
+        return string
+    }
 
     private func isSameLocatorPosition(_ lhs: Locator?, _ rhs: Locator?) -> Bool {
         guard let lhs, let rhs else {
@@ -323,6 +342,23 @@ class EPUBView: ExpoView {
     private func emitLocatorChange(_ locator: Locator) {
         lastEmittedLocator = locator
         onLocatorChange(locator.json)
+    }
+
+    private func shouldGateInitialLocatorEmission(for locator: Locator?) -> Bool {
+        guard let locator else {
+            return false
+        }
+
+        return locator.locations.fragments.first != nil || locator.locations.progression != nil
+    }
+
+    private func emitInitialCurrentLocatorIfReady() async {
+        guard initialLocatorEmissionInProgress else {
+            return
+        }
+
+        await emitCurrentLocator(suppressIfPropLocatorVisible: true)
+        initialLocatorEmissionInProgress = false
     }
 
     private func layoutBehavior(for props: FinalizedProps? = nil) -> any EPUBLayoutBehavior {
@@ -470,6 +506,9 @@ class EPUBView: ExpoView {
             return
         }
 
+        let gatesInitialLocatorEmission = shouldGateInitialLocatorEmission(for: props!.locator)
+        initialLocatorEmissionInProgress = gatesInitialLocatorEmission
+
         let resources = Bundle.main.resourceURL!
 
         let fontFamilyDeclarations = [
@@ -529,6 +568,7 @@ class EPUBView: ExpoView {
             ),
             httpServer: GCDHTTPServer(assetRetriever: BookService.shared.retriever)
         ) else {
+            initialLocatorEmissionInProgress = false
             print("Failed to create Navigator instance")
             return
         }
@@ -546,12 +586,15 @@ class EPUBView: ExpoView {
         }
         EPUBView.current = self
 
-        Task {
-            await emitCurrentLocator()
+        if !gatesInitialLocatorEmission {
+            Task {
+                await emitCurrentLocator()
+            }
         }
     }
 
     public func destroyNavigator() {
+        initialLocatorEmissionInProgress = false
         self.navigator?.view.removeFromSuperview()
 
         if EPUBView.current === self {
@@ -572,13 +615,56 @@ class EPUBView: ExpoView {
         }
     }
 
-    func emitCurrentLocator() async {
+    private func propLocatorVisibility(
+        _ propLocator: Locator?,
+        currentLocator: Locator,
+        navigator epubNav: EPUBNavigatorViewController
+    ) async -> Bool? {
+        if let fragment = propLocator?.locations.fragments.first {
+            let result = await epubNav.evaluateJavaScript("""
+                (function() {
+                    if (!globalThis.storyteller || !storyteller.isFirstClientRectOnScreen) return null;
+                    const element = document.getElementById(\(javascriptStringLiteral(fragment)));
+                    if (!element || !element.getClientRects()[0]) return null;
+                    return storyteller.isFirstClientRectOnScreen(element);
+                })();
+            """)
+
+            switch result {
+            case .failure(let e):
+                print(e)
+                return nil
+            case .success(let anyValue):
+                return anyValue as? Bool
+            }
+        }
+
+        if let progression = propLocator?.locations.progression {
+            return await layoutBehavior().isProgressionVisible(
+                on: self,
+                currentLocator: currentLocator,
+                progression: progression
+            )
+        }
+
+        return nil
+    }
+
+    func emitCurrentLocator(suppressIfPropLocatorVisible: Bool = false) async {
         guard let epubNav = navigator else {
             return
         }
         guard let currentLocator = epubNav.currentLocation else {
             return
         }
+
+        let propLocator = props?.locator
+        let isPropLocatorOnPage = await propLocatorVisibility(
+            propLocator,
+            currentLocator: currentLocator,
+            navigator: epubNav
+        )
+
         let found = await navigator!.firstVisibleElementLocator()
         let merged = found.map { f in
             currentLocator.copy(locations: {
@@ -587,61 +673,33 @@ class EPUBView: ExpoView {
             })
         }
 
-        Task {
-            let propLocator = props?.locator
-            let isPropLocatorOnPage: Bool?
-
-            if let fragment = propLocator?.locations.fragments.first {
-                let result = await epubNav.evaluateJavaScript("""
-                    (function() {
-                        if (!globalThis.storyteller || !storyteller.isFirstClientRectOnScreen) return false;
-                        const element = document.getElementById("\(fragment)");
-                        return storyteller.isFirstClientRectOnScreen(element);
-                    })();
-                """)
-
-                switch result {
-                case .failure(let e):
-                    print(e)
-                    self.emitLocatorChange(merged ?? currentLocator)
-                    return
-                case .success(let anyValue):
-                    guard let value = anyValue as? Bool else {
-                        self.emitLocatorChange(merged ?? currentLocator)
-                        return
-                    }
-                    isPropLocatorOnPage = value
-                }
-            } else if let progression = propLocator?.locations.progression {
-                isPropLocatorOnPage = await layoutBehavior().isProgressionVisible(
-                    on: self,
-                    currentLocator: currentLocator,
-                    progression: progression
-                )
-            } else {
-                isPropLocatorOnPage = nil
-            }
-
-            guard let isPropLocatorOnPage else {
-                self.emitLocatorChange(merged ?? currentLocator)
+        guard let isPropLocatorOnPage else {
+            if suppressIfPropLocatorVisible && propLocator != nil {
                 return
             }
 
-            // If the locator specified by the prop is still on the page, don't emit
-            // a change event. We haven't actually changed the page.
-            if merged == nil && !isPropLocatorOnPage {
-                self.emitLocatorChange(merged ?? currentLocator)
-                return
-            }
-
-            // If the locator specified by the prop is still on the page,
-            // we still need to emit if we're adding fragments that we didn't
-            // have initially
-            if isPropLocatorOnPage && (props?.locator?.locations.fragments.count ?? 0) > 0 {
-                return
-            }
-            self.emitLocatorChange(merged ?? currentLocator)
+            emitLocatorChange(merged ?? currentLocator)
+            return
         }
+
+        // If the locator specified by the prop is still on the page, don't emit
+        // a change event. We haven't actually changed the page.
+        if merged == nil && !isPropLocatorOnPage {
+            emitLocatorChange(merged ?? currentLocator)
+            return
+        }
+
+        if isPropLocatorOnPage && suppressIfPropLocatorVisible {
+            return
+        }
+
+        // If the locator specified by the prop is still on the page,
+        // we still need to emit if we're adding fragments that we didn't
+        // have initially
+        if isPropLocatorOnPage && (props?.locator?.locations.fragments.count ?? 0) > 0 {
+            return
+        }
+        emitLocatorChange(merged ?? currentLocator)
     }
 
     func go(locator: Locator, scrollAfterNavigation: Bool = false) {
@@ -1073,6 +1131,8 @@ extension EPUBView: WKScriptMessageHandler {
                     await self.layoutBehavior().goForwardFromScript(on: self)
                 case "storytellerMiddleTouch":
                     self.onMiddleTouch()
+                case "storytellerInitialLocatorReady":
+                    await self.emitInitialCurrentLocatorIfReady()
                 default:
                     return
             }
@@ -1098,8 +1158,8 @@ extension EPUBView: EPUBNavigatorDelegate {
 
         let fragments = BookService.shared.getFragments(for: props!.bookId, locator: currentLocator)
 
-        let joinedFragments = fragments.map(\.fragmentId).map { "\"\($0)\"" }.joined(separator: ",")
-        let jsFragmentsArray = "[\(joinedFragments)]"
+        let jsFragmentsArray = javascriptStringArrayLiteral(fragments.map(\.fragmentId))
+        let initialLocatorHref = javascriptStringLiteral(currentLocator.href.string)
 
         let scriptSource = """
             globalThis.storyteller = {};
@@ -1190,6 +1250,60 @@ extension EPUBView: EPUBNavigatorDelegate {
                 const isHorizontallyWithin = rect.right >= 0 && rect.left <= window.innerWidth;
                 return isVerticallyWithin && isHorizontallyWithin;
             }
+
+            storyteller.notifyInitialLocatorReady = function notifyInitialLocatorReady(expectedHref) {
+                let posted = false;
+
+                const decode = (value) => {
+                    try {
+                        return decodeURIComponent(value);
+                    } catch (_) {
+                        return value;
+                    }
+                };
+
+                const currentResourceMatches = () => {
+                    const expected = decode(expectedHref.split("#")[0]).replace(/^\\/+/, "");
+                    if (!expected) return true;
+
+                    const pageHref = decode(window.location.href.split("#")[0]);
+                    return pageHref.endsWith(expected) || pageHref.endsWith(`/${expected}`);
+                };
+
+                if (!currentResourceMatches()) return;
+
+                const post = () => {
+                    if (posted) return;
+                    posted = true;
+
+                    window.webkit.messageHandlers.storytellerInitialLocatorReady.postMessage(null);
+                };
+
+                // Readium's scrollTo* helpers mutate scroll state synchronously.
+                // Wait two frames so WebKit has a layout/paint opportunity before
+                // Swift measures whether the original prop locator is visible.
+                const postAfterLayout = () => requestAnimationFrame(() => requestAnimationFrame(post));
+
+                const wrapInitialNavigationFunction = (name) => {
+                    if (!globalThis.readium || typeof readium[name] !== "function") return;
+                    if (readium[name].storytellerInitialLocatorReadyWrapped) return;
+
+                    const original = readium[name];
+                    const wrapped = function(...args) {
+                        const result = original.apply(this, args);
+                        postAfterLayout();
+                        return result;
+                    };
+                    wrapped.storytellerInitialLocatorReadyWrapped = true;
+                    readium[name] = wrapped;
+                };
+
+                wrapInitialNavigationFunction("scrollToId");
+                wrapInitialNavigationFunction("scrollToLocator");
+                wrapInitialNavigationFunction("scrollToPosition");
+            }
+
+            storyteller.notifyInitialLocatorReady(\(initialLocatorHref));
 
             storyteller.scrollElementIntoView = function scrollElementIntoView(element) {
                 if (!element) return false;
@@ -1297,6 +1411,7 @@ extension EPUBView: EPUBNavigatorDelegate {
         userContentController.add(self, name: "storytellerNavNext")
         userContentController.add(self, name: "storytellerMiddleTouch")
         userContentController.add(self, name: "storytellerSelectionCleared")
+        userContentController.add(self, name: "storytellerInitialLocatorReady")
 
         setCssVar("--st-padding-left", "\(props!.marginLeft ?? 0)px")
         setCssVar("--st-padding-right", "\(props!.marginRight ?? 0)px")
@@ -1308,6 +1423,7 @@ extension EPUBView: EPUBNavigatorDelegate {
 
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         let navigator = (navigator as! EPUBNavigatorViewController)
+        let shouldSkipLocatorEmission = initialLocatorEmissionInProgress
 
         findOnPage(locator: locator)
         Task {
@@ -1316,8 +1432,7 @@ extension EPUBView: EPUBNavigatorDelegate {
 
                 let fragments = BookService.shared.getFragments(for: props!.bookId, locator: locator)
 
-                let joinedFragments = fragments.map(\.fragmentId).map { "\"\($0)\"" }.joined(separator: ",")
-                let jsFragmentsArray = "[\(joinedFragments)]"
+                let jsFragmentsArray = javascriptStringArrayLiteral(fragments.map(\.fragmentId))
 
 
                 await navigator.evaluateJavaScript("""
@@ -1326,6 +1441,10 @@ extension EPUBView: EPUBNavigatorDelegate {
                     storyteller.observer.observe(element)
                 });
             """)
+            }
+
+            guard !shouldSkipLocatorEmission else {
+                return
             }
 
             await self.emitCurrentLocator()
