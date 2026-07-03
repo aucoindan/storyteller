@@ -67,6 +67,7 @@ private struct EPUBLayoutChange {
     let layoutModeChanged: Bool
     let enteredPageLayout: Bool
     let locatorChangedFromExternalUpdate: Bool
+    let playbackStarted: Bool
 }
 
 private protocol EPUBLayoutBehavior {
@@ -140,7 +141,7 @@ private struct PagedEPUBLayoutBehavior: EPUBLayoutBehavior {
         newFragment: String?,
         oldFragment: String?
     ) {
-        guard let fragmentId = newFragment, fragmentId != oldFragment || change.enteredPageLayout else {
+        guard let fragmentId = newFragment, fragmentId != oldFragment || change.enteredPageLayout || change.playbackStarted else {
             return
         }
 
@@ -430,11 +431,13 @@ class EPUBView: ExpoView {
         let locatorChangedFromExternalUpdate = finalProps.locator != nil &&
             !isSameLocatorPosition(finalProps.locator, oldProps?.locator) &&
             !isSameLocatorPosition(finalProps.locator, lastEmittedLocator)
+        let playbackStarted = finalProps.isPlaying && oldProps?.isPlaying != true
         let layoutChange = EPUBLayoutChange(
             finalProps: finalProps,
             layoutModeChanged: scrollModeChanged,
             enteredPageLayout: enteredPageLayout,
-            locatorChangedFromExternalUpdate: locatorChangedFromExternalUpdate
+            locatorChangedFromExternalUpdate: locatorChangedFromExternalUpdate,
+            playbackStarted: playbackStarted
         )
         let layoutBehavior = layoutBehavior(for: finalProps)
 
@@ -911,7 +914,8 @@ class EPUBView: ExpoView {
                 finalProps: props,
                 layoutModeChanged: false,
                 enteredPageLayout: false,
-                locatorChangedFromExternalUpdate: false
+                locatorChangedFromExternalUpdate: false,
+                playbackStarted: false
             ),
             newFragment: fragmentId,
             oldFragment: nil

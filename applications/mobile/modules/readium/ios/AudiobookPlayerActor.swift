@@ -71,6 +71,7 @@ typealias PositionChangedCallback = (_ position: Double) -> Void
 typealias IsPlayingChangedCallback = (_ isPlaying: Bool) -> Void
 
 let interruptionInterval = TimeInterval(integerLiteral: 5 * 60)
+private let scheduledClipEventImmediateThreshold = 0.05
 
 @globalActor
 public actor AudiobookPlayerActor {
@@ -692,6 +693,12 @@ public actor AudiobookPlayerActor {
               let clip = clips.first(where: { $0.fragmentId == fragmentId }) else { return }
 
         let position = clip.start + fragmentProgress * (clip.end - clip.start)
+        let currentPosition = player.currentTime().seconds
+        if currentPosition.isFinite && currentPosition >= position - scheduledClipEventImmediateThreshold {
+            handler()
+            return
+        }
+
         let time = CMTime(seconds: position, preferredTimescale: 1000)
 
         scheduledClipEventObserver = player.addBoundaryTimeObserver(

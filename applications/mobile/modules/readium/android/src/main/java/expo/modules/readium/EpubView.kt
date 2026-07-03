@@ -226,6 +226,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         val layoutModeChanged: Boolean,
         val enteredPageLayout: Boolean,
         val locatorChangedFromExternalUpdate: Boolean,
+        val playbackStarted: Boolean,
     )
 
     private interface EpubLayoutBehavior {
@@ -300,7 +301,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
             newFragment: String?,
             oldFragment: String?
         ) {
-            if (newFragment != null && (newFragment != oldFragment || change.enteredPageLayout)) {
+            if (newFragment != null && (newFragment != oldFragment || change.enteredPageLayout || change.playbackStarted)) {
                 view.player?.let { player ->
                     view.schedulePagedClipChanged(newFragment, player)
                 }
@@ -493,11 +494,13 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
         val locatorChangedFromExternalUpdate = finalProps.locator != null &&
             !isSameLocatorPosition(finalProps.locator, oldProps?.locator) &&
             !isSameLocatorPosition(finalProps.locator, lastEmittedLocator)
+        val playbackStarted = finalProps.isPlaying && oldProps?.isPlaying != true
         val layoutChange = LayoutChange(
             finalProps = finalProps,
             layoutModeChanged = scrollModeChanged,
             enteredPageLayout = enteredPageLayout,
             locatorChangedFromExternalUpdate = locatorChangedFromExternalUpdate,
+            playbackStarted = playbackStarted,
         )
         val layoutBehavior = layoutBehavior(finalProps)
 
@@ -871,6 +874,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
                 layoutModeChanged = false,
                 enteredPageLayout = false,
                 locatorChangedFromExternalUpdate = false,
+                playbackStarted = false,
             ),
             newFragment = fragmentId,
             oldFragment = null

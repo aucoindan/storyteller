@@ -144,6 +144,7 @@ interface Listener : Player.Listener {
 }
 
 val interruptionInterval = 5.minutes
+private const val SCHEDULED_CLIP_EVENT_IMMEDIATE_THRESHOLD_MS = 50L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 class PlaybackService : MediaLibraryService() {
@@ -823,13 +824,23 @@ class PlaybackService : MediaLibraryService() {
 
                         val fragmentId = args.getString("fragmentId") ?: return result
                         val fragmentProgress = args.getDouble("fragmentProgress")
-                        val mediaItemIndex = session.player.currentMediaItemIndex
-                        val mediaId = session.player.currentMediaItem?.mediaId ?: return result
+                        val sessionPlayer = session.player
+                        val mediaItemIndex = sessionPlayer.currentMediaItemIndex
+                        val mediaId = sessionPlayer.currentMediaItem?.mediaId ?: return result
                         val clips = mediaIdToClips[mediaId] ?: return result
                         val clip = clips.find { it.fragmentId == fragmentId } ?: return result
 
                         val positionMs =
                             ((clip.start + fragmentProgress * (clip.end - clip.start)) * 1000).roundToLong()
+
+                        if (sessionPlayer.currentPosition >= positionMs - SCHEDULED_CLIP_EVENT_IMMEDIATE_THRESHOLD_MS) {
+                            session.broadcastCustomCommand(
+                                SessionCommand("CLIP_EVENT_FIRED", Bundle.EMPTY),
+                                Bundle.EMPTY
+                            )
+                            clipEventMessage = null
+                            return result
+                        }
 
                         clipEventMessage = player?.createMessage { _, _ ->
                             session.broadcastCustomCommand(
