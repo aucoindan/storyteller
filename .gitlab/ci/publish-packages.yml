@@ -390,7 +390,7 @@ release-ghost-story:
     - if [ -n "${CODESIGNING}" ]; then echo "Signing executable..."; fi
     - if [ -n "${CODESIGNING}" ]; then codesign --sign "$APPLE_SIGNING_IDENTITY"
       --force --options runtime --timestamp --entitlements
-      libraries/align/entitlements.plist ./align/stalign; fi
+      libraries/align/entitlements.plist ./libraries/align/stalign; fi
     - if [ -n "${CODESIGNING}" ]; then codesign --verify --verbose
       ./libraries/align/stalign; fi
     - if [ -n "${CODESIGNING}" ]; then spctl --assess --type execute --verbose
