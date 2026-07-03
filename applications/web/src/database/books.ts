@@ -1,4 +1,5 @@
 import {
+  type ExpressionBuilder,
   type Insertable,
   type Selectable,
   type Transaction,
@@ -26,6 +27,7 @@ import { type UUID } from "@/uuid"
 
 import { db } from "./connection"
 import { type NewCreator } from "./creators"
+import { type NewIdentifier } from "./identifiers"
 import { type DB } from "./schema"
 import { type NewSeries } from "./series"
 import { getDefaultStatus } from "./statuses"
@@ -91,6 +93,7 @@ export type SeriesRelation = NewSeries &
 export type TagRelation = NewTag & NewBookToTag
 export type StatusRelation = Omit<NewBookToStatus, "bookUuid">
 export type UserBookRatingRelation = Omit<NewUserBookRating, "bookUuid">
+export type IdentifierRelation = Omit<NewIdentifier, "bookUuid">
 
 export type NewEbook = Insertable<DB["ebook"]>
 export type Ebook = Selectable<DB["ebook"]>
@@ -444,6 +447,72 @@ export async function createBook(
   return book
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters, @typescript-eslint/no-explicit-any
+const identifiersQuery = <EB extends ExpressionBuilder<DB, any>>(
+  eb: EB,
+  relation?: { ebook?: boolean; audiobook?: boolean; readaloud?: boolean },
+) => {
+  return jsonArrayFrom(
+    eb
+      .selectFrom("identifier")
+      .distinct()
+      .innerJoin(
+        "identifierType",
+        "identifier.identifierTypeUuid",
+        "identifierType.uuid",
+      )
+      .select([
+        "identifierType.uuid",
+        "identifierType.kind",
+        "identifierType.name",
+        "identifierType.urlTemplate",
+        "identifierType.externalSourceUuid",
+        "identifier.value",
+      ])
+      .where((eb) =>
+        eb.and([
+          eb("identifier.bookUuid", "=", eb.ref("book.uuid")),
+          relation?.ebook
+            ? eb("identifier.ebookUuid", "=", eb.ref("ebook.uuid"))
+            : eb("identifier.ebookUuid", "is", null),
+          relation?.audiobook
+            ? eb("identifier.audiobookUuid", "=", eb.ref("audiobook.uuid"))
+            : eb("identifier.audiobookUuid", "is", null),
+          relation?.readaloud
+            ? eb("identifier.readaloudUuid", "=", eb.ref("readaloud.uuid"))
+            : eb("identifier.readaloudUuid", "is", null),
+        ]),
+      ),
+  ).as("identifiers")
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters, @typescript-eslint/no-explicit-any
+const externalDataQuery = <EB extends ExpressionBuilder<DB, any>>(eb: EB) => {
+  return jsonArrayFrom(
+    eb
+      .selectFrom("externalData")
+      .innerJoin("identifier", "identifier.uuid", "externalData.identifierUuid")
+      .innerJoin(
+        "externalSource",
+        "externalSource.uuid",
+        "externalData.externalSourceUuid",
+      )
+      .select([
+        "externalData.uuid",
+        "externalData.rating",
+        "externalData.fetchedAt",
+        "externalSource.uuid as sourceUuid",
+        "externalSource.name as sourceName",
+        "externalSource.color as sourceColor",
+        "externalSource.url as sourceUrl",
+        "externalSource.ratingIcon as sourceRatingIcon",
+        "externalSource.ratingMin as sourceRatingMin",
+        "externalSource.ratingMax as sourceRatingMax",
+      ])
+      .whereRef("identifier.bookUuid", "=", "book.uuid"),
+  ).as("externalData")
+}
+
 type BooksQueryOptions = {
   includeManifest?: boolean
 }
@@ -540,6 +609,8 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
           ])
           .whereRef("bookToCollection.bookUuid", "=", "book.uuid"),
       ).as("collections"),
+      identifiersQuery(eb),
+      externalDataQuery(eb),
       ...(userId
         ? [
             jsonObjectFrom(
@@ -573,7 +644,7 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
       jsonObjectFrom(
         eb
           .selectFrom("ebook")
-          .select([
+          .select((eb) => [
             "ebook.uuid",
             "ebook.filepath",
             "ebook.missing",
@@ -583,6 +654,7 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
             "ebook.fingerprint",
             "ebook.pageCount",
             "ebook.fileSize",
+            identifiersQuery(eb, { ebook: true }),
           ])
           .$if(includeManifest, (eb) => eb.select(["ebook.manifest"]))
           .whereRef("ebook.bookUuid", "=", "book.uuid"),
@@ -590,7 +662,7 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
       jsonObjectFrom(
         eb
           .selectFrom("audiobook")
-          .select([
+          .select((eb) => [
             "audiobook.uuid",
             "audiobook.filepath",
             "audiobook.missing",
@@ -599,6 +671,7 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
             "audiobook.fingerprint",
             "audiobook.duration",
             "audiobook.fileSize",
+            identifiersQuery(eb, { audiobook: true }),
           ])
           .$if(includeManifest, (eb) => eb.select(["audiobook.manifest"]))
           .whereRef("audiobook.bookUuid", "=", "book.uuid"),
@@ -606,7 +679,7 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
       jsonObjectFrom(
         eb
           .selectFrom("readaloud")
-          .select([
+          .select((eb) => [
             "readaloud.uuid",
             "readaloud.filepath",
             "readaloud.missing",
@@ -622,6 +695,7 @@ export function booksQuery(userId?: UUID, options?: BooksQueryOptions) {
             "readaloud.pageCount",
             "readaloud.duration",
             "readaloud.fileSize",
+            identifiersQuery(eb, { readaloud: true }),
           ])
           .$if(includeManifest, (eb) => eb.select(["readaloud.manifest"]))
           .whereRef("readaloud.bookUuid", "=", "book.uuid"),
@@ -933,6 +1007,7 @@ export type BookRelationsUpdate = {
   books?: UUID[]
   status?: StatusRelation
   rating?: UserBookRatingRelation
+  identifiers?: IdentifierRelation[]
 }
 
 export async function updateBook(
@@ -1210,6 +1285,25 @@ export async function updateBook(
               rating: relations.rating?.rating,
               review: relations.rating?.review,
             }),
+          )
+          .execute()
+      }
+    }
+
+    if (relations.identifiers) {
+      await tr
+        .deleteFrom("identifier")
+        .where("identifier.bookUuid", "=", uuid)
+        .execute()
+
+      if (relations.identifiers.length) {
+        await tr
+          .insertInto("identifier")
+          .values(
+            relations.identifiers.map((identifier) => ({
+              ...identifier,
+              bookUuid: uuid,
+            })),
           )
           .execute()
       }

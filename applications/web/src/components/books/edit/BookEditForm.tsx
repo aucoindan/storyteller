@@ -199,11 +199,13 @@ export function BookEditForm({ book }: Props) {
         onSubmit={form.onSubmit(async (values) => {
           setSavedState(SaveState.LOADING)
           const { textCover, audioCover, ...update } = values
-          const { rating, ...bookWithoutRating } = book
+          // no way to set identifiers yet
+          const { rating, identifiers, ...bookWithoutRatingAndIdentifiers } =
+            book
           try {
             await updateBook({
               update: {
-                ...bookWithoutRating,
+                ...bookWithoutRatingAndIdentifiers,
                 ...update,
                 publicationDate:
                   update.publicationDate &&

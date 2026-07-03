@@ -5,6 +5,7 @@ import { deleteAssets } from "@/assets/fs"
 import { withHasPermission } from "@/auth/auth"
 import {
   type CreatorRelation,
+  type IdentifierRelation,
   type SeriesRelation,
   type UserBookRatingRelation,
   deleteBook,
@@ -158,6 +159,10 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
     .getAll("collections")
     .map((entry) => entry.valueOf() as UUID)
 
+  const identifiers = formData
+    .getAll("identifiers")
+    .map((entry) => JSON.parse(entry.valueOf() as string) as IdentifierRelation)
+
   const book = await getBook(bookUuid, request.auth.user.id)
   if (!book) {
     return Response.json({ message: `Could not find book with id ${bookUuid}` })
@@ -191,6 +196,7 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
           ? { ...rating, userId: request.auth.user.id }
           : { userId: request.auth.user.id },
       }),
+      ...(fields.has("identifiers") && { identifiers }),
     },
     request.auth.user.id,
   )

@@ -167,6 +167,52 @@ export interface Ebook {
   uuid: Generated<import("@/uuid").UUID>
 }
 
+export interface ExternalData {
+  createdAt: Generated<string>
+  externalSourceUuid: import("@/uuid").UUID
+  fetchedAt: Generated<string>
+  identifierUuid: import("@/uuid").UUID
+  rating: number
+  updatedAt: Generated<string>
+  uuid: Generated<import("@/uuid").UUID>
+}
+
+export interface ExternalSource {
+  color: string | null
+  createdAt: Generated<string>
+  kind: import("@/database/externalSources").ExternalSourceKind | null
+  logo: string | null
+  name: string
+  ratingIcon: string | null
+  ratingMax: number | null
+  ratingMin: number | null
+  updatedAt: Generated<string>
+  url: string | null
+  uuid: Generated<import("@/uuid").UUID>
+}
+
+export interface Identifier {
+  audiobookUuid: import("@/uuid").UUID | null
+  bookUuid: import("@/uuid").UUID
+  createdAt: Generated<string>
+  ebookUuid: import("@/uuid").UUID | null
+  identifierTypeUuid: import("@/uuid").UUID
+  readaloudUuid: import("@/uuid").UUID | null
+  updatedAt: Generated<string>
+  uuid: Generated<import("@/uuid").UUID>
+  value: string
+}
+
+export interface IdentifierType {
+  createdAt: Generated<string>
+  externalSourceUuid: import("@/uuid").UUID | null
+  kind: import("@/database/identifiers").IdentifierKind | null
+  name: string
+  updatedAt: Generated<string>
+  urlTemplate: string | null
+  uuid: Generated<import("@/uuid").UUID>
+}
+
 export interface ImportRule {
   bookUuid: import("@/uuid").UUID | null
   createdAt: Generated<string>
@@ -358,6 +404,10 @@ export interface DB {
   creator: Creator
   deviceAuthorization: DeviceAuthorization
   ebook: Ebook
+  externalData: ExternalData
+  externalSource: ExternalSource
+  identifier: Identifier
+  identifierType: IdentifierType
   importRule: ImportRule
   importRuleToCollection: ImportRuleToCollection
   migration: Migration

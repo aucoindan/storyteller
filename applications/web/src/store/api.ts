@@ -14,12 +14,19 @@ import {
   type BookUpdate,
   type BookWithRelations,
   type CreatorRelation,
+  type IdentifierRelation,
   type SeriesRelation,
   type UserBookRatingRelation,
 } from "@/database/books"
 import { type ChangelogEntry } from "@/database/changelog"
 import { type CollectionWithRelations } from "@/database/collections"
 import { type Creator } from "@/database/creators"
+import {
+  type Identifier,
+  type IdentifierType,
+  type IdentifierTypeUpdate,
+  type NewIdentifierType,
+} from "@/database/identifiers"
 import { type Position } from "@/database/positions"
 import {
   type NewSeries,
@@ -60,6 +67,8 @@ export const api = createApi({
     "ImportRules",
     "UserRatings",
     "UserSettings",
+    "Identifiers",
+    "BookIdentifiers",
   ],
   endpoints: (build) => ({
     createInvite: build.mutation<Invite, InviteRequest>({
@@ -468,6 +477,7 @@ export const api = createApi({
           narrators?: string[]
           rating?: UserBookRatingRelation
           description?: string | null
+          identifiers?: IdentifierRelation[]
         }
         textCover?: File | null
         audioCover?: File | null
@@ -556,6 +566,12 @@ export const api = createApi({
           }
         }
 
+        if (update.identifiers) {
+          for (const identifier of update.identifiers) {
+            body.append("identifiers", JSON.stringify(identifier))
+          }
+        }
+
         if (textCover != null) {
           body.append("textCover", textCover)
         }
@@ -570,7 +586,14 @@ export const api = createApi({
           body,
         }
       },
-      invalidatesTags: ["Creators", "Authors", "Series", "Tags", "UserRatings"],
+      invalidatesTags: (_result, _error, { update }) => [
+        "Creators",
+        "Authors",
+        "Series",
+        "Tags",
+        "UserRatings",
+        { type: "BookIdentifiers", id: update.uuid },
+      ],
     }),
     updateStatus: build.mutation<void, { bookUuid: UUID; statusUuid: UUID }>({
       query: ({ bookUuid, statusUuid }) => ({
@@ -829,6 +852,65 @@ export const api = createApi({
       invalidatesTags: ["UserSettings"],
     }),
 
+    listIdentifierTypes: build.query<IdentifierType[], void>({
+      query: () => "/identifiers",
+      providesTags: (identifiers) =>
+        identifiers?.map((i) => ({ type: "Identifiers", id: i.uuid })) ?? [
+          "Identifiers",
+        ],
+    }),
+    createIdentifierType: build.mutation<IdentifierType, NewIdentifierType>({
+      query: (body) => ({
+        url: "/identifiers",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Identifiers"],
+    }),
+    updateIdentifierType: build.mutation<
+      void,
+      { uuid: UUID; update: IdentifierTypeUpdate }
+    >({
+      query: ({ uuid, update }) => ({
+        url: `/identifiers/${uuid}`,
+        method: "PUT",
+        body: update,
+      }),
+      invalidatesTags: (_result, _error, { uuid }) => [
+        { type: "Identifiers", id: uuid },
+      ],
+    }),
+    deleteIdentifierType: build.mutation<void, { uuid: UUID }>({
+      query: ({ uuid }) => ({
+        url: `/identifiers/${uuid}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Identifiers"],
+    }),
+    listBookIdentifiers: build.query<Identifier[], { bookUuid: UUID }>({
+      query: ({ bookUuid }) => `/books/${bookUuid}/identifiers`,
+      providesTags: (result, _error, { bookUuid }) => [
+        { type: "BookIdentifiers", id: bookUuid },
+        ...(result?.map((bi) => ({
+          type: "BookIdentifiers" as const,
+          id: bi.uuid,
+        })) ?? []),
+      ],
+    }),
+    updateBookIdentifiers: build.mutation<
+      void,
+      { bookUuid: UUID; identifiers: IdentifierRelation[] }
+    >({
+      query: ({ bookUuid, identifiers }) => ({
+        url: `/books/${bookUuid}/identifiers`,
+        method: "PUT",
+        body: { identifiers },
+      }),
+      invalidatesTags: (_result, _error, { bookUuid }) => [
+        { type: "BookIdentifiers", id: bookUuid },
+      ],
+    }),
+
     getInfiniteChangelog: build.infiniteQuery<
       ChangelogEntry[],
       string,
@@ -952,6 +1034,12 @@ export const {
   useUpdateUserSettingsMutation,
   useSetUserSettingMutation,
   useDeleteUserSettingMutation,
+  useListIdentifierTypesQuery,
+  useCreateIdentifierTypeMutation,
+  useUpdateIdentifierTypeMutation,
+  useDeleteIdentifierTypeMutation,
+  useListBookIdentifiersQuery,
+  useUpdateBookIdentifiersMutation,
 } = api
 
 export function getDownloadUrl(
