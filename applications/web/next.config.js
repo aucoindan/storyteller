@@ -56,7 +56,7 @@ const nextConfig = {
     "@reflink/reflink",
   ],
   output: "standalone",
-  outputFileTracingRoot: resolve(new URL(import.meta.url).pathname, "../.."),
+  outputFileTracingRoot: resolve(new URL(import.meta.url).pathname, "../../.."),
   experimental: {
     optimizePackageImports: ["@mantine/core", "@mantine/hooks"],
     authInterrupts: true,

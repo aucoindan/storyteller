@@ -824,44 +824,7 @@ export async function deleteBook(
   const preventReImport = options?.preventReImport ?? false
 
   const callback = async (tr: Transaction<DB>) => {
-    await tr
-      .deleteFrom("bookToCreator")
-      .where("bookUuid", "=", bookUuid)
-      .execute()
-
-    await tr
-      .deleteFrom("creator")
-      .whereRef("creator.uuid", "not in", (eb) =>
-        eb.selectFrom("bookToCreator").select(["creatorUuid"]),
-      )
-      .execute()
-
-    await tr
-      .deleteFrom("bookToSeries")
-      .where("bookUuid", "=", bookUuid)
-      .execute()
-
-    await tr
-      .deleteFrom("series")
-      .whereRef("series.uuid", "not in", (eb) =>
-        eb.selectFrom("bookToSeries").select(["seriesUuid"]),
-      )
-      .execute()
-
-    await tr.deleteFrom("bookToTag").where("bookUuid", "=", bookUuid).execute()
-
-    await tr
-      .deleteFrom("bookToStatus")
-      .where("bookUuid", "=", bookUuid)
-      .execute()
-
-    await tr
-      .deleteFrom("bookToCollection")
-      .where("bookUuid", "=", bookUuid)
-      .execute()
-
-    await tr.deleteFrom("position").where("bookUuid", "=", bookUuid).execute()
-
+    // import rules need special handling before the cascade
     if (!preventReImport) {
       await tr
         .deleteFrom("importRule")
@@ -869,7 +832,7 @@ export async function deleteBook(
         .where("bookUuid", "=", bookUuid)
         .execute()
     } else {
-      // preserve existing rules across the FK cascade
+      // detach existing rules so they survive the cascade (FK is SET NULL)
       await tr
         .updateTable("importRule")
         .set({ source: "prevent-reimport", bookUuid: null })
@@ -877,7 +840,7 @@ export async function deleteBook(
         .where("bookUuid", "=", bookUuid)
         .execute()
 
-      // reference-mode source files survive the delete, add a rule for them
+      // read filepaths before cascade deletes media rows
       const [ebook, audiobook, readaloud] = await Promise.all([
         tr
           .selectFrom("ebook")
@@ -920,11 +883,25 @@ export async function deleteBook(
       }
     }
 
-    await tr.deleteFrom("readaloud").where("bookUuid", "=", bookUuid).execute()
-    await tr.deleteFrom("audiobook").where("bookUuid", "=", bookUuid).execute()
-    await tr.deleteFrom("ebook").where("bookUuid", "=", bookUuid).execute()
-
+    // all other relations are deleted by cascade
     await tr.deleteFrom("book").where("uuid", "=", bookUuid).execute()
+
+    // clean up orphaned creators and series
+    await Promise.all([
+      tr
+        .deleteFrom("creator")
+        .whereRef("creator.uuid", "not in", (eb) =>
+          eb.selectFrom("bookToCreator").select(["creatorUuid"]),
+        )
+        .execute(),
+
+      tr
+        .deleteFrom("series")
+        .whereRef("series.uuid", "not in", (eb) =>
+          eb.selectFrom("bookToSeries").select(["seriesUuid"]),
+        )
+        .execute(),
+    ])
   }
 
   if (tr) {
