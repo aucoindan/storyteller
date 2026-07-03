@@ -13,7 +13,7 @@ APP_VERSION=$(node -p "require('./package.json').version")
 RELEASE_TAG="v${APP_VERSION}"
 ARTIFACT_NAME=app-release.apk
 
-ARTIFACT_PATH=/home/expo/workingdir/build/mobile/android/app/build/outputs/apk/release/${ARTIFACT_NAME}
+ARTIFACT_PATH=/home/expo/workingdir/build/applications/mobile/android/app/build/outputs/apk/release/${ARTIFACT_NAME}
 
 API_URL="https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}"
 
