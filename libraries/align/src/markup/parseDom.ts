@@ -19,6 +19,8 @@ export function parseDom(xml: ParsedXml) {
 const FOOTNOTE_ROLES = ["footnote", "rearnote", "endnote", "note"]
 
 class Parser {
+  private footnoteIds = new Set<string>()
+
   parseDom(xml: ParsedXml) {
     const children = this.parseDomChildren(xml)
     return new Root(children)
@@ -54,13 +56,29 @@ class Parser {
 
     if (tagName === "a" && attrs["epub:type"] === "noteref") {
       const node = new NoterefNode(tagName, attrs, blockChildren, marks)
+      const href = node.attrs["href"]
+      const fragment = href?.split("#")[1]
+      if (fragment) {
+        this.footnoteIds.add(fragment)
+      }
       return node
     }
 
-    if (FOOTNOTE_ROLES.includes(attrs["epub:type"] ?? "") && attrs["id"]) {
+    if (
+      attrs["id"] &&
+      (FOOTNOTE_ROLES.includes(attrs["epub:type"] ?? "") ||
+        // Some footnotes aren't properly marked up with the
+        // correct role
+        this.footnoteIds.has(attrs["id"]))
+    ) {
       const footnoteNode = new FootnoteNode(
         tagName,
-        attrs,
+        {
+          // Fall back to 'footnote' if role
+          // is missing
+          "epub:type": "footnote",
+          ...attrs,
+        },
         blockChildren,
         marks,
       )

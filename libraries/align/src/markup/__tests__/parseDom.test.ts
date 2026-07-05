@@ -3,7 +3,14 @@ import { describe, it } from "node:test"
 
 import { Epub } from "@storyteller-platform/epub"
 
-import { Mark, Node, Root, TextNode } from "../model.ts"
+import {
+  FootnoteNode,
+  Mark,
+  Node,
+  NoterefNode,
+  Root,
+  TextNode,
+} from "../model.ts"
 import { parseDom } from "../parseDom.ts"
 
 void describe("parseDom", () => {
@@ -59,6 +66,108 @@ void describe("parseDom", () => {
       new Root([
         new Node("p", { id: "p1" }, [
           new TextNode("Hello, world!", [new Mark("span", { class: "red" })]),
+        ]),
+      ]),
+    )
+  })
+
+  void it("should identify footnotes and noterefs", () => {
+    const result = parseDom([
+      Epub.createXmlElement("p", { id: "p1" }, [
+        Epub.createXmlTextNode("Hello, world!"),
+        Epub.createXmlElement(
+          "a",
+          {
+            id: "note1",
+            "epub:type": "noteref",
+            href: "#note1-content",
+          },
+          [Epub.createXmlTextNode("1")],
+        ),
+      ]),
+      Epub.createXmlElement("aside", {}, [
+        Epub.createXmlElement(
+          "p",
+          { id: "note1-content", "epub:type": "footnote" },
+          [
+            Epub.createXmlElement("a", { href: "#note1" }, [
+              Epub.createXmlTextNode("1"),
+            ]),
+            Epub.createXmlTextNode("Footnote content"),
+          ],
+        ),
+      ]),
+    ])
+
+    assert.deepStrictEqual(
+      result,
+      new Root([
+        new Node("p", { id: "p1" }, [
+          new TextNode("Hello, world!"),
+          new NoterefNode(
+            "a",
+            { id: "note1", "epub:type": "noteref", href: "#note1-content" },
+            [new TextNode("1")],
+          ),
+        ]),
+        new Node("aside", {}, [
+          new FootnoteNode(
+            "p",
+            { id: "note1-content", "epub:type": "footnote" },
+            [
+              new TextNode("1", [new Mark("a", { href: "#note1" })]),
+              new TextNode("Footnote content"),
+            ],
+          ),
+        ]),
+      ]),
+    )
+  })
+
+  void it("should identify footnotes and noterefs when footnote role is missing", () => {
+    const result = parseDom([
+      Epub.createXmlElement("p", { id: "p1" }, [
+        Epub.createXmlTextNode("Hello, world!"),
+        Epub.createXmlElement(
+          "a",
+          {
+            id: "note1",
+            "epub:type": "noteref",
+            href: "#note1-content",
+          },
+          [Epub.createXmlTextNode("1")],
+        ),
+      ]),
+      Epub.createXmlElement("aside", {}, [
+        Epub.createXmlElement("p", { id: "note1-content" }, [
+          Epub.createXmlElement("a", { href: "#note1" }, [
+            Epub.createXmlTextNode("1"),
+          ]),
+          Epub.createXmlTextNode("Footnote content"),
+        ]),
+      ]),
+    ])
+
+    assert.deepStrictEqual(
+      result,
+      new Root([
+        new Node("p", { id: "p1" }, [
+          new TextNode("Hello, world!"),
+          new NoterefNode(
+            "a",
+            { id: "note1", "epub:type": "noteref", href: "#note1-content" },
+            [new TextNode("1")],
+          ),
+        ]),
+        new Node("aside", {}, [
+          new FootnoteNode(
+            "p",
+            { id: "note1-content", "epub:type": "footnote" },
+            [
+              new TextNode("1", [new Mark("a", { href: "#note1" })]),
+              new TextNode("Footnote content"),
+            ],
+          ),
         ]),
       ]),
     )
