@@ -15016,6 +15016,7 @@ __metadata:
     expo-keep-awake: "npm:~56.0.3"
     expo-linking: "npm:~56.0.13"
     expo-navigation-bar: "npm:~56.0.3"
+    expo-network-security-config: "npm:^1.1.2"
     expo-router: "npm:~56.2.9"
     expo-secure-store: "npm:~56.0.4"
     expo-sharing: "npm:~56.0.16"
@@ -24380,6 +24381,15 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 10c0/70271a07ab4177e4cd36ed0b12eb626cf59b9d705ec72d9bc213d7f5cc22e4d6e389aec3b5d2e6a1c81f3d25f67bb42155e2bd6370ab6c38237c74a8dc642f05
+  languageName: node
+  linkType: hard
+
+"expo-network-security-config@npm:^1.1.2":
+  version: 1.1.2
+  resolution: "expo-network-security-config@npm:1.1.2"
+  peerDependencies:
+    expo: ">=50.0.0"
+  checksum: 10c0/4102aa90470374b241eed3a5763b771357771017a0737428a5a39faacecdc777c89af601ebd1350e1734b38e74bcb3509985bb792acbeeba9fcba5196f0d170e
   languageName: node
   linkType: hard
 

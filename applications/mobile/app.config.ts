@@ -127,6 +127,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ["./plugins/withCoreLibraryDesugaring.ts"],
       ["./plugins/withAndroidAuto.ts"],
       ["./plugins/withForegroundService.ts"],
+      [
+        "expo-network-security-config",
+        {
+          networkSecurityConfig: "./assets/configs/network_security_config.xml",
+          enable: true,
+        },
+      ],
       ["./plugins/withNoParcelSizeCrashes.ts"],
       // NOTE: Sentry is _only_ enabled for debug builds used to track down
       // specific crash errors. It is _not_ included in the public Storyteller
