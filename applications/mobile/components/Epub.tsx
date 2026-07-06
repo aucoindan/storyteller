@@ -1,9 +1,14 @@
 import deepmerge from "deepmerge"
 import Constants from "expo-constants"
 import { useKeepAwake } from "expo-keep-awake"
-import { Tabs } from "expo-router"
+import { Tabs, useRouter } from "expo-router"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { DeviceEventEmitter, StatusBar, View } from "react-native"
+import {
+  DeviceEventEmitter,
+  StatusBar,
+  TouchableOpacity,
+  View,
+} from "react-native"
 
 import { type Bookmark } from "@/database/bookmarks"
 import { type BookWithRelations } from "@/database/books"
@@ -26,6 +31,7 @@ import {
 } from "@/store/localApi"
 import { getCustomFontUrl } from "@/store/persistence/fonts"
 import { getIsPlaying } from "@/store/selectors/bookshelfSelectors"
+import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 import { type UUID } from "@/uuid"
 
 import { BackButton } from "./BackButton"
@@ -115,6 +121,12 @@ export function Epub({ book, format, locator }: Props) {
 
   const floatingToolbar = preferences?.floatingToolbar
 
+  const showingFootnote = useAppSelector(
+    (state) => state.bookshelf.footnoteContent !== null,
+  )
+
+  const router = useRouter()
+
   useEffect(() => {
     const listener = DeviceEventEmitter.addListener(
       "storyteller:keydown",
@@ -140,6 +152,15 @@ export function Epub({ book, format, locator }: Props) {
 
   return (
     <View className="bg-background flex-1">
+      {showingFootnote && (
+        <TouchableOpacity
+          className="absolute top-0 right-0 bottom-0 left-0 z-100"
+          onPress={() => {
+            if (!showingFootnote) return
+            router.dismiss()
+          }}
+        />
+      )}
       <Tabs.Screen options={{ tabBarStyle: { display: "none" } }} />
       <HideableView hidden={!preferences?.showReaderUi} className="relative">
         <Group
@@ -258,6 +279,13 @@ export function Epub({ book, format, locator }: Props) {
             } else {
               setSelection(event.nativeEvent)
             }
+          }}
+          onShowFootnote={(event) => {
+            dispatch(
+              bookshelfSlice.actions.footnoteOpened({
+                content: event.nativeEvent.content,
+              }),
+            )
           }}
           isPlaying={isPlaying}
         />

@@ -4,6 +4,7 @@ package expo.modules.readium
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.text.Html
 import android.view.KeyEvent
 import android.webkit.JavascriptInterface
 import androidx.annotation.ColorInt
@@ -22,6 +23,7 @@ import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
+import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.KeyEvent as ReadiumKeyEvent
 import org.readium.r2.navigator.input.TapEvent
@@ -35,6 +37,7 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.json.JSONArray
 import org.json.JSONObject
+import org.readium.r2.shared.publication.Link
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -89,7 +92,7 @@ data class FinalizedProps(
 @SuppressLint("ViewConstructor", "ResourceType")
 class EpubView(context: Context, appContext: AppContext) : ExpoView(context, appContext),
     EpubNavigatorFragment.Listener, EpubNavigatorFragment.PaginationListener,
-    DecorableNavigator.Listener {
+    DecorableNavigator.Listener, HyperlinkNavigator.Listener {
 
     companion object {
         var current: EpubView? = null
@@ -156,6 +159,7 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     val onDoubleTouch by EventDispatcher()
     val onSelection by EventDispatcher()
     val onHighlightTap by EventDispatcher()
+    val onShowFootnote by EventDispatcher()
 
     var navigator: EpubNavigatorFragment? = null
     var player: AudiobookPlayer? = null
@@ -1327,4 +1331,16 @@ class EpubView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     override fun onPageChanged(pageIndex: Int, totalPages: Int, locator: Locator) = Unit
+
+    override fun shouldFollowInternalLink(
+        link: Link,
+        context: HyperlinkNavigator.LinkContext?,
+    ): Boolean =
+        when (context) {
+            is HyperlinkNavigator.FootnoteContext -> {
+                onShowFootnote(mapOf("content" to context.noteContent))
+                false
+            }
+            else -> true
+        }
 }

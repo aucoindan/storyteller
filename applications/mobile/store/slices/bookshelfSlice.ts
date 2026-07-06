@@ -32,6 +32,7 @@ export type BookshelfState = {
   currentTrackIndex: number
   currentSearchQuery: string | null
   returnToPositions: Record<UUID, ReturnToPosition>
+  footnoteContent: string | null
 }
 
 const initialState: BookshelfState = {
@@ -47,6 +48,7 @@ const initialState: BookshelfState = {
   currentTrackIndex: 0,
   currentSearchQuery: null,
   returnToPositions: {},
+  footnoteContent: null,
 }
 
 export const bookshelfSlice = createSlice({
@@ -185,6 +187,12 @@ export const bookshelfSlice = createSlice({
     },
     searchQueryChanged(state, action: PayloadAction<{ query: string }>) {
       state.currentSearchQuery = action.payload.query
+    },
+    footnoteOpened(state, action: PayloadAction<{ content: string }>) {
+      state.footnoteContent = action.payload.content
+    },
+    footnoteClosed(state) {
+      state.footnoteContent = null
     },
   },
   extraReducers: (builder) => {

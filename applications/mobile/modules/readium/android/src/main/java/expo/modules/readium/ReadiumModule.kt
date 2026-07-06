@@ -229,7 +229,8 @@ class ReadiumModule : Module(), Listener {
                 "onDoubleTouch",
                 "onError",
                 "onHighlightTap",
-                "onBookmarksActivate"
+                "onBookmarksActivate",
+                "onShowFootnote"
             )
 
             Prop("bookUuid") { view: EpubView, prop: String ->

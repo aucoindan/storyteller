@@ -3,10 +3,13 @@ import { Platform } from "react-native"
 import { useReducedMotion } from "react-native-reanimated"
 
 import { BackButton } from "@/components/BackButton"
+import { useAppDispatch } from "@/store/appState"
+import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 
 export default function ModalLayout() {
   const modalPresentation = Platform.OS === "android" ? "formSheet" : "modal"
   const reduceMotion = useReducedMotion()
+  const dispatch = useAppDispatch()
 
   return (
     <Stack
@@ -52,6 +55,20 @@ export default function ModalLayout() {
           sheetAllowedDetents: "fitToContents",
           sheetGrabberVisible: false,
           sheetLargestUndimmedDetentIndex: "none",
+        }}
+      />
+      <Stack.Screen
+        name="footnote"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: "fitToContents",
+          sheetGrabberVisible: false,
+          sheetLargestUndimmedDetentIndex: "last",
+        }}
+        listeners={{
+          beforeRemove: () => {
+            dispatch(bookshelfSlice.actions.footnoteClosed())
+          },
         }}
       />
       <Stack.Screen name="book/[uuid]" />

@@ -190,7 +190,7 @@ public class ReadiumModule: Module {
         }
 
         View(EPUBView.self) {
-            Events("onLocatorChange", "onMiddleTouch", "onSelection", "onDoubleTouch", "onError", "onHighlightTap", "onBookmarksActivate")
+            Events("onLocatorChange", "onMiddleTouch", "onSelection", "onDoubleTouch", "onError", "onHighlightTap", "onBookmarksActivate", "onShowFootnote")
 
             AsyncFunction("goForward") { (view: EPUBView) in
                 await view.navigator?.goForward(options: .animated)

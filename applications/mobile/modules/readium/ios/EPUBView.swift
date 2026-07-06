@@ -286,6 +286,7 @@ class EPUBView: ExpoView {
     let onError = EventDispatcher()
     let onHighlightTap = EventDispatcher()
     let onBookmarksActivate = EventDispatcher()
+    let onShowFootnote = EventDispatcher()
 
     public var navigator: EPUBNavigatorViewController?
 
@@ -935,7 +936,7 @@ class EPUBView: ExpoView {
                 guard let self else { return }
 
                 Task {
-                    guard self.layoutBehavior().supportsPagedClipScheduling else { return }
+                    guard await self.layoutBehavior().supportsPagedClipScheduling else { return }
 
                     let result = await self.getFragmentPageProportion(fragmentId: fragmentId)
                     // check necessary to avoid going forward again if user manually moved the page
@@ -1222,6 +1223,7 @@ extension EPUBView: EPUBNavigatorDelegate {
             })
 
             document.addEventListener('click', (event) => {
+                if (event.target.closest('a')) return;
                 if (event.clientX <= window.innerWidth * 0.2) {
                     window.webkit.messageHandlers.storytellerNavPrev.postMessage(null);
                 } else if (event.clientX >= window.innerWidth * 0.8) {
@@ -1419,8 +1421,8 @@ extension EPUBView: EPUBNavigatorDelegate {
         userContentController.add(self, name: "storytellerSelectionCleared")
         userContentController.add(self, name: "storytellerInitialLocatorReady")
 
-        setCssVar("--st-padding-left", "\(props!.marginLeft ?? 0)px")
-        setCssVar("--st-padding-right", "\(props!.marginRight ?? 0)px")
+        setCssVar("--st-padding-left", "\(props!.marginLeft)px")
+        setCssVar("--st-padding-right", "\(props!.marginRight)px")
     }
 
     func navigator(_ navigator: ReadiumNavigator.Navigator, presentError error: ReadiumNavigator.NavigatorError) {
@@ -1458,5 +1460,10 @@ extension EPUBView: EPUBNavigatorDelegate {
 
             await self.emitCurrentLocator()
         }
+    }
+
+    func navigator(_ navigator: Navigator, shouldNavigateToNoteAt link: ReadiumShared.Link, content: String, referrer: String?) -> Bool {
+        onShowFootnote(["content": content])
+        return false
     }
 }

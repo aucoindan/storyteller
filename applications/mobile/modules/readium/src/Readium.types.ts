@@ -283,6 +283,7 @@ export type EPUBViewProps = {
       recoverySuggestion: string
     }>,
   ) => void
+  onShowFootnote?: (event: NativeSyntheticEvent<{ content: string }>) => void
   isPlaying?: boolean
 }
 

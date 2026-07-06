@@ -26,7 +26,8 @@ export default function BookScreen() {
   const isReaderSheetOpen =
     segments.includes("navigation-menu") ||
     segments.includes("speed-menu") ||
-    segments.includes("reading-settings")
+    segments.includes("reading-settings") ||
+    segments.includes("footnote")
   const isNotBackground = useIsNotBackground()
 
   const isAudioLoading = useAppSelector(
