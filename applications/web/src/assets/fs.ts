@@ -199,6 +199,56 @@ export async function renameBookAssets(
   return updated
 }
 
+/**
+ * Only called after merge, makes sure that the merged books' media files are moved into the target book's own folder if they are asset_dir files
+ */
+export async function relocateAssetsIntoBook(
+  book: BookWithRelations,
+): Promise<BookWithRelations> {
+  const ownDir = getInternalBookDirectory(book)
+
+  // library-owned (under ASSETS_DIR) but living outside this book's own folder
+  const isMisplaced = (filepath: string) =>
+    pathBelongsTo(ASSETS_DIR, filepath) && !pathBelongsTo(ownDir, filepath)
+
+  const moves: { from: string; to: string }[] = []
+  const relations: Parameters<typeof updateBook>[2] = {}
+
+  if (book.ebook?.filepath && isMisplaced(book.ebook.filepath)) {
+    const to = getInternalEpubFilepath(book)
+    moves.push({ from: book.ebook.filepath, to })
+    relations.ebook = { filepath: to }
+  }
+  if (book.readaloud?.filepath && isMisplaced(book.readaloud.filepath)) {
+    const to = getInternalReadaloudFilepath(book)
+    moves.push({ from: book.readaloud.filepath, to })
+    relations.readaloud = {
+      filepath: to,
+      currentStage: book.readaloud.currentStage,
+    }
+  }
+  if (book.audiobook?.filepath && isMisplaced(book.audiobook.filepath)) {
+    const to = getInternalAudioDirectory(book)
+    moves.push({ from: book.audiobook.filepath, to })
+    relations.audiobook = { filepath: to }
+  }
+
+  if (!moves.length) return book
+
+  for (const { from, to } of moves) {
+    suppressPrefix(from)
+    suppressPrefix(to)
+    try {
+      await move(from, to)
+    } finally {
+      unsuppressPrefix(from)
+      unsuppressPrefix(to)
+    }
+  }
+
+  return await updateBook(book.uuid, null, relations)
+}
+
 export async function persistEpub(
   book: BookWithRelations,
   tmpPath: string,

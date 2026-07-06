@@ -230,19 +230,6 @@ WHERE
 
 END;
 
-CREATE TABLE book_to_creator (
-  uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
-  book_uuid TEXT NOT NULL,
-  creator_uuid TEXT NOT NULL,
-  role TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (book_uuid) REFERENCES book (uuid),
-  FOREIGN KEY (creator_uuid) REFERENCES "creator" (uuid)
-);
-
-CREATE INDEX idx_book_to_creator_book_role ON book_to_creator (book_uuid, role);
-
 CREATE TABLE changelog (
   uuid text PRIMARY KEY DEFAULT (uuid ()),
   tag_name text NOT NULL UNIQUE,
@@ -284,8 +271,6 @@ WHERE
 END;
 
 CREATE UNIQUE INDEX idx_book_asset_dir ON book (asset_dir);
-
-CREATE INDEX idx_book_to_creator_creator ON book_to_creator (creator_uuid);
 
 CREATE TABLE position(
   uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
@@ -570,8 +555,6 @@ WHERE
 
 END;
 
-CREATE UNIQUE INDEX idx_import_rule_path ON import_rule (path);
-
 CREATE INDEX idx_import_rule_book_uuid ON import_rule (book_uuid);
 
 CREATE TABLE user_book_rating (
@@ -625,16 +608,6 @@ END;
 CREATE TRIGGER book_to_collection_update_trigger AFTER
 UPDATE ON book_to_collection FOR EACH ROW BEGIN
 UPDATE book_to_collection
-SET
-  updated_at = CURRENT_TIMESTAMP
-WHERE
-  uuid = OLD.uuid;
-
-END;
-
-CREATE TRIGGER book_to_creator_update_trigger AFTER
-UPDATE ON book_to_creator FOR EACH ROW BEGIN
-UPDATE book_to_creator
 SET
   updated_at = CURRENT_TIMESTAMP
 WHERE
@@ -799,3 +772,32 @@ WHERE
   uuid = OLD.uuid;
 
 END;
+
+CREATE UNIQUE INDEX idx_import_rule_path ON import_rule (path);
+
+CREATE TABLE book_to_creator (
+  uuid text PRIMARY KEY NOT NULL DEFAULT (uuid ()),
+  book_uuid text NOT NULL,
+  creator_uuid text NOT NULL,
+  role TEXT,
+  created_at text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- cascade! for real!
+  FOREIGN KEY (book_uuid) REFERENCES book (uuid) ON DELETE CASCADE,
+  -- this is more rare, but still possible
+  FOREIGN KEY (creator_uuid) REFERENCES "creator" (uuid) ON DELETE CASCADE
+);
+
+CREATE TRIGGER book_to_creator_update_trigger AFTER
+UPDATE ON book_to_creator FOR EACH ROW BEGIN
+UPDATE book_to_creator
+SET
+  updated_at = CURRENT_TIMESTAMP
+WHERE
+  uuid = OLD.uuid;
+
+END;
+
+CREATE INDEX idx_book_to_creator_book_role ON book_to_creator (book_uuid, ROLE);
+
+CREATE INDEX idx_book_to_creator_creator ON book_to_creator (creator_uuid);

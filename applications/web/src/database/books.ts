@@ -1368,12 +1368,48 @@ export async function updateBook(
         .where("bookUuid", "in", relations.books)
         .execute()
 
+      const allBookUuids = [uuid, ...relations.books]
+
+      // get the last position per user per book
+      const keptPositions = await tr
+        .selectFrom("position")
+        .select(["uuid", "userId", "timestamp", "locator", "bookUuid"])
+        .where("bookUuid", "in", allBookUuids)
+        .orderBy("position.timestamp", "desc")
+        .groupBy("position.userId")
+        .execute()
+
+      // then upsert those positions
+      if (keptPositions.length) {
+        await tr
+          .insertInto("position")
+          .values(
+            keptPositions.map((pos) => ({
+              ...pos,
+              locator: JSON.stringify(pos.locator),
+              bookUuid: uuid,
+            })),
+          )
+          .onConflict((oc) =>
+            oc.columns(["userId", "bookUuid"]).doUpdateSet((eb) => ({
+              // overwrite that shit
+              locator: eb.ref("excluded.locator"),
+              timestamp: eb.ref("excluded.timestamp"),
+              bookUuid: eb.ref("excluded.bookUuid"),
+              userId: eb.ref("excluded.userId"),
+            })),
+          )
+          .execute()
+      }
+
+      // copy the import rules to the target book
       await tr
-        .updateTable("position")
+        .updateTable("importRule")
         .set({ bookUuid: uuid })
         .where("bookUuid", "in", relations.books)
         .execute()
 
+      // other positions will get cleaned up by cascade
       for (const bookUuid of relations.books) {
         await deleteBook(bookUuid, undefined, tr)
       }

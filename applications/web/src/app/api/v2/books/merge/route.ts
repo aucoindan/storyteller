@@ -2,6 +2,7 @@ import {
   extractAndPersistAudioCover,
   extractAndPersistTextCover,
 } from "@/assets/covers"
+import { relocateAssetsIntoBook } from "@/assets/fs"
 import { withHasPermission } from "@/auth/auth"
 import {
   type BookRelationsUpdate,
@@ -64,7 +65,7 @@ export const POST = withHasPermission("bookCreate")(async (request) => {
   }
 
   const [first, ...toMerge] = books
-  const merged = await updateBook(
+  let merged = await updateBook(
     // We already checked that the length is greater than one above
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     first!.uuid,
@@ -75,6 +76,8 @@ export const POST = withHasPermission("bookCreate")(async (request) => {
     },
     request.auth.user.id,
   )
+
+  merged = await relocateAssetsIntoBook(merged)
 
   const ebookPath = merged.ebook?.filepath ?? null
   const readaloudPath = merged.readaloud?.filepath ?? null
