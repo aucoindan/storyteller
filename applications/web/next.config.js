@@ -27,6 +27,13 @@ const withNextIntl = createNextIntlPlugin({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  redirects: async () => [
+    {
+      source: "/opds",
+      destination: "/opds/v1",
+      permanent: true,
+    },
+  ],
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },

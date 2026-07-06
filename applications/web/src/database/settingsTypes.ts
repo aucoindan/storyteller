@@ -75,6 +75,19 @@ export const Epub2ImportStrategySchema = z.enum([
 ])
 export type Epub2ImportStrategy = z.infer<typeof Epub2ImportStrategySchema>
 
+// which epub edition a book exposes in the OPDS feed. read-aloud epubs carry
+// media overlays and are large, so low-powered clients (kindle, kobo) often
+// want the plain ebook instead. an audiobook is always served when available.
+export const OpdsFormatSchema = z.enum([
+  // read-aloud if present, else the plain ebook. the default.
+  "readaloud",
+  // plain ebook if present, else read-aloud.
+  "ebook",
+  // both the read-aloud and the plain ebook.
+  "both",
+])
+export type OpdsFormat = z.infer<typeof OpdsFormatSchema>
+
 const optionalUrlSchema = z.union([z.literal(""), z.url()]).optional()
 
 export const ImportModeSchema = z.enum([
@@ -195,6 +208,7 @@ export const SettingsSchema = z.object({
   // OPDS settings
   opdsEnabled: z.boolean().nullable(),
   opdsPageSize: z.number().nullable(),
+  opdsFormat: OpdsFormatSchema.nullable(),
   // Scanning settings
   scanCronExpression: z.string().nullable(),
   metadataFieldOverrides: MetadataFieldOverridesSchema,

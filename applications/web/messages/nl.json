@@ -3,7 +3,6 @@
     "description": "Een eenvoudig hulpmiddel voor het synchroniseren van audiobooks en ebooks",
     "title": "Storyteller"
   },
-
   "LoginPage": {
     "welcomeBack": "Welkom terug!",
     "title": "Inloggen",
@@ -20,7 +19,6 @@
   "HomePage": {
     "title": "Start"
   },
-
   "CollectionsPage": {
     "title": "Verzamelingen"
   },
@@ -52,7 +50,6 @@
     "tabs": {
       "library": {
         "title": "Bibliotheek",
-
         "sections": {
           "library": {
             "title": "Bibliotheek Instellingen",
@@ -84,7 +81,6 @@
             "cronExpression": "Cron expressie",
             "cronExpressionDescription": "Standaard cron syntax (minuut uur dag maand weekdag). De expressie wordt uitgevoerd in de tijdzone van de server.",
             "cronHelper": "Cron expressie referentie (crontab.guru)",
-
             "scanNote": "Leest alle importpaden en boekmetadata opnieuw in, ook als bestanden niet zijn gewijzigd sinds de laatste scan.",
             "scanRunning": "Scan wordt uitgevoerd ({source})",
             "cancelScan": "Annuleer scan",
@@ -112,7 +108,7 @@
           },
           "skippedImportPaths": {
             "title": "Overgeslagen importpaden",
-            "description": "Deze bestandspaden zijn uitgesloten van automatische import. Boeken op deze paden worden niet opnieuw ge\u00efmporteerd tijdens scans.",
+            "description": "Deze bestandspaden zijn uitgesloten van automatische import. Boeken op deze paden worden niet opnieuw geïmporteerd tijdens scans.",
             "clearAll": "Alles wissen"
           }
         }
@@ -212,7 +208,6 @@
           }
         }
       },
-
       "auth": {
         "title": "Authenticatie",
         "sections": {
@@ -290,7 +285,16 @@
             "enabled": "OPDS inschakelen",
             "enabledDescription": "Schakel de OPDS feed in voor je bibliotheek. Hierdoor kunnen compatibele e-book readers je bibliotheek doorzoeken en boeken downloaden. Je kan de OPDS feed opvragen via {url}.",
             "pageSize": "Paginagrootte",
-            "pageSizeDescription": "Het aantal boeken per pagina in de OPDS feed. Standaard is 25."
+            "pageSizeDescription": "Het aantal boeken per pagina in de OPDS feed. Standaard is 25.",
+            "format": "Voorkeurs-ebook",
+            "formatDescription": "Welk ebookformaat wordt aangeboden in de OPDS <em>feed</em>. Readalouds kunnen groot zijn en e-reader ondersteuning is slecht, dus misschien wil je alleen het gewone ebook aanbieden om te downloaded. Een audioboek wordt altijd aangeboden indien beschikbaar.",
+            "formatReadaloud": "Readaloud, of ebook indien niet beschikbaar",
+            "formatEbook": "Ebook, of readaloud indien niet beschikbaar",
+            "formatBoth": "Zowel readaloud als ebook",
+            "urlsTitle": "Feed-URL's",
+            "urlsDescription": "Storyteller ondersteunt zowel OPDS 1.2 als OPDS 2.0. Richt je reader op een van de onderstaande URL's. OPDS 1.2 wordt het breedst ondersteund. OPDS 2.0 is het nieuwere op JSON gebaseerde formaat.",
+            "urlV1": "OPDS 1.2",
+            "urlV2": "OPDS 2.0"
           }
         }
       }

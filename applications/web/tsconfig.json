@@ -72,6 +72,9 @@
     },
     {
       "path": "../../libraries/align"
+    },
+    {
+      "path": "../../libraries/opds"
     }
   ]
 }

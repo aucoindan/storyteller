@@ -1,26 +1,11 @@
-import { NextResponse } from "next/server"
-
-import { withHasPermission } from "@/auth/auth"
-import { OPDS_AUTH_OPTIONS } from "@/opds/auth"
-import { createRootCatalog } from "@/opds/feed"
-import { createOPDSResponse, getOPDSConfig } from "@/opds/utils"
+import { buildRootCatalog } from "@/opds/builders"
+import { handleOpds, opdsOptions } from "@/opds/respond"
 
 export const dynamic = "force-dynamic"
 
-export const GET = withHasPermission(
-  "bookRead",
-  OPDS_AUTH_OPTIONS,
-)(async (request) => {
-  const config = await getOPDSConfig()
+// backup v1 catalog entry point
+export const GET = handleOpds(({ userId, version }) =>
+  buildRootCatalog({ userId, version }),
+)
 
-  if (!config.enabled) {
-    return new NextResponse("OPDS is disabled", { status: 404 })
-  }
-
-  const userId = request.auth.user.id
-  const feed = await createRootCatalog({ userId })
-
-  const xml = feed.toXml({ prettyPrint: true })
-
-  return createOPDSResponse(xml, "navigation")
-})
+export const OPTIONS = opdsOptions

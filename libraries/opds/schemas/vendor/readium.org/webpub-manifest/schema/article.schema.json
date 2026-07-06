@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://readium.org/webpub-manifest/schema/article.schema.json",
+  "title": "Article",
+  "anyOf": [
+    {
+      "type": "string"
+    },
+    {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/object"
+          }
+        ]
+      }
+    },
+    {
+      "$ref": "#/$defs/object"
+    }
+  ],
+  "$defs": {
+    "object": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "https://readium.org/webpub-manifest/schema/language-map.schema.json"
+        },
+        "identifier": {
+          "type": "string",
+          "format": "uri"
+        },
+        "altIdentifier": {
+          "$ref": "https://readium.org/webpub-manifest/schema/altIdentifier.schema.json"
+        },
+        "sortAs": {
+          "$ref": "https://readium.org/webpub-manifest/schema/language-map.schema.json"
+        },
+        "author": {
+          "$ref": "https://readium.org/webpub-manifest/schema/contributor.schema.json"
+        },
+        "translator": {
+          "$ref": "https://readium.org/webpub-manifest/schema/contributor.schema.json"
+        },
+        "editor": {
+          "$ref": "https://readium.org/webpub-manifest/schema/contributor.schema.json"
+        },
+        "artist": {
+          "$ref": "https://readium.org/webpub-manifest/schema/contributor.schema.json"
+        },
+        "illustrator": {
+          "$ref": "https://readium.org/webpub-manifest/schema/contributor.schema.json"
+        },
+        "contributor": {
+          "$ref": "https://readium.org/webpub-manifest/schema/contributor.schema.json"
+        },
+        "description": {
+          "type": "string"
+        },
+        "numberOfPages": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "position": {
+          "type": "number"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "https://readium.org/webpub-manifest/schema/link.schema.json"
+          }
+        }
+      },
+      "required": ["name"]
+    }
+  }
+}

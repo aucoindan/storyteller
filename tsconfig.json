@@ -30,6 +30,9 @@
     },
     {
       "path": "libraries/okmain"
+    },
+    {
+      "path": "libraries/opds"
     }
   ]
 }

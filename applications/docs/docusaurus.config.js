@@ -35,6 +35,7 @@ const config = {
   },
 
   markdown: {
+    format: "detect",
     parseFrontMatter: async (params) => {
       const result = await params.defaultParseFrontMatter(params)
 
@@ -121,6 +122,15 @@ const config = {
             to: "blog",
             label: "Blog",
             position: "left",
+          },
+          {
+            label: "Tools",
+            items: [
+              {
+                label: "OPDS Validator",
+                to: "/tools/opds-validator",
+              },
+            ],
           },
           {
             href: "https://opencollective.com/storyteller",
@@ -241,7 +251,7 @@ const config = {
       },
     }),
   future: {
-    experimental_faster: true,
+    faster: true,
     v4: true,
   },
 }

@@ -3,7 +3,6 @@
     "description": "A simple tool for syncing audiobooks and ebooks",
     "title": "Storyteller"
   },
-
   "LoginPage": {
     "welcomeBack": "Welcome back!",
     "title": "Login",
@@ -20,7 +19,6 @@
   "HomePage": {
     "title": "Home"
   },
-
   "CollectionsPage": {
     "title": "Collections"
   },
@@ -52,7 +50,6 @@
     "tabs": {
       "library": {
         "title": "Library",
-
         "sections": {
           "library": {
             "title": "Library Settings",
@@ -219,7 +216,6 @@
           }
         }
       },
-
       "auth": {
         "title": "Authentication",
         "sections": {
@@ -297,7 +293,16 @@
             "enabled": "Enable OPDS",
             "enabledDescription": "Enable the OPDS feed for your library. This allows compatible e-book readers to browse your library and download books. You can access the OPDS feed at {url}.",
             "pageSize": "Page size",
-            "pageSizeDescription": "The number of books per page in the OPDS feed. Default is 25."
+            "pageSizeDescription": "The number of books per page in the OPDS feed. Default is 25.",
+            "format": "Preferred ebook",
+            "formatDescription": "Which ebook edition to offer for download. Readaloud epubs include synchronized audio (media overlays) and are large, and many e-readers (e.g. Kindle, Kobo) can't use them, so you may prefer the plain ebook. An audiobook is always offered when available.",
+            "formatReadaloud": "Readaloud, or ebook if unavailable",
+            "formatEbook": "Ebook, or read-aloud if unavailable",
+            "urlsTitle": "Feed URLs",
+            "urlsDescription": "Storyteller supports both OPDS 1.2 and OPDS 2.0. Point your reader at either URL below. OPDS 1.2 is the most widely supported. OPDS 2.0 is the newer JSON-based format.",
+            "urlV1": "OPDS 1.2",
+            "urlV2": "OPDS 2.0",
+            "formatBoth": "Both read-aloud and ebook"
           }
         }
       }

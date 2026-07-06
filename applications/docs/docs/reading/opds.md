@@ -7,15 +7,20 @@ sidebar_position: 99
 Storyteller supports the OPDS protocol, which allows you to download and browse
 books from your library on devices that may not support the Storyteller apps.
 
+Storyteller supports both OPDS v1.2 and v2.0.
+
 ## Feed specifics
 
-The feed is available at `https://<storyteller-server>/opds`.
+The feed is available at
 
-Storyteller only supports OPDS v1.2 for now. Please let us know if you want
-support for v2.0.
+- `https://<storyteller-server>/opds/v1` for OPDS v1.2
+- `https://<storyteller-server>/opds/v2` for OPDS v2.0
 
 Storyteller serves both audiobooks and epubs/readalouds through the OPDS feed.
 If a readaloud is available, it will be preferred over the EPUB.
+
+You can check your feed, and validate other feeds, with our
+[OPDS v2 Validator](/tools/opds-validator) tool.
 
 Most client will not be able to play audiobooks, the only currently tested
 client that can is Thorium Reader.
@@ -38,7 +43,7 @@ above spec.
 ### Works
 
 - [Thorium Reader](https://www.edrlab.org/software/thorium-reader/) Only one who
-  supports reading Readalouds and audiobooks.
+  supports reading Readalouds and audiobooks, and OPDS v2.0 (from our testing)
 - [Cantook](https://cantook.app/)
 - [Boox PushRead](https://help.boox.com/hc/en-us/articles/10992026883732-PushRead)
   (Images may not work)
@@ -60,3 +65,4 @@ For now there are only three settings available for OPDS:
   clients (like Boox PushRead) do not support pagination. You can disable this
   to return all items in a single response.
 - **Page size**: The number of items per page in the OPDS feed.
+- **Preferred ebook**: Whether to offer the readaloud or the ebook for download.

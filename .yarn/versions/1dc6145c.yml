@@ -1,0 +1,7 @@
+releases:
+  "@storyteller-platform/docs": minor
+  "@storyteller-platform/opds": minor
+  "@storyteller-platform/web": patch
+
+declined:
+  - "@storyteller-platform/mobile"

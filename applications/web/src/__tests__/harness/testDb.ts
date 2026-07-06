@@ -56,6 +56,7 @@ const DEFAULT_SETTINGS: Settings = {
   maxUploadChunkSize: null,
   opdsEnabled: null,
   opdsPageSize: null,
+  opdsFormat: null,
   scanCronExpression: null,
   importMode: "reference",
   epub2ImportStrategy: "backup-and-convert",

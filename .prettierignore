@@ -81,3 +81,5 @@ flake.*
 /applications/web/migrations/31_insert_parallel_whisper_build_setting.sql
 
 **/dist
+
+/libraries/opds/schemas/ajv/standalone.cjs

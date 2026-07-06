@@ -1,6 +1,7 @@
 "use client"
 
 import { useTranslations } from "next-intl"
+import { useEffect, useState } from "react"
 import { Controller, useWatch } from "react-hook-form"
 
 import {
@@ -17,6 +18,13 @@ import {
   FieldLabel,
 } from "@v3/_/components/ui/field"
 import { Input } from "@v3/_/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@v3/_/components/ui/select"
 import { Switch } from "@v3/_/components/ui/switch"
 import { TabsContent } from "@v3/_/components/ui/tabs"
 
@@ -33,7 +41,23 @@ export function OpdsTab() {
   const opdsEnabled = useWatch({ control: form.control, name: "opdsEnabled" })
   const webUrl = useWatch({ control: form.control, name: "webUrl" })
 
-  const opdsUrl = safeUrl(webUrl, "/opds")
+  // prefer the URL the admin is actually browsing; fall back to the configured
+  // web URL during SSR / before hydration.
+  const [origin, setOrigin] = useState("")
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+  const base = origin || webUrl
+
+  const opdsUrl = safeUrl(base, "/opds")
+  const opdsV1Url = safeUrl(base, "/opds/v1")
+  const opdsV2Url = safeUrl(base, "/opds/v2")
+
+  const formatOptions = [
+    { value: "readaloud", label: t("formatReadaloud") },
+    { value: "ebook", label: t("formatEbook") },
+    { value: "both", label: t("formatBoth") },
+  ]
 
   return (
     <TabsContent value="opds" className="space-y-6">
@@ -76,24 +100,67 @@ export function OpdsTab() {
             />
 
             {opdsEnabled && (
-              <SettingsFormField
-                name="opdsPageSize"
-                label={t("pageSize")}
-                description={t("pageSizeDescription")}
-                render={(field, fieldState, isLocked) => (
-                  <Input
-                    id="opdsPageSize"
-                    type="number"
-                    min={1}
-                    disabled={isLocked}
-                    value={field.value ?? 25}
-                    onChange={(e) => {
-                      field.onChange(parseInt(e.target.value) || null)
-                    }}
-                    aria-invalid={fieldState.invalid}
-                  />
-                )}
-              />
+              <>
+                <SettingsFormField
+                  name="opdsPageSize"
+                  label={t("pageSize")}
+                  description={t("pageSizeDescription")}
+                  render={(field, fieldState, isLocked) => (
+                    <Input
+                      id="opdsPageSize"
+                      type="number"
+                      min={1}
+                      disabled={isLocked}
+                      value={field.value ?? 25}
+                      onChange={(e) => {
+                        field.onChange(parseInt(e.target.value) || null)
+                      }}
+                      aria-invalid={fieldState.invalid}
+                    />
+                  )}
+                />
+
+                <SettingsFormField
+                  name="opdsFormat"
+                  label={t("format")}
+                  description={t("formatDescription")}
+                  render={(field, fieldState, isLocked) => (
+                    <Select
+                      disabled={isLocked}
+                      aria-invalid={fieldState.invalid}
+                      items={formatOptions}
+                      value={field.value ?? "readaloud"}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formatOptions.map(({ value, label }) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+
+                <div className="space-y-1 border-t pt-4">
+                  <FieldLabel>{t("urlsTitle")}</FieldLabel>
+                  <FieldDescription>{t("urlsDescription")}</FieldDescription>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <div>
+                      {t("urlV1")}:{" "}
+                      <code className="break-all">{opdsV1Url}</code>
+                    </div>
+                    <div>
+                      {t("urlV2")}:{" "}
+                      <code className="break-all">{opdsV2Url}</code>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

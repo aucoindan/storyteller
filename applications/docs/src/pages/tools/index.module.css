@@ -1,0 +1,53 @@
+.page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.description {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: transform 0.1s;
+}
+
+.card:hover {
+  text-decoration: none;
+  color: inherit;
+  transform: translateY(-2px);
+}
+
+.card .card__body p {
+  color: var(--ifm-color-emphasis-700);
+  margin: 0;
+}
+
+@media screen and (max-width: 700px) {
+  .page {
+    padding: 1.5rem 0 3rem;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

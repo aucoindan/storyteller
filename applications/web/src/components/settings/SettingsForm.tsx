@@ -33,7 +33,7 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react"
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import type { Settings } from "@/apiModels"
 import { MP3_CBR_BITRATE_OPTIONS } from "@/assets/audio/mp3Bitrates"
@@ -1174,6 +1174,7 @@ export function SettingsForm({
       maxUploadChunkSize?.maxUploadChunkSize ?? settings.maxUploadChunkSize,
     opdsEnabled: settings.opdsEnabled,
     opdsPageSize: settings.opdsPageSize,
+    opdsFormat: settings.opdsFormat,
     scanCronExpression: settings.scanCronExpression ?? null,
     metadataFieldOverrides: settings.metadataFieldOverrides,
     epub2ImportStrategy: settings.epub2ImportStrategy,
@@ -1198,8 +1199,17 @@ export function SettingsForm({
         perms.includes("settingsUpdate"),
       ),
   )
-  // sometimes the webUrl is not a valid URL, so we fallback to /opds
-  const opdsUrl = safeUrl(state.webUrl, "/opds")
+  // prefer the URL the admin is actually browsing; fall back to the configured
+  // web URL during SSR / before hydration. (webUrl may not be a valid URL,
+  // safeUrl handles that.)
+  const [browserOrigin, setBrowserOrigin] = useState("")
+  useEffect(() => {
+    setBrowserOrigin(window.location.origin)
+  }, [])
+  const opdsBase = browserOrigin || state.webUrl
+  const opdsUrl = safeUrl(opdsBase, "/opds")
+  const opdsV1Url = safeUrl(opdsBase, "/opds/v1")
+  const opdsV2Url = safeUrl(opdsBase, "/opds/v2")
   const authUrlPath = authUrl ?? safeUrl(state.webUrl, "/api/v2/auth")
 
   return (
@@ -2441,7 +2451,7 @@ export function SettingsForm({
         <Stack>
           <Switch
             label="Enable OPDS feed"
-            description={`OPDS allows compatible e-reader apps to browse and download books from your library. It can be accessed at ${opdsUrl}.`}
+            description={`OPDS allows compatible e-reader apps to browse and download books from your library. Storyteller supports both OPDS 1.2 and OPDS 2.0. It can be accessed at ${opdsUrl}.`}
             checked={state.opdsEnabled ?? true}
             onChange={(event) => {
               form.setFieldValue("opdsEnabled", event.currentTarget.checked)
@@ -2472,6 +2482,51 @@ export function SettingsForm({
               disabled={isLocked("opdsPageSize")}
             />
           )}
+          <Select
+            label="Preferred ebook"
+            description="Which ebook edition to offer for download. Readalouds can get quite large and e-reader support is poor, so you may prefer the plain ebook. An audiobook is always offered when available."
+            data={[
+              {
+                value: "readaloud",
+                label: "Readaloud, or ebook if unavailable",
+              },
+              {
+                value: "ebook",
+                label: "Ebook, or readaloud if unavailable",
+              },
+              { value: "both", label: "Both readaloud and ebook" },
+            ]}
+            allowDeselect={false}
+            value={state.opdsFormat ?? "readaloud"}
+            onChange={(value) => {
+              if (value)
+                form.setFieldValue(
+                  "opdsFormat",
+                  value as Settings["opdsFormat"],
+                )
+            }}
+            disabled={isLocked("opdsFormat")}
+          />
+          <Box>
+            <Text size="sm" fw={500}>
+              Feed URLs
+            </Text>
+            <Text size="xs" c="dimmed">
+              Point your reader at the root URL (serves OPDS 1.2 for the widest
+              compatibility), or use a version-specific URL.
+            </Text>
+            <Stack gap={4} mt="xs">
+              <Text size="xs">
+                Root (OPDS 1.2): <Code>{opdsUrl}</Code>
+              </Text>
+              <Text size="xs">
+                OPDS 1.2: <Code>{opdsV1Url}</Code>
+              </Text>
+              <Text size="xs">
+                OPDS 2.0: <Code>{opdsV2Url}</Code>
+              </Text>
+            </Stack>
+          </Box>
         </Stack>
       </Fieldset>
       <Fieldset

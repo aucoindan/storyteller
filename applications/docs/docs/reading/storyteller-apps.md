@@ -50,11 +50,3 @@ of them to your device.
 Be sure to keep the app open and in the foreground during the download (support
 for background downloads is on the roadmap!). Once your book is downloaded,
 you'll find it on your Bookshelf, where you can start reading or listening!
-
-<!-- ### Adding books directly from your device
-
-## Managing books in the app
-
-## Reading
-
-## Listening -->

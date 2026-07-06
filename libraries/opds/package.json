@@ -1,0 +1,103 @@
+{
+  "name": "@storyteller-platform/opds",
+  "description": "A library for generating, validating, and parsing OPDS 2.0 catalog feeds, compatible with @readium/shared.",
+  "keywords": [
+    "opds",
+    "opds-2",
+    "readium",
+    "rwp"
+  ],
+  "version": "0.0.0",
+  "type": "module",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "author": "Thomas F. K. Jorna <hello@tefkah.com>",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./validate": {
+      "types": "./validate/index.ts",
+      "default": "./validate/index.ts"
+    },
+    "./validate/ajv": {
+      "types": "./schemas/ajv/validate.ts",
+      "default": "./schemas/ajv/validate.ts"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "schemas:sync": "tsx schemas/sync.ts && tsx schemas/ajv/compile.ts",
+    "readme:toc": "markdown-toc --maxdepth=5 --append='\n- [API Docs](#api-docs)' --bullets='-' -i readme-stub.md",
+    "readme:api": "typedoc",
+    "readme": "yarn readme:api && yarn readme:toc && cat readme-stub.md > README.md && tail -n +2 gen/README.md >> README.md",
+    "test": "tsx -C @storyteller --test \"**/*.test.ts\"",
+    "test:watch": "tsx -C @storyteller --test --watch \"**/*.test.ts\"",
+    "prepack": "yarn build"
+  },
+  "devDependencies": {
+    "@apidevtools/json-schema-ref-parser": "^11.9.3",
+    "@storyteller-platform/eslint": "workspace:*",
+    "@storyteller-platform/tsup": "workspace:^",
+    "@tsconfig/strictest": "^2.0.5",
+    "@types/node": "^24.0.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^8.0.0",
+    "json-schema-to-typescript": "^15.0.0",
+    "markdown-toc": "^1.2.0",
+    "remark-toc": "^9.0.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.2",
+    "typedoc": "^0.28.13",
+    "typedoc-plugin-markdown": "^4.6.3",
+    "typedoc-plugin-remark": "^1.2.0",
+    "typescript": "^5.9.2"
+  },
+  "peerDependencies": {
+    "@readium/shared": "^2.2.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "peerDependenciesMeta": {
+    "ajv": {
+      "optional": true
+    },
+    "ajv-formats": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.0.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./validate": {
+        "import": {
+          "types": "./dist/validate/index.d.ts",
+          "default": "./dist/validate/index.js"
+        },
+        "require": {
+          "types": "./dist/validate/index.d.cts",
+          "default": "./dist/validate/index.cjs"
+        }
+      }
+    }
+  }
+}

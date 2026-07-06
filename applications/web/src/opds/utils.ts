@@ -8,6 +8,7 @@ export async function getOPDSConfig() {
   return {
     enabled: settings.opdsEnabled,
     pageSize: settings.opdsPageSize,
+    format: settings.opdsFormat ?? "readaloud",
   }
 }
 
