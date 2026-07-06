@@ -9,15 +9,20 @@ import {
   getIsPlaying,
 } from "@/store/selectors/bookshelfSelectors"
 
-import { Button } from "./ui/button"
+import { Button, type ButtonProps } from "./ui/button"
 import { Icon } from "./ui/icon"
 
 type Props = {
   size?: number | undefined
   automaticRewind?: boolean
+  buttonSize?: ButtonProps["size"]
 }
 
-export function PlayPause({ size = 24, automaticRewind = true }: Props) {
+export function PlayPause({
+  size = 24,
+  automaticRewind = true,
+  buttonSize = "icon",
+}: Props) {
   const isPlaying = useAppSelector(getIsPlaying)
   const isLoading = useAppSelector(getIsAudioLoading)
   const { foreground } = useColorTheme()
@@ -36,7 +41,7 @@ export function PlayPause({ size = 24, automaticRewind = true }: Props) {
     <Button
       accessibilityLabel="Pause"
       variant="ghost"
-      size="icon"
+      size={buttonSize}
       onPress={() => {
         Storyteller.pause()
       }}
@@ -47,7 +52,7 @@ export function PlayPause({ size = 24, automaticRewind = true }: Props) {
     <Button
       accessibilityLabel="Play"
       variant="ghost"
-      size="icon"
+      size={buttonSize}
       onPress={() => {
         Storyteller.play(automaticRewind)
       }}

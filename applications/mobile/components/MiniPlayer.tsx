@@ -193,15 +193,19 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
       <View>
         <HideableView
           hidden={hidden}
-          className={cn("mb-safe-or-2 z-3 px-3", {
-            "bg-background border-t-foreground -bottom-safe pb-safe absolute right-0 bottom-0 left-0 border-t":
-              floatingToolbar,
-          })}
+          className={cn(
+            "ios:pb-[max(calc(env(safe-area-inset-bottom)_-_--spacing(4)),--spacing(2))] android:pb-2 z-3 px-3",
+            {
+              "bg-background border-t-foreground ios:bottom-0 android:bottom-safe absolute right-0 left-0 border-t":
+                floatingToolbar,
+              "android:mb-safe-or-2": !floatingToolbar,
+            },
+          )}
         >
-          <View className="flex-row items-center gap-0">
+          <View className="-mr-3 flex-row items-center gap-0">
             <ProgressBar
               accessibilityLabel="Mini player progress"
-              className="mt-4 mb-4 grow"
+              className="grow"
               start={progressStart}
               stop={progressEnd ?? 0}
               progress={progress}
@@ -242,9 +246,7 @@ export function MiniPlayer({ book, format, hidden, floatingToolbar }: Props) {
                 >
                   <Icon as={Rewind} size={20} />
                 </Button>
-                <View className="w-8 flex-row items-center justify-center">
-                  <PlayPause automaticRewind={false} />
-                </View>
+                <PlayPause automaticRewind={false} buttonSize="default" />
                 <Button
                   accessibilityLabel="Next section"
                   variant="ghost"

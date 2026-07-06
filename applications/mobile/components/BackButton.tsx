@@ -13,7 +13,7 @@ export function BackButton({ fallback = "/" }: Props) {
 
   return (
     <TouchableOpacity
-      className="size-8 items-center justify-center"
+      className="size-11 items-center justify-center"
       accessibilityRole="button"
       accessibilityLabel="Go back"
       onPress={() => {

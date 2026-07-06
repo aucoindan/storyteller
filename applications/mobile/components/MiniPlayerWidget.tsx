@@ -2,6 +2,7 @@ import { skipToken } from "@reduxjs/toolkit/query"
 import { Link } from "expo-router"
 import { useEffect, useMemo, useState } from "react"
 import {
+  Platform,
   TouchableOpacity,
   View,
   type ViewStyle,
@@ -46,6 +47,7 @@ export function MiniPlayerWidget() {
 
   const dispatch = useAppDispatch()
   const [eagerProgress, setEagerProgress] = useState(progress)
+  const [progressBarHeight, setProgressBarHeight] = useState(0)
 
   const formattedEagerProgress = useMemo(() => {
     return formatTime(eagerProgress, rate)
@@ -109,14 +111,39 @@ export function MiniPlayerWidget() {
   if (!bookUuid) return null
 
   return (
-    <GestureDetector gesture={panGesture}>
-      <Animated.View
-        className="mb-safe-offset-2 absolute right-3 bottom-0 left-3 z-90 rounded-lg"
-        style={widgetAnimatedStyle}
+    <Animated.View
+      className="mb-safe-offset-2 absolute right-3 bottom-0 left-3 z-90 rounded-lg"
+      style={widgetAnimatedStyle}
+    >
+      <View
+        className={
+          "bg-background shadow-foreground/50 ios:rounded-t-none rounded-lg shadow-sm"
+        }
       >
-        <View className="bg-background shadow-foreground/50 rounded-lg rounded-t-none shadow-sm">
-          {book && (
-            <View>
+        {book && (
+          <View>
+            <View
+              onLayout={(event) => {
+                const { height } = event.nativeEvent.layout
+                setProgressBarHeight((currentHeight) =>
+                  currentHeight === height ? currentHeight : height,
+                )
+              }}
+              style={{
+                transform: [
+                  {
+                    translateY: Platform.select({
+                      ios: -progressBarHeight / 2 + 3,
+                      default: -progressBarHeight / 3 + 3,
+                    }),
+                  },
+                ],
+                marginBottom: Platform.select({
+                  ios: -progressBarHeight / 2 + 2,
+                  default: undefined,
+                }),
+              }}
+            >
               <ProgressBar
                 accessibilityLabel="Mini player progress"
                 start={startPosition}
@@ -127,8 +154,10 @@ export function MiniPlayerWidget() {
                   dispatch(playerPositionSeeked({ progress: value }))
                 }}
               />
+            </View>
 
-              <View className="flex-row items-center justify-between gap-6 py-4 pr-8">
+            <GestureDetector gesture={panGesture}>
+              <View className="mb-2 flex-row items-center justify-between gap-6 pr-8">
                 <Link
                   href={{
                     pathname: "/listen/[uuid]",
@@ -156,10 +185,10 @@ export function MiniPlayerWidget() {
                 </Link>
                 <PlayPause />
               </View>
-            </View>
-          )}
-        </View>
-      </Animated.View>
-    </GestureDetector>
+            </GestureDetector>
+          </View>
+        )}
+      </View>
+    </Animated.View>
   )
 }
