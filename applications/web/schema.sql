@@ -245,12 +245,6 @@ CREATE INDEX idx_changelog_component_released_at ON changelog (component, releas
 
 CREATE UNIQUE INDEX idx_settings_name ON settings (name);
 
-CREATE TABLE import_rule_to_collection (
-  import_rule_uuid TEXT NOT NULL REFERENCES "_temp_import_rule" (uuid) ON DELETE CASCADE,
-  collection_uuid TEXT NOT NULL REFERENCES collection (uuid) ON DELETE CASCADE,
-  PRIMARY KEY (import_rule_uuid, collection_uuid)
-);
-
 CREATE TABLE "collection" (
   uuid TEXT PRIMARY KEY NOT NULL DEFAULT (uuid ()),
   name TEXT NOT NULL UNIQUE,
@@ -801,3 +795,9 @@ END;
 CREATE INDEX idx_book_to_creator_book_role ON book_to_creator (book_uuid, ROLE);
 
 CREATE INDEX idx_book_to_creator_creator ON book_to_creator (creator_uuid);
+
+CREATE TABLE import_rule_to_collection (
+  import_rule_uuid text NOT NULL REFERENCES import_rule (uuid) ON DELETE CASCADE, -- this was referencing _temp_import_rule instead
+  collection_uuid text NOT NULL REFERENCES collection (uuid) ON DELETE CASCADE,
+  PRIMARY KEY (import_rule_uuid, collection_uuid)
+);
