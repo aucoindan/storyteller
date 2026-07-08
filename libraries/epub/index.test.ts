@@ -314,6 +314,51 @@ void describe("Epub", () => {
     )
   })
 
+  void it("correctly persists and then reads creator roles and file-as", async () => {
+    const outputPath = join("__fixtures__", "__output__", "creatorRoles.epub")
+    using epub = await Epub.create(outputPath, {
+      title: "Title",
+      language: new Intl.Locale("en-US"),
+      identifier: "1",
+    })
+
+    await epub.addCreator({
+      name: "John Author",
+      role: "aut",
+      roleScheme: "marc:relators",
+      fileAs: "Author, John",
+    })
+    await epub.addCreator({
+      name: "Jane Narrator",
+      role: "nrt",
+      roleScheme: "marc:relators",
+      fileAs: "Narrator, Jane",
+    })
+    await epub.addCreator({
+      name: "Jimothy Beast",
+      role: "adp",
+    })
+
+    assert.deepStrictEqual(await epub.getCreators(), [
+      {
+        name: "John Author",
+        role: "aut",
+        roleScheme: "marc:relators",
+        fileAs: "Author, John",
+      },
+      {
+        name: "Jane Narrator",
+        role: "nrt",
+        roleScheme: "marc:relators",
+        fileAs: "Narrator, Jane",
+      },
+      {
+        name: "Jimothy Beast",
+        role: "adp",
+      },
+    ])
+  })
+
   void it("can remove a creator", async () => {
     const outputPath = join("__fixtures__", "__output__", "removeCreator.epub")
     using epub = await Epub.create(outputPath, {

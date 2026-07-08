@@ -1812,10 +1812,15 @@ export class Epub {
     const creatorEntries = metadata.filter(
       (entry) => entry.type === `dc:${type}`,
     )
-    const creators: Array<DcCreator> = creatorEntries
-      .map(({ value }) => value)
-      .filter((value): value is string => !!value)
-      .map((value) => ({ name: value }))
+
+    const creators: Array<DcCreator> = []
+    const creatorsById = new Map<string, DcCreator>()
+    for (const entry of creatorEntries) {
+      if (!entry.value) continue
+      const creator: DcCreator = { name: entry.value }
+      creators.push(creator)
+      if (entry.id) creatorsById.set(entry.id, creator)
+    }
 
     metadata.forEach((entry) => {
       if (
@@ -1831,9 +1836,7 @@ export class Epub {
       if (!creatorIdref) return
 
       const creatorId = creatorIdref.slice(1)
-      const creator = creatorEntries
-        .filter((entry) => entry.id === creatorId && !!entry.value)
-        .map((creator) => ({ name: creator.value }) as DcCreator)[0]
+      const creator = creatorsById.get(creatorId)
 
       if (!creator) return
 
