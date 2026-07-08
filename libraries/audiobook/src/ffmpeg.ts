@@ -57,7 +57,7 @@ export function escapeQuotes(input: string) {
 }
 
 export function quotePath(path: string) {
-  return `"${escapeQuotes(path)}"`
+  return `"${path.replaceAll(/(["\\$`])/g, "\\$1")}"`
 }
 
 type FfprobeStreamOutput =
