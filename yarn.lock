@@ -12883,6 +12883,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@readium/shared@npm:^2.2.3":
+  version: 2.2.3
+  resolution: "@readium/shared@npm:2.2.3"
+  dependencies:
+    "@edrlab/thorium-locales": "github:edrlab/thorium-locales"
+  checksum: 10c0/96486955b66c0614c50097530faeeac3d38a7eae30e73ad906bb713036ca3c715ca8ab2ac341736d857db334267dcb41153707ab21e701985eed1761aff33b9b
+  languageName: node
+  linkType: hard
+
 "@redis/client@npm:^1.6.0":
   version: 1.6.1
   resolution: "@redis/client@npm:1.6.1"
@@ -14867,6 +14876,7 @@ __metadata:
     "@docusaurus/theme-classic": "npm:^3.10.1"
     "@docusaurus/types": "npm:^3.10.1"
     "@mdx-js/react": "npm:^3.1.0"
+    "@readium/shared": "npm:^2.2.3"
     "@storyteller-platform/eslint": "workspace:*"
     "@storyteller-platform/opds": "workspace:*"
     "@tsconfig/docusaurus": "npm:^2.0.3"
