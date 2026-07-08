@@ -53,8 +53,10 @@ __tests__
 !/libraries/ghost-story
 /libraries/ghost-story/node_modules
 /libraries/ghost-story/dist
-!/config/eslint
-/config/eslint/node_modules
+
+!/libraries/opds
+/libraries/opds/node_modules
+/libraries/opds/dist
 
 
 /docker
