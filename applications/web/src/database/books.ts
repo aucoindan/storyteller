@@ -1370,34 +1370,33 @@ export async function updateBook(
 
       const allBookUuids = [uuid, ...relations.books]
 
-      // get the last position per user per book
+      // find the most recent position per user
       const keptPositions = await tr
         .selectFrom("position")
-        .select(["uuid", "userId", "timestamp", "locator", "bookUuid"])
+        .select((eb) => [
+          "userId",
+          "locator",
+          eb.fn.max("timestamp").as("timestamp"),
+        ])
         .where("bookUuid", "in", allBookUuids)
-        .orderBy("position.timestamp", "desc")
-        .groupBy("position.userId")
+        .groupBy("userId")
         .execute()
 
-      // then upsert those positions
-      if (keptPositions.length) {
+      // insert the most recent position per user onto the target book
+      // the position of the merged books will be deleted through cascade
+      for (const pos of keptPositions) {
+        const values = {
+          userId: pos.userId,
+          bookUuid: uuid,
+          locator: JSON.stringify(pos.locator),
+          timestamp: pos.timestamp,
+        }
+
         await tr
           .insertInto("position")
-          .values(
-            keptPositions.map((pos) => ({
-              ...pos,
-              locator: JSON.stringify(pos.locator),
-              bookUuid: uuid,
-            })),
-          )
+          .values(values)
           .onConflict((oc) =>
-            oc.columns(["userId", "bookUuid"]).doUpdateSet((eb) => ({
-              // overwrite that shit
-              locator: eb.ref("excluded.locator"),
-              timestamp: eb.ref("excluded.timestamp"),
-              bookUuid: eb.ref("excluded.bookUuid"),
-              userId: eb.ref("excluded.userId"),
-            })),
+            oc.columns(["userId", "bookUuid"]).doUpdateSet(values),
           )
           .execute()
       }
