@@ -1,3 +1,5 @@
+import { Agent } from "undici"
+
 import { logger } from "@/logging"
 
 import { db } from "./connection"
@@ -12,6 +14,12 @@ const COMPONENT_MAP: Record<ComponentPrefix, string> = {
   "web-v": "web",
   "mobile-v": "mobile",
 }
+
+const timeoutAgent = new Agent({
+  headersTimeout: 15e3,
+  bodyTimeout: 15e3,
+  connectTimeout: 30e3,
+})
 
 type GitLabRelease = {
   tag_name: string
@@ -43,7 +51,9 @@ async function fetchReleasesPage(
 
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
-  })
+    signal: AbortSignal.timeout(10000),
+    dispatcher: timeoutAgent,
+  } as RequestInit)
 
   if (!response.ok) {
     throw new Error(
@@ -80,7 +90,10 @@ export async function syncChangelog(): Promise<void> {
     try {
       releases = await fetchReleasesPage(page, perPage)
     } catch (err) {
-      logger.error(err, "Failed to fetch GitLab releases page %d", page)
+      logger.warn({
+        err,
+        msg: `Failed to fetch GitLab releases page ${page}. This is not a big deal, we will try again in 30 minutes`,
+      })
       break
     }
 
