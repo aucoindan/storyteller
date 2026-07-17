@@ -249,7 +249,7 @@ export function applyLegacyCpuFallback(variant: BuildVariant): BuildVariant {
 
   console.warn(
     `CPU lacks ${[!caps.avx2 && "AVX2", !caps.fma && "FMA"].filter(Boolean).join(" and ")} support. ` +
-      `Falling back to linux-x64-cpu-legacy variant.`,
+      `Falling back to ${variant}-legacy variant.`,
   )
   return `${variant}-legacy` as BuildVariant
 }

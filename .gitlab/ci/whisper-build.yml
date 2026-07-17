@@ -11,6 +11,8 @@
     WHISPER_UPSTREAM_VERSION: "1.8.3"
     WHISPER_VERSION: "1.8.3-st.2"
     CMAKE_FLAGS: ""
+    CFLAGS: "-mno-avx512f"
+    CXXFLAGS: "-mno-avx512f"
     LEGACY: ""
   rules:
     - when: manual
@@ -24,11 +26,12 @@
     - cd whisper-src
     - |
       if [ "$LEGACY" = "1" ]; then
-        export CFLAGS="-mno-avx2 -mno-fma -mno-bmi2"
-        export CXXFLAGS="-mno-avx2 -mno-fma -mno-bmi2"
+        export CFLAGS="-mno-avx512f -mno-avx2 -mno-fma -mno-bmi2"
+        export CXXFLAGS="-mno-avx512f -mno-avx2 -mno-fma -mno-bmi2"
       fi
-    - cmake -B build -DBUILD_SHARED_LIBS=OFF ${CMAKE_FLAGS}
-      ${LEGACY:+-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_BMI2=OFF}
+    - cmake -B build -DBUILD_SHARED_LIBS=OFF ${CMAKE_FLAGS} -DGGML_NATIVE=OFF
+      -DGGML_AVX512=OFF ${LEGACY:+-DGGML_AVX2=OFF -DGGML_FMA=OFF
+      -DGGML_BMI2=OFF}
     - cmake --build build -j --config Release
     - mkdir -p ../dist
     - cp -r build/bin ../dist/bin
@@ -73,6 +76,8 @@ build-whisper-darwin-arm64-coreml:
   variables:
     VARIANT: "darwin-arm64-coreml"
     CMAKE_FLAGS: "-DWHISPER_COREML=1"
+    CFLAGS: ""
+    CXXFLAGS: ""
   before_script:
     - brew install cmake git curl
   script:
@@ -122,6 +127,8 @@ build-whisper-darwin-arm64-cpu:
   variables:
     VARIANT: "darwin-arm64-cpu"
     CMAKE_FLAGS: ""
+    CFLAGS: ""
+    CXXFLAGS: ""
 
 build-whisper-darwin-x64-cpu:
   timeout: 20m
@@ -133,6 +140,8 @@ build-whisper-darwin-x64-cpu:
   variables:
     VARIANT: "darwin-x64-cpu"
     CMAKE_FLAGS: "-DCMAKE_OSX_ARCHITECTURES=x86_64"
+    CFLAGS: ""
+    CXXFLAGS: ""
 
 # Linux CPU builds (use base image)
 
@@ -156,6 +165,8 @@ build-whisper-linux-arm64-cpu:
   variables:
     VARIANT: "linux-arm64-cpu"
     CMAKE_FLAGS: ""
+    CFLAGS: ""
+    CXXFLAGS: ""
 
 # Linux CUDA builds (use cuda base images)
 
