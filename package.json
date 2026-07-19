@@ -31,7 +31,8 @@
     "test:audiobook": "yarn workspace @storyteller-platform/audiobook test",
     "test:epub": "yarn workspace @storyteller-platform/epub test",
     "test:web": "yarn workspace @storyteller-platform/web test:all",
-    "test": "concurrently -P 'npm:test:*'"
+    "test": "concurrently -P 'npm:test:*'",
+    "w": "./scripts/workspace-exec.sh"
   },
   "devDependencies": {
     "@dword-design/eslint-plugin-import-alias": "patch:@dword-design/eslint-plugin-import-alias@npm%3A5.1.2#~/.yarn/patches/@dword-design-eslint-plugin-import-alias-npm-5.1.2-1b47891395.patch",

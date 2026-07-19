@@ -4,7 +4,7 @@ import { enumerate } from "itertools"
 import { runes } from "runes2"
 
 import { type TimelineEntry } from "@storyteller-platform/ghost-story"
-import { type Mapping } from "@storyteller-platform/transliteration"
+import { type Mapping } from "@storyteller-platform/mapping"
 
 import { getTrackDuration } from "../common/ffmpeg.ts"
 import { errorAlign } from "../errorAlign/errorAlign.ts"
@@ -179,10 +179,11 @@ export function mapTranscriptionTimeline(
   transcription: StorytellerTranscription,
   mapping: Mapping,
 ) {
+  const cursor = mapping.cursor()
   return transcription.timeline.map((entry) => ({
     ...entry,
-    mappedStartOffsetUtf16: mapping.map(entry.startOffsetUtf16 ?? 0, 1),
-    mappedEndOffsetUtf16: mapping.map(entry.endOffsetUtf16 ?? 0, -1),
+    mappedStartOffsetUtf16: cursor.map(entry.startOffsetUtf16 ?? 0, "end"),
+    mappedEndOffsetUtf16: cursor.map(entry.endOffsetUtf16 ?? 0, "start"),
   }))
 }
 

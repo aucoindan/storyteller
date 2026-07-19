@@ -31,7 +31,7 @@ import {
   createTiming,
 } from "@storyteller-platform/ghost-story"
 import { type RecognitionResult } from "@storyteller-platform/ghost-story/recognition"
-import { type Mapping } from "@storyteller-platform/transliteration"
+import { type Mapping } from "@storyteller-platform/mapping"
 
 import { getTrackDuration } from "../common/ffmpeg.ts"
 import { parseDom } from "../markup/parseDom.ts"
@@ -593,10 +593,10 @@ export class Aligner {
       [],
     )
 
-    const mappedTranscriptionOffset = mapping.invert().map(transcriptionOffset)
-    const mappedEndTranscriptionOffset = mapping
-      .invert()
-      .map(endTranscriptionOffset)
+    const cursor = mapping.invert().cursor()
+
+    const mappedTranscriptionOffset = cursor.map(transcriptionOffset)
+    const mappedEndTranscriptionOffset = cursor.map(endTranscriptionOffset)
 
     this.report.chapters.push({
       href: chapter.href,

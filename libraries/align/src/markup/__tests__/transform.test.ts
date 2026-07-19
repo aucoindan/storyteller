@@ -122,6 +122,47 @@ void describe("addMark", () => {
 })
 
 void describe("liftText", () => {
+  void it("should lift test out of nested docs", () => {
+    const { result } = liftText(
+      new Root([
+        new Node("div", {}, [
+          new Node("p", {}, [new TextNode("This is a sentence.")]),
+          new Node("p", {}, [new TextNode("This is a second sentence.")]),
+          new Node("p", {}, [new TextNode("This is a third sentence.")]),
+        ]),
+      ]),
+    )
+
+    assert.deepStrictEqual(
+      result,
+      "This is a sentence.\nThis is a second sentence.\nThis is a third sentence.\n",
+    )
+  })
+
+  void it("should produce a valid mapping", () => {
+    const { mapping } = liftText(
+      new Root([
+        new Node("div", {}, [
+          new Node("p", {}, [new TextNode("This is a sentence.")]),
+          new Node("p", {}, [new TextNode("This is a second sentence.")]),
+          new Node("p", {}, [new TextNode("This is a third sentence.")]),
+        ]),
+      ]),
+    )
+
+    const cursor = mapping.cursor()
+
+    assert.deepStrictEqual(cursor.map(2), 0)
+    assert.deepStrictEqual(cursor.map(21), 19)
+    // This is intentional: the inserted newlines are
+    // meant to be stripped out later, so nodes
+    // end up directly abutting each other, with no
+    // newline between
+    assert.deepStrictEqual(cursor.map(23), 19)
+    assert.deepStrictEqual(cursor.map(49), 45)
+    assert.deepStrictEqual(cursor.map(51), 45)
+  })
+
   void it("should insert newlines with trailing atoms", () => {
     const { result } = liftText(
       new Root([
@@ -134,6 +175,27 @@ void describe("liftText", () => {
     )
 
     assert.deepStrictEqual(result, "Chapter 1.\n")
+  })
+
+  void it("should handle inter-block whitespace", () => {
+    const { result, mapping } = liftText(
+      new Root([
+        new Node("p", {}, [new TextNode("\n    This is a sentence.\n")]),
+        new TextNode("\n"),
+        new Node("p", {}, [new TextNode("\n    This is a second sentence.\n")]),
+      ]),
+    )
+
+    assert.strictEqual(
+      result,
+      "This is a sentence. \nThis is a second sentence. \n",
+    )
+
+    const cursor = mapping.cursor()
+
+    assert.strictEqual(cursor.map(6), 0)
+    assert.strictEqual(cursor.map(25), 19)
+    assert.strictEqual(cursor.map(34), 20)
   })
 })
 

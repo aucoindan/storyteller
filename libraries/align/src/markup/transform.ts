@@ -1,4 +1,5 @@
-import { Mapping, StepMap } from "./map.ts"
+import { Mapping } from "@storyteller-platform/mapping"
+
 import {
   FootnoteNode,
   type Mark,
@@ -50,7 +51,6 @@ export function liftText(root: Root) {
   const mapping = new Mapping()
 
   let text = ""
-  let textLength = 0
   let lastTextEnd = 0
 
   descendants(root, (node, pos, parent, index) => {
@@ -73,25 +73,17 @@ export function liftText(root: Root) {
       }
       return true
     }
-    if (mapping.map(pos) - mapping.map(lastTextEnd)) {
-      mapping.appendMap(
-        new StepMap([
-          mapping.map(lastTextEnd),
-          mapping.map(pos) - mapping.map(lastTextEnd),
-          0,
-        ]),
-      )
+    if (pos - lastTextEnd) {
+      mapping.insertMap(lastTextEnd, pos - lastTextEnd, 0)
     }
 
     let result = node.text.replaceAll(/\n/g, " ")
     // Skip leading whitespace in text blocks
-    if (text.endsWith("\n")) {
+    if (text.endsWith("\n") || text === "") {
       const contentStart = result.match(/\S/u)?.index ?? result.length
       if (contentStart !== 0) {
         result = result.slice(contentStart)
-        mapping.appendMap(
-          new StepMap([mapping.map(lastTextEnd), contentStart, 0]),
-        )
+        mapping.insertMap(pos, contentStart, 0)
       }
     }
 
@@ -101,7 +93,7 @@ export function liftText(root: Root) {
 
     if (hasBlockSiblings && !result.match(/\S/)) {
       if (result.length) {
-        mapping.appendMap(new StepMap([textLength, result.length, 0]))
+        mapping.insertMap(pos, result.length, 0)
       }
       result = ""
     }
@@ -111,12 +103,13 @@ export function liftText(root: Root) {
       index === parent.children.length - 1 &&
       !(text + result).endsWith("\n")
     ) {
+      // We intentionally don't account for this in the mapping
+      // because these get stripped out later. They're only here
+      // to force sentence breaks between text blocks.
       result += "\n"
-      textLength--
     }
 
     text += result
-    textLength += result.length
 
     return true
   })
@@ -129,27 +122,21 @@ export function inlineFootnotes(root: Root) {
   const mapping = new Mapping()
 
   let transformed = root
+  let cursor = mapping.cursor()
   for (const [noterefPos, footnotePos] of footnotePairs.entries()) {
     const noteref = root.resolve(noterefPos).nodeAfter
     const footnote = root.resolve(footnotePos).nodeAfter
 
     if (!noteref || !(footnote instanceof Node)) continue
 
-    transformed = transformed.replace(mapping.map(noterefPos), footnote)
-    mapping.appendMap(
-      new StepMap([
-        mapping.map(noterefPos),
-        noteref.nodeSize,
-        footnote.nodeSize,
-      ]),
-    )
+    transformed = transformed.replace(cursor.map(noterefPos), footnote)
+    mapping.insertMap(noterefPos, noteref.nodeSize, footnote.nodeSize)
+    cursor = mapping.cursor()
     transformed = transformed.replace(
-      mapping.map(footnotePos),
+      cursor.map(footnotePos),
       new Node(footnote.tagName),
     )
-    mapping.appendMap(
-      new StepMap([mapping.map(footnotePos), footnote.nodeSize, 1]),
-    )
+    mapping.insertMap(footnotePos, footnote.nodeSize, 1)
   }
 
   return { root: transformed, footnotePairs, mapping }
@@ -162,24 +149,19 @@ export function replaceFootnotes(
   mapping: Mapping,
 ) {
   let transformed = root
+  let cursor = mapping.cursor()
   for (const [noterefPos, footnotePos] of footnotePairs.entries()) {
     const noteref = original.resolve(noterefPos).nodeAfter
-    const footnote = transformed.resolve(mapping.map(noterefPos)).nodeAfter
+    const footnote = transformed.resolve(cursor.map(noterefPos)).nodeAfter
 
     if (!(noteref instanceof Node) || !(footnote instanceof Node)) continue
 
-    transformed = transformed.replace(mapping.map(noterefPos), noteref)
-    mapping.appendMap(
-      new StepMap([
-        mapping.map(noterefPos),
-        footnote.nodeSize,
-        noteref.nodeSize,
-      ]),
-    )
-    transformed = transformed.replace(mapping.map(footnotePos), footnote)
-    mapping.appendMap(
-      new StepMap([mapping.map(footnotePos), 1, footnote.nodeSize]),
-    )
+    transformed = transformed.replace(cursor.map(noterefPos), noteref)
+    mapping.insertMap(noterefPos, footnote.nodeSize, noteref.nodeSize)
+    cursor = mapping.cursor()
+    transformed = transformed.replace(cursor.map(footnotePos), footnote)
+    mapping.insertMap(footnotePos, 1, footnote.nodeSize)
+    cursor = mapping.cursor()
   }
 
   return transformed

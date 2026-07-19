@@ -18,6 +18,7 @@ import {
   startsWithSpacelessScript,
 } from "@storyteller-platform/ghost-story"
 
+import { slugify } from "../align/slugify.ts"
 import { parseDom } from "../markup/parseDom.ts"
 import { segmentChapter } from "../markup/segmentation.ts"
 import { inlineFootnotes, liftText } from "../markup/transform.ts"
@@ -48,9 +49,11 @@ export async function createAlignmentSnapshot(
   epub: Epub,
   transcriptionFilepaths: string[],
   textRef: "id-fragment" | "text-fragment",
+  transliterate?: boolean,
 ) {
   let newSnapshot = ""
 
+  const locale = (await epub.getLanguage()) ?? new Intl.Locale("en-US")
   const manifest = await epub.getManifest()
   const mediaOverlayItems = Object.values(manifest)
     .map((item) => item.mediaOverlay)
@@ -112,7 +115,7 @@ export async function createAlignmentSnapshot(
       if (result === null) continue
 
       const { fragment, sentenceId } = result
-      const textSentence = chapterSentences[sentenceId]?.text
+      const textSentence = chapterSentences[sentenceId]?.text.replace(/\n/, "")
       if (!textSentence) continue
 
       lastChapterSentence = sentenceId
@@ -121,7 +124,7 @@ export async function createAlignmentSnapshot(
         newSnapshot += `${fragment}\n`
       }
 
-      newSnapshot += `Text:  ${textSentence.replace(/\n/, "")}\n`
+      newSnapshot += `Text:  ${transliterate ? (await slugify(textSentence, locale)).result : textSentence}\n`
 
       const audioSrc = audio[":@"]?.["@_src"]
       if (!audioSrc) continue
@@ -169,7 +172,7 @@ export async function createAlignmentSnapshot(
             : `${w} `,
         )
         .join("")
-      newSnapshot += `Audio: ${transcriptionSentence}\n`
+      newSnapshot += `Audio: ${transliterate ? (await slugify(transcriptionSentence, locale)).result : transcriptionSentence}\n`
     }
 
     newSnapshot += `\n`

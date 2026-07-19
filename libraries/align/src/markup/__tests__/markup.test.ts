@@ -434,7 +434,7 @@ void describe("markupChapter", () => {
     await assertMarkupSnapshot(t, Epub.xhtmlBuilder.build(output) as string)
   })
 
-  void it.only("can handle footnotes", async (t) => {
+  void it("can handle footnotes", async (t) => {
     const input = Epub.xhtmlParser.parse(/* xml */ `
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
   <head>

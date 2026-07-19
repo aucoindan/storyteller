@@ -106,6 +106,8 @@ export async function markupChapter(
   const inlined = inlineFootnotes(original)
 
   const lifted = liftText(inlined.root)
+  const invertedLiftMapping = lifted.mapping.invert()
+  const cursor = invertedLiftMapping.cursor()
 
   const segmentation = await segmentChapter(lifted.result, {
     primaryLocale: locale,
@@ -117,30 +119,31 @@ export async function markupChapter(
     let i = 0
     for (const sentence of segmentation) {
       if (granularity === "word") {
+        const snapshot = cursor.value()
         let j = 0
         let wordPos = pos
         for (const word of sentence.words.entries) {
           if (!word.isPunctuation) {
             root = addMark(
               root,
-              lifted.mapping.invert().map(wordPos),
-              lifted.mapping
-                .invert()
-                .map(wordPos + word.text.replace(/\n$/, "").length, -1),
+              cursor.map(wordPos, "end"),
+              cursor.map(
+                wordPos + word.text.replace(/\n$/, "").length,
+                "start",
+              ),
               new Mark("span", { id: `${chapterId}-s${i}-w${j}` }),
             )
             j++
           }
           wordPos += word.text.replace(/\n$/, "").length
         }
+        cursor.reset(snapshot)
       }
       if (sentence.text.match(/\S/)) {
         root = addMark(
           root,
-          lifted.mapping.invert().map(pos),
-          lifted.mapping
-            .invert()
-            .map(pos + sentence.text.replace(/\n$/, "").length, -1),
+          cursor.map(pos, "end"),
+          cursor.map(pos + sentence.text.replace(/\n$/, "").length, "start"),
           new Mark("span", { id: `${chapterId}-s${i}` }),
         )
         i++

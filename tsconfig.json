@@ -33,6 +33,9 @@
     },
     {
       "path": "libraries/opds"
+    },
+    {
+      "path": "libraries/mapping"
     }
   ]
 }

@@ -50,6 +50,7 @@ async function assertAlignSnapshot(
   epub: Epub,
   transcriptionFilepaths: string[],
   textRef: "id-fragment" | "text-fragment",
+  transliterate?: boolean,
 ) {
   const snapshotFilename = getSafeFilepathSegment(
     `${context.fullName} ${textRef === "id-fragment" ? "[id-fragment]" : "[text-fragment]"}`,
@@ -66,6 +67,7 @@ async function assertAlignSnapshot(
     epub,
     transcriptionFilepaths,
     textRef,
+    transliterate,
   )
 
   if (process.env["UPDATE_SNAPSHOTS"]) {
@@ -109,6 +111,7 @@ async function testAlignBook(
   epubPath: string,
   audiobookPath: string,
   transcriptionsPath: string,
+  transliterate?: boolean,
 ) {
   using epub = await Epub.from(epubPath)
 
@@ -151,6 +154,7 @@ async function testAlignBook(
     epub,
     transcriptionFilepaths,
     "id-fragment",
+    transliterate,
   )
 
   aligner.epub = textFragmentEpub
@@ -168,6 +172,7 @@ async function testAlignBook(
     textFragmentEpub,
     transcriptionFilepaths,
     "text-fragment",
+    transliterate,
   )
 }
 
@@ -306,6 +311,37 @@ void describe("align", () => {
         "why-i-cant-sleep",
         "transcriptions",
       ),
+      true,
+    )
+  })
+
+  void itLocally("should align jp", async (context) => {
+    await testAlignBook(
+      context,
+      "sentence",
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "青春ブタ野郎はバニーガール先輩の夢を見ない",
+        "text",
+        "青春ブタ野郎はバニーガール先輩の夢を見ない.epub",
+      ),
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "青春ブタ野郎はバニーガール先輩の夢を見ない",
+        "transcoded audio",
+      ),
+      join(
+        "src",
+        "align",
+        "__fixtures__",
+        "青春ブタ野郎はバニーガール先輩の夢を見ない",
+        "transcriptions",
+      ),
+      true,
     )
   })
 })
