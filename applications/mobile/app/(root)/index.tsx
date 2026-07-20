@@ -4,18 +4,19 @@ import { EllipsisVertical } from "lucide-react-native"
 import { useEffect, useMemo, useRef } from "react"
 import {
   Image,
+  Pressable,
   RefreshControl,
   ScrollView,
   TouchableOpacity,
   View,
 } from "react-native"
 
-import { BookSearch } from "@/components/BookSearch"
 import { MiniPlayerWidget } from "@/components/MiniPlayerWidget"
 import { Shelf } from "@/components/Shelf"
 import { Group } from "@/components/ui/Group"
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
+import { Input } from "@/components/ui/input"
 import { Menu } from "@/components/ui/menu"
 import { Text } from "@/components/ui/text"
 import { type BookWithRelations } from "@/database/books"
@@ -130,7 +131,17 @@ export default function Home() {
             className="h-12 w-12"
           />
         </TouchableOpacity>
-        <BookSearch />
+        <Link href="/search" asChild>
+          <Pressable className="grow" accessibilityLabel="Search books">
+            <Input
+              className="min-h-8 text-sm opacity-100"
+              editable={false}
+              focusable={false}
+              pointerEvents="none"
+              placeholder="Search"
+            />
+          </Pressable>
+        </Link>
         <Menu
           actions={[
             {

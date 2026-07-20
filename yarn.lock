@@ -9152,6 +9152,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@legendapp/list@npm:3.1.2":
+  version: 3.1.2
+  resolution: "@legendapp/list@npm:3.1.2"
+  dependencies:
+    use-sync-external-store: "npm:^1.5.0"
+  peerDependencies:
+    react: "*"
+  peerDependenciesMeta:
+    react-dom:
+      optional: true
+    react-native:
+      optional: true
+  checksum: 10c0/96e0e2f2d1899e7adad828645947658e1d55fe73c9b8098e3689f1030641af8328b4c968581729a559f9ec89a600745b2c831fe19310293cfe1af1060a702cb6
+  languageName: node
+  linkType: hard
+
 "@leichtgewicht/ip-codec@npm:^2.0.1":
   version: 2.0.5
   resolution: "@leichtgewicht/ip-codec@npm:2.0.5"
@@ -15026,6 +15042,7 @@ __metadata:
     "@expo-google-fonts/literata": "npm:^0.2.3"
     "@expo/metro-runtime": "npm:~56.0.14"
     "@expo/ui": "npm:~56.0.18"
+    "@legendapp/list": "npm:3.1.2"
     "@op-engineering/op-sqlite": "npm:^15.1.17"
     "@react-native-async-storage/async-storage": "npm:2.2.0"
     "@react-native-clipboard/clipboard": "npm:^1.16.3"

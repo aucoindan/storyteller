@@ -1,9 +1,11 @@
+import { LegendList } from "@legendapp/list/react-native"
+import { type ReactNode } from "react"
+import { RefreshControl, View, useWindowDimensions } from "react-native"
 import {
-  FlatList,
-  RefreshControl,
-  View,
-  useWindowDimensions,
-} from "react-native"
+  KeyboardAwareScrollView,
+  KeyboardGestureArea,
+} from "react-native-keyboard-controller"
+import { withUniwind } from "uniwind"
 
 import { type BookWithRelations } from "@/database/books"
 import { useListAllServerBooks } from "@/hooks/useListAllServerBooks"
@@ -14,12 +16,16 @@ import { MiniPlayerWidget } from "./MiniPlayerWidget"
 import { Stack } from "./ui/Stack"
 import { Text } from "./ui/text"
 
+const BookLegendList = withUniwind(LegendList<BookWithRelations>)
+
 interface Props {
   title: string
   books: BookWithRelations[]
+  header?: ReactNode
+  refreshable?: boolean
 }
 
-export function BookGrid({ title, books }: Props) {
+export function BookGrid({ title, books, header, refreshable = true }: Props) {
   const dimensions = useWindowDimensions()
 
   const { isLoading, refetch } = useListAllServerBooks()
@@ -54,27 +60,41 @@ export function BookGrid({ title, books }: Props) {
         </Text>
       </View>
 
-      <FlatList
-        key={numColumns}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={() => {
-              refetch()
-            }}
-          />
-        }
-        className="px-4"
-        data={books}
-        numColumns={numColumns}
-        {...(numColumns > 1 && { columnWrapperStyle: { gap } })}
-        renderItem={({ item: book }) => (
-          <View className="my-2" style={{ width: thumbnailWidth }}>
-            <BookThumbnail book={book} width={thumbnailWidth} />
-          </View>
-        )}
-        ListFooterComponent={<View className="h-40 w-full" />}
-      />
+      {header}
+
+      <KeyboardGestureArea style={{ flex: 1 }} enableSwipeToDismiss>
+        <BookLegendList
+          key={numColumns}
+          className="flex-1"
+          contentContainerClassName="px-2.5"
+          data={books}
+          numColumns={numColumns}
+          keyExtractor={(book) => book.uuid}
+          recycleItems
+          drawDistance={dimensions.height}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="always"
+          renderScrollComponent={(props) => (
+            <KeyboardAwareScrollView {...props} />
+          )}
+          refreshControl={
+            refreshable ? (
+              <RefreshControl
+                refreshing={isLoading}
+                onRefresh={() => {
+                  refetch()
+                }}
+              />
+            ) : undefined
+          }
+          renderItem={({ item: book }) => (
+            <View className="mx-1.5 my-2" style={{ width: thumbnailWidth }}>
+              <BookThumbnail book={book} width={thumbnailWidth} />
+            </View>
+          )}
+          ListFooterComponent={<View className="h-40 w-full" />}
+        />
+      </KeyboardGestureArea>
       <MiniPlayerWidget />
     </Stack>
   )
