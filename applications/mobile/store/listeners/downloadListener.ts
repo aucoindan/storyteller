@@ -26,9 +26,9 @@ import {
   getLocalBookExtractedUrl,
 } from "@/store/persistence/files"
 import { getDownloadUrl } from "@/store/serverApi"
-import { throttle } from "@/throttle"
 import { randomUUID } from "@/uuid"
 
+import { createDownloadProgressHandler } from "./downloadProgress"
 import { startAppListening } from "./listenerMiddleware"
 
 startAppListening({
@@ -77,18 +77,8 @@ startAppListening({
       })
 
       logger.debug(`Creating download resumable for ${bookUuid} (${format})`)
-      const download = FileSystem.createDownloadResumable(
-        getDownloadUrl(server.baseUrl, bookUuid, format),
-        localBookArchiveUri,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(format === "audiobook" && {
-              Accept: "application/audiobook+zip",
-            }),
-          },
-        },
-        throttle(async (progressData) => {
+      const downloadProgress = createDownloadProgressHandler(
+        async (isActive, progressData: FileSystem.DownloadProgressData) => {
           logger.debug(
             `Progress: ${progressData.totalBytesWritten} / ${progressData.totalBytesExpectedToWrite}`,
           )
@@ -105,7 +95,7 @@ startAppListening({
               .select(["downloadStatus"])
               .where("bookUuid", "=", bookUuid)
               .executeTakeFirstOrThrow()
-            if (downloadStatus === "DOWNLOADED") return
+            if (!isActive() || downloadStatus === "DOWNLOADED") return
 
             logger.debug(`Updating download status for ${bookUuid} (${format})`)
             await tr
@@ -118,6 +108,8 @@ startAppListening({
               .execute()
           })
 
+          if (!isActive()) return
+
           logger.debug(
             `Updating cached download state for ${bookUuid} (${format})`,
           )
@@ -129,7 +121,21 @@ startAppListening({
           logger.debug(`Downloading...`)
 
           // TODO: Support pausing
-        }, 250),
+        },
+        250,
+      )
+      const download = FileSystem.createDownloadResumable(
+        getDownloadUrl(server.baseUrl, bookUuid, format),
+        localBookArchiveUri,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(format === "audiobook" && {
+              Accept: "application/audiobook+zip",
+            }),
+          },
+        },
+        downloadProgress.update,
       )
 
       const cancelTask = listenerApi.fork(async () => {
@@ -145,11 +151,16 @@ startAppListening({
         await download.cancelAsync()
       })
 
-      logger.debug(`Activating keep awake for ${bookUuid} (${format})`)
-      await activateKeepAwakeAsync(`download.${bookUuid}.${format}`)
-      logger.debug(`Starting download for ${bookUuid} (${format})`)
-      const result = await download.downloadAsync()
-      cancelTask.cancel()
+      let result
+      try {
+        logger.debug(`Activating keep awake for ${bookUuid} (${format})`)
+        await activateKeepAwakeAsync(`download.${bookUuid}.${format}`)
+        logger.debug(`Starting download for ${bookUuid} (${format})`)
+        result = await download.downloadAsync()
+      } finally {
+        downloadProgress.cancel()
+        cancelTask.cancel()
+      }
 
       if (!result) {
         logger.debug(`Download cancelled for ${bookUuid} (${format})`)

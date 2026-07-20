@@ -51,6 +51,23 @@ test-web:
     - yarn
     - yarn test:web
 
+test-mobile:
+  image: registry.gitlab.com/storyteller-platform/storyteller/storyteller-base:main
+  stage: check
+  tags: [saas-linux-large-amd64]
+  rules:
+    - if:
+        ($CI_PIPELINE_SOURCE == "merge_request_event" || ($CI_COMMIT_BRANCH ==
+        "main" && $CI_COMMIT_TAG == null))
+      changes:
+        - applications/mobile/**/*
+        - package.json
+        - yarn.lock
+  script:
+    - npm i -g corepack
+    - yarn
+    - yarn test:mobile
+
 test-epub:
   image: registry.gitlab.com/storyteller-platform/storyteller/storyteller-base:main
   stage: check

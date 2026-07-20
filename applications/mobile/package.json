@@ -10,7 +10,8 @@
     "eas-build-post-install": "./scripts/post-install.sh",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "rnr": "yarn cli"
+    "rnr": "yarn cli",
+    "test": "tsx --test store/**/*.test.ts"
   },
   "dependencies": {
     "@expo-google-fonts/literata": "^0.2.3",
