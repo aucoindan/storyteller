@@ -6,7 +6,6 @@ import {
   removeBooksFromSeries,
 } from "@/database/series"
 import { type UUID } from "@/uuid"
-import { queueWritesToFiles } from "@/writeToFiles/fileWriteDistributor"
 
 export const POST = withHasPermission("bookUpdate")(async (request) => {
   const body = (await request.json()) as {
@@ -15,10 +14,6 @@ export const POST = withHasPermission("bookUpdate")(async (request) => {
   }
   const { series, relations } = body
   await addBooksToSeries(series, relations)
-
-  for (const relation of relations) {
-    void queueWritesToFiles(relation.bookUuid)
-  }
 
   return new Response(null, { status: 204 })
 })
@@ -30,10 +25,6 @@ export const DELETE = withHasPermission("bookUpdate")(async (request) => {
   }
   const { series, books } = body
   await removeBooksFromSeries(series, books)
-
-  for (const book of books) {
-    void queueWritesToFiles(book)
-  }
 
   return new Response(null, { status: 204 })
 })

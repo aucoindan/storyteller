@@ -639,7 +639,7 @@ export const api = createApi({
         series?.map((s) => ({ type: "Series", id: s.uuid })) ?? ["Series"],
     }),
     updateSeries: build.mutation<
-      SeriesWithBooks,
+      SeriesWithBooks | null,
       {
         uuid: UUID
         update: {

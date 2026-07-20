@@ -19,6 +19,7 @@ export const GET = withHasPermission("bookList")((request) => {
     start(controller) {
       unsubscribe = subscribeToBookEvents((event) => {
         controller.enqueue(`data: ${JSON.stringify(event)}\n\n`)
+        // TODO: should maybe write file metadata if related stuff has changed
       })
     },
     cancel() {

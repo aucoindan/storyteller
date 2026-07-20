@@ -22,7 +22,7 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
   }
 
   const updated = await updateSeries(uuid, update, { books: relations })
-  return Response.json(updated)
+  return Response.json(updated ?? null)
 })
 
 export const DELETE = withHasPermission<Params>("bookUpdate")(async (

@@ -2,6 +2,7 @@ import type { Insertable, Selectable, Updateable } from "kysely"
 
 import { BookEvents } from "@/events"
 import type { UUID } from "@/uuid"
+import { queueWritesToFiles } from "@/writeToFiles/fileWriteDistributor"
 
 import { type NewBookToSeries, getBooks } from "./books"
 import { db } from "./connection"
@@ -119,6 +120,8 @@ export async function addBooksToSeries(
         series: book.series,
       },
     })
+
+    void queueWritesToFiles(book.uuid)
   })
 }
 
@@ -151,6 +154,8 @@ export async function removeBooksFromSeries(
         series: book.series,
       },
     })
+
+    void queueWritesToFiles(book.uuid)
   })
 }
 
@@ -175,7 +180,7 @@ export async function updateSeries(
       .returning(["bookToSeries.bookUuid"])
       .execute()
 
-    if (relations.books) {
+    if (relations.books?.length) {
       insertedBooks = await tr
         .insertInto("bookToSeries")
         .values(
@@ -188,6 +193,17 @@ export async function updateSeries(
         .execute()
     }
 
+    // check if series is now empty
+    const isEmpty = await tr
+      .selectFrom("bookToSeries")
+      .select(["bookToSeries.bookUuid"])
+      .where("seriesUuid", "=", uuid)
+      .executeTakeFirst()
+
+    if (isEmpty) {
+      await tr.deleteFrom("series").where("uuid", "=", uuid).execute()
+    }
+
     return new Set([
       ...deletedSeries.map((b) => b.bookUuid),
       ...insertedBooks.map((b) => b.bookUuid),
@@ -198,6 +214,7 @@ export async function updateSeries(
     const books = await getBooks(Array.from(affectedBooks))
 
     books.forEach((book) => {
+      // this should probably be connected to writing book files
       BookEvents.emit("message", {
         type: "bookUpdated",
         bookUuid: book.uuid,
@@ -205,6 +222,8 @@ export async function updateSeries(
           series: book.series,
         },
       })
+
+      void queueWritesToFiles(book.uuid)
     })
   }
 
@@ -212,7 +231,7 @@ export async function updateSeries(
     .selectFrom("series")
     .selectAll()
     .where("uuid", "=", uuid)
-    .executeTakeFirstOrThrow()
+    .executeTakeFirst()
 }
 
 export async function deleteSeries(uuid: UUID) {
@@ -238,5 +257,6 @@ export async function deleteSeries(uuid: UUID) {
         series: book.series,
       },
     })
+    void queueWritesToFiles(book.uuid)
   })
 }
