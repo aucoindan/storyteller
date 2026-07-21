@@ -18,6 +18,7 @@ interface ReadiumEvents extends EventsMap {
   clipChanged(clip: ReadiumClip): void
   isPlayingChanged(event: { isPlaying: boolean }): void
   positionChanged(event: { position: number }): void
+  sleepTimerExpired(event: { deadline: number }): void
   trackChanged(event: {
     track: StorytellerTrack
     position: number
@@ -79,6 +80,7 @@ declare class ReadiumModule extends NativeModule<ReadiumEvents> {
   }): Promise<void>
   play(automaticRewind?: boolean): Promise<void>
   pause(): Promise<void>
+  setSleepTimer(deadline: number | null): Promise<void>
   getIsPlaying(): Promise<boolean>
   getCurrentClip(): Promise<ReadiumClip | null>
 }

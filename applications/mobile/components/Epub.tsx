@@ -31,6 +31,7 @@ import {
 } from "@/store/localApi"
 import { getCustomFontUrl } from "@/store/persistence/fonts"
 import { getIsPlaying } from "@/store/selectors/bookshelfSelectors"
+import { getShouldKeepReaderAwake } from "@/store/selectors/sleepTimerSelectors"
 import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
 import { type UUID } from "@/uuid"
 
@@ -51,8 +52,13 @@ type Props = {
 const forwardNavKeyCodes = [93, 117]
 const backwardNavKeyCodes = [92]
 
-export function Epub({ book, format, locator }: Props) {
+function EpubKeepAwake() {
   useKeepAwake()
+  return null
+}
+
+export function Epub({ book, format, locator }: Props) {
+  const shouldKeepAwake = useAppSelector(getShouldKeepReaderAwake)
 
   const { foreground, background } = useColorTheme()
   const [activeBookmarks, setActiveBookmarks] = useState<Bookmark[]>([])
@@ -145,6 +151,7 @@ export function Epub({ book, format, locator }: Props) {
   if (isLoadingPreferences || isPreferencesUninitialized) {
     return (
       <View className="bg-background flex-1">
+        {shouldKeepAwake && <EpubKeepAwake />}
         <LoadingView />
       </View>
     )
@@ -152,6 +159,7 @@ export function Epub({ book, format, locator }: Props) {
 
   return (
     <View className="bg-background flex-1">
+      {shouldKeepAwake && <EpubKeepAwake />}
       {showingFootnote && (
         <TouchableOpacity
           className="absolute top-0 right-0 bottom-0 left-0 z-100"

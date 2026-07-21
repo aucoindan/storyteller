@@ -1,10 +1,4 @@
-import {
-  addMinutes,
-  addSeconds,
-  intervalToDuration,
-  isFuture,
-  isPast,
-} from "date-fns"
+import { intervalToDuration, isFuture, isPast } from "date-fns"
 import { ClockFading } from "lucide-react-native"
 import { useEffect, useState } from "react"
 
@@ -12,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
 import { Menu, type MenuAction } from "@/components/ui/menu"
 import { Text } from "@/components/ui/text"
+import { useIsNotBackground } from "@/hooks/useIsNotBackground"
 import { useAppDispatch, useAppSelector } from "@/store/appState"
-import { getSleepTimer } from "@/store/selectors/bookshelfSelectors"
-import { bookshelfSlice } from "@/store/slices/bookshelfSlice"
+import { getSleepTimer } from "@/store/selectors/sleepTimerSelectors"
+import { sleepTimerSlice } from "@/store/slices/sleepTimerSlice"
 
 function formatSleepTimer(sleepTimer: Date) {
   const duration = intervalToDuration({
@@ -33,13 +28,28 @@ const MAX_FONT_SCALE = 1.75
 export function SleepTimerItem() {
   const dispatch = useAppDispatch()
   const sleepTimer = useAppSelector(getSleepTimer)
+  const isNotBackground = useIsNotBackground()
 
   const [formattedSleepTimer, setFormattedSleepTimer] = useState<string | null>(
     sleepTimer && isFuture(sleepTimer) ? formatSleepTimer(sleepTimer) : null,
   )
 
+  const startSleepTimer = (duration: number) => {
+    dispatch(
+      sleepTimerSlice.actions.started({
+        deadline: Date.now() + duration,
+        duration,
+      }),
+    )
+  }
+
   useEffect(() => {
+    if (!isNotBackground) return
+
     if (sleepTimer) {
+      setFormattedSleepTimer(
+        isFuture(sleepTimer) ? formatSleepTimer(sleepTimer) : null,
+      )
       const intervalId = setInterval(() => {
         if (isPast(sleepTimer)) {
           clearInterval(intervalId)
@@ -53,25 +63,21 @@ export function SleepTimerItem() {
       setFormattedSleepTimer(null)
     }
     return () => {}
-  }, [sleepTimer])
+  }, [isNotBackground, sleepTimer])
 
   const menuActions: MenuAction[] = [
     {
       id: "off",
       title: "Off",
       onPress: () => {
-        dispatch(bookshelfSlice.actions.sleepTimerSet({ sleepTimer: null }))
+        dispatch(sleepTimerSlice.actions.cancelled())
       },
     },
     ...[5, 10, 15, 30, 45, 60, 90, 120].map((minutes) => ({
       id: `${minutes}-min`,
       title: `${minutes} min`,
       onPress: () => {
-        dispatch(
-          bookshelfSlice.actions.sleepTimerSet({
-            sleepTimer: addMinutes(new Date(), minutes),
-          }),
-        )
+        startSleepTimer(minutes * 60 * 1000)
       },
     })),
     ...(__DEV__
@@ -80,22 +86,14 @@ export function SleepTimerItem() {
             id: "5-sec",
             title: "5 sec",
             onPress: () => {
-              dispatch(
-                bookshelfSlice.actions.sleepTimerSet({
-                  sleepTimer: addSeconds(new Date(), 5),
-                }),
-              )
+              startSleepTimer(5 * 1000)
             },
           },
           {
             id: "30-sec",
             title: "30 sec",
             onPress: () => {
-              dispatch(
-                bookshelfSlice.actions.sleepTimerSet({
-                  sleepTimer: addSeconds(new Date(), 30),
-                }),
-              )
+              startSleepTimer(30 * 1000)
             },
           },
         ]

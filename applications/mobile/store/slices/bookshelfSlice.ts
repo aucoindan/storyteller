@@ -1,5 +1,4 @@
 import { type PayloadAction, createSlice, isAnyOf } from "@reduxjs/toolkit"
-import { isPast } from "date-fns"
 
 import { logger } from "@/logger"
 import {
@@ -24,7 +23,6 @@ export type BookshelfState = {
   currentlyPlayingFormat: "readaloud" | "ebook" | "audiobook" | null
   playbackSpeedContext: "listening" | "reading"
   isAudioLoading: boolean
-  sleepTimer: number | null | undefined
   tracks: StorytellerTrack[]
   position: number
   isPlaying: boolean
@@ -40,7 +38,6 @@ const initialState: BookshelfState = {
   currentlyPlayingFormat: null,
   playbackSpeedContext: "listening",
   isAudioLoading: false,
-  sleepTimer: null,
   tracks: [],
   position: 0,
   isPlaying: false,
@@ -147,15 +144,6 @@ export const bookshelfSlice = createSlice({
     isPlayingChanged(state, action: PayloadAction<{ isPlaying: boolean }>) {
       state.isPlaying = action.payload.isPlaying
     },
-    sleepTimerSet: (
-      state,
-      action: PayloadAction<{ sleepTimer: Date | null }>,
-    ) => {
-      state.sleepTimer = action.payload.sleepTimer?.getTime()
-    },
-    sleepTimerExpired: (state) => {
-      state.sleepTimer = null
-    },
     bookDeleted(state, action: PayloadAction<{ bookUuid: UUID }>) {
       const { bookUuid } = action.payload
 
@@ -196,16 +184,6 @@ export const bookshelfSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    builder.addCase(
-      bookshelfSlice.actions.isPlayingChanged,
-      (state, action) => {
-        if (!action.payload.isPlaying) return
-        const sleepTimer = state.sleepTimer
-        if (sleepTimer && isPast(sleepTimer)) {
-          state.sleepTimer = null
-        }
-      },
-    )
     builder.addMatcher(
       localApi.endpoints.deleteBook.matchFulfilled,
       (state, action) => {

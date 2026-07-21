@@ -64,6 +64,7 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.fromEpubHref
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -140,6 +141,7 @@ data class Track(
 interface Listener : Player.Listener {
     fun onClipChanged(overlayPar: OverlayPar, locator: Locator)
     fun onPositionChanged(position: Double)
+    fun onSleepTimerExpired(deadline: Double)
     fun onTrackChanged(track: Track, position: Double, index: Int)
 }
 
@@ -963,6 +965,10 @@ class AudiobookPlayer(
     var relativeUriToClips: Map<String, List<OverlayPar>> = mapOf()
     var audioProgressCollector: Job? = null
     private var clipEventHandler: (() -> Unit)? = null
+    private val sleepTimerHandler = Handler(Looper.getMainLooper())
+    private val sleepTimerGeneration = AtomicLong()
+    private var sleepTimerDeadline: Long? = null
+    private var sleepTimerRunnable: Runnable? = null
 
     private var automaticRewind = false
     private var afterInterruptionRewind = 0.0
@@ -1211,6 +1217,54 @@ class AudiobookPlayer(
     fun pause() {
         val player = controller ?: return
         player.pause()
+    }
+
+    fun setSleepTimer(deadline: Double?) {
+        val generation = sleepTimerGeneration.incrementAndGet()
+        val deadlineMs = deadline?.roundToLong()
+        sleepTimerHandler.post {
+            sleepTimerRunnable?.let(sleepTimerHandler::removeCallbacks)
+            sleepTimerRunnable = null
+            sleepTimerDeadline = deadlineMs
+            if (deadlineMs == null) return@post
+
+            val runnable = object : Runnable {
+                override fun run() {
+                    if (
+                        sleepTimerGeneration.get() != generation ||
+                        sleepTimerDeadline != deadlineMs
+                    ) return
+
+                    val remaining = deadlineMs - System.currentTimeMillis()
+                    if (remaining > 0) {
+                        sleepTimerHandler.postDelayed(this, remaining)
+                        return
+                    }
+
+                    sleepTimerDeadline = null
+                    sleepTimerRunnable = null
+
+                    val player = controller
+                    if (player == null) {
+                        listener.onSleepTimerExpired(deadlineMs.toDouble())
+                        return
+                    }
+
+                    Handler(player.applicationLooper).post {
+                        if (sleepTimerGeneration.get() != generation) return@post
+
+                        player.pause()
+                        listener.onSleepTimerExpired(deadlineMs.toDouble())
+                    }
+                }
+            }
+
+            sleepTimerRunnable = runnable
+            sleepTimerHandler.postDelayed(
+                runnable,
+                (deadlineMs - System.currentTimeMillis()).coerceAtLeast(0)
+            )
+        }
     }
 
     @androidx.annotation.OptIn(UnstableApi::class)

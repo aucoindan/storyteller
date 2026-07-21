@@ -10,12 +10,13 @@ public class ReadiumModule: Module {
                 await AudiobookPlayerActor.shared.observeTrackChanged(self.onTrackChanged(track:position:index:))
                 await AudiobookPlayerActor.shared.observeIsPlayingChanged(self.onIsPlayingChanged(isPlaying:))
                 await AudiobookPlayerActor.shared.observePositionChanged(self.onPositionChanged(position:))
+                await AudiobookPlayerActor.shared.observeSleepTimerExpired(self.onSleepTimerExpired(deadline:))
             }
         }
 
         Name("Readium")
 
-        Events("clipChanged", "isPlayingChanged", "positionChanged", "trackChanged")
+        Events("clipChanged", "isPlayingChanged", "positionChanged", "sleepTimerExpired", "trackChanged")
 
         AsyncFunction("getIsPlaying") {
             return await AudiobookPlayerActor.shared.getIsPlaying()
@@ -52,6 +53,10 @@ public class ReadiumModule: Module {
 
         AsyncFunction("pause") {
             await AudiobookPlayerActor.shared.pause()
+        }
+
+        AsyncFunction("setSleepTimer") { (deadline: Double?) in
+            await AudiobookPlayerActor.shared.setSleepTimer(deadline: deadline)
         }
 
         AsyncFunction("unload") {
@@ -345,6 +350,10 @@ public class ReadiumModule: Module {
 
     func onPositionChanged(position: Double) {
         sendEvent("positionChanged", ["position": position])
+    }
+
+    func onSleepTimerExpired(deadline: Double) {
+        sendEvent("sleepTimerExpired", ["deadline": deadline])
     }
 
     func onTrackChanged(track: Track, position: Double, index: Int) {

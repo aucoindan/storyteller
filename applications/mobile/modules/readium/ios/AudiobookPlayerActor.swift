@@ -69,6 +69,7 @@ typealias DuckCallback = () -> Void
 typealias TrackChangedCallback = (_ track: Track, _ position: Double, _ index: Int) -> Void
 typealias PositionChangedCallback = (_ position: Double) -> Void
 typealias IsPlayingChangedCallback = (_ isPlaying: Bool) -> Void
+typealias SleepTimerExpiredCallback = (_ deadline: Double) -> Void
 
 let interruptionInterval = TimeInterval(integerLiteral: 5 * 60)
 private let scheduledClipEventImmediateThreshold = 0.05
@@ -105,7 +106,10 @@ public actor AudiobookPlayerActor {
     private var trackChangedCallbacks: [TrackChangedCallback] = [TrackChangedCallback]()
     private var positionChangedCallbacks: [PositionChangedCallback] = [PositionChangedCallback]()
     private var isPlayingChangedCallbacks: [IsPlayingChangedCallback] = [IsPlayingChangedCallback]()
+    private var sleepTimerExpiredCallbacks: [SleepTimerExpiredCallback] = [SleepTimerExpiredCallback]()
     private var scheduledClipEventObserver: Any?
+    private var sleepTimerDeadline: Double?
+    private var sleepTimerTask: Task<Void, Never>?
 
     private var currentImageTask: URLSessionDataTask?
 
@@ -336,6 +340,32 @@ public actor AudiobookPlayerActor {
 
     func pause() {
         player.pause()
+    }
+
+    func setSleepTimer(deadline: Double?) {
+        sleepTimerTask?.cancel()
+        sleepTimerTask = nil
+        sleepTimerDeadline = deadline
+
+        guard let deadline else { return }
+
+        let now = Date.now.timeIntervalSince1970 * 1000
+        let delayNanoseconds = UInt64(max(0, deadline - now) * 1_000_000)
+
+        sleepTimerTask = Task { @AudiobookPlayerActor in
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
+            guard !Task.isCancelled else { return }
+            await AudiobookPlayerActor.shared.expireSleepTimer(deadline: deadline)
+        }
+    }
+
+    private func expireSleepTimer(deadline: Double) {
+        guard sleepTimerDeadline == deadline else { return }
+
+        sleepTimerDeadline = nil
+        sleepTimerTask = nil
+        player.pause()
+        sleepTimerExpiredCallbacks.forEach { $0(deadline) }
     }
 
     func skip(to position: Double) async {
@@ -683,6 +713,10 @@ public actor AudiobookPlayerActor {
 
     func observeIsPlayingChanged(_ callback: @escaping IsPlayingChangedCallback) {
         isPlayingChangedCallbacks.append(callback)
+    }
+
+    func observeSleepTimerExpired(_ callback: @escaping SleepTimerExpiredCallback) {
+        sleepTimerExpiredCallbacks.append(callback)
     }
 
     func scheduleClipEvent(fragmentId: String, fragmentProgress: Double, handler: @escaping @Sendable () -> Void) {

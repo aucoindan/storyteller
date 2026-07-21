@@ -1,5 +1,8 @@
 import * as Sentry from "@sentry/react-native"
+import { ExpoKeepAwakeTag, deactivateKeepAwake } from "expo-keep-awake"
 import { Slot, SplashScreen } from "expo-router"
+import { useEffect } from "react"
+import { AppState } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { KeyboardProvider } from "react-native-keyboard-controller"
 import {
@@ -41,9 +44,47 @@ registerBackgroundTaskAsync()
 
 SplashScreen.preventAutoHideAsync()
 
+function DisableExpoDevKeepAwake() {
+  useEffect(() => {
+    if (!__DEV__) return
+
+    let timeout: ReturnType<typeof setTimeout> | null = null
+
+    const deactivate = () => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+
+      timeout = setTimeout(() => {
+        void deactivateKeepAwake(ExpoKeepAwakeTag)
+      }, 0)
+    }
+
+    deactivate()
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        deactivate()
+      }
+    })
+
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+      subscription.remove()
+    }
+  }, [])
+
+  return null
+}
+
 function Layout() {
   return (
     <GestureHandlerRootView>
+      {/* Flip false to true to suppress expo dev-client's built-in keep awake
+          in order to test sleep timers */}
+      {false && <DisableExpoDevKeepAwake />}
       <KeyboardProvider>
         <Provider store={store}>
           <StorytellerProvider>

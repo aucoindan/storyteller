@@ -43,7 +43,7 @@ class ReadiumModule : Module(), Listener {
         // The module will be accessible from `requireNativeModule('Readium')` in JavaScript.
         Name("Readium")
 
-        Events("clipChanged", "isPlayingChanged", "positionChanged", "trackChanged")
+        Events("clipChanged", "isPlayingChanged", "positionChanged", "sleepTimerExpired", "trackChanged")
 
         AsyncFunction("getIsPlaying") { ->
             player.getIsPlaying()
@@ -86,6 +86,10 @@ class ReadiumModule : Module(), Listener {
 
         AsyncFunction("pause") Coroutine { ->
             player.pause()
+        }
+
+        AsyncFunction("setSleepTimer") { deadline: Double? ->
+            player.setSleepTimer(deadline)
         }
 
         AsyncFunction("unload") Coroutine { ->
@@ -376,6 +380,10 @@ class ReadiumModule : Module(), Listener {
 
     override fun onPositionChanged(position: Double) {
         this.sendEvent("positionChanged", mapOf("position" to position))
+    }
+
+    override fun onSleepTimerExpired(deadline: Double) {
+        this.sendEvent("sleepTimerExpired", mapOf("deadline" to deadline))
     }
 
     override fun onTrackChanged(track: Track, position: Double, index: Int) {
