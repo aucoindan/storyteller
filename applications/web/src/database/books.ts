@@ -27,7 +27,11 @@ import { type UUID } from "@/uuid"
 
 import { db } from "./connection"
 import { type NewCreator } from "./creators"
-import { type NewIdentifier } from "./identifiers"
+import {
+  type ExtractedIdentifiers,
+  type NewIdentifier,
+  linkExtractedIdentifiers,
+} from "./identifiers"
 import { type DB } from "./schema"
 import { type NewSeries } from "./series"
 import { getDefaultStatus } from "./statuses"
@@ -131,7 +135,11 @@ export async function createBookFromEpub(
     collections?: UUID[]
   } = {},
 ) {
-  const { update, relations: epubRelations } = await getMetadataFromEpub(epub)
+  const {
+    update,
+    relations: epubRelations,
+    identifiers,
+  } = await getMetadataFromEpub(epub)
 
   return await createBook(
     {
@@ -142,6 +150,10 @@ export async function createBookFromEpub(
     {
       ...relations,
       ...epubRelations,
+      extractedIdentifiers: {
+        format: relations.readaloud ? "readaloud" : "ebook",
+        entries: identifiers,
+      },
     },
   )
 }
@@ -162,8 +174,11 @@ export async function createBookFromAudiobook(
     collections?: UUID[]
   } = {},
 ) {
-  const { update, relations: audiobookRelations } =
-    await getMetadataFromAudiobook(audiobook)
+  const {
+    update,
+    relations: audiobookRelations,
+    identifiers,
+  } = await getMetadataFromAudiobook(audiobook)
 
   return await createBook(
     {
@@ -174,6 +189,7 @@ export async function createBookFromAudiobook(
     {
       ...relations,
       ...audiobookRelations,
+      extractedIdentifiers: { format: "audiobook", entries: identifiers },
     },
   )
 }
@@ -188,6 +204,7 @@ export async function createBook(
     audiobook?: AudiobookRelation
     readaloud?: ReadaloudRelation
     collections?: UUID[]
+    extractedIdentifiers?: ExtractedIdentifiers
   } = {},
 ) {
   let uuid!: UUID
@@ -312,6 +329,10 @@ export async function createBook(
         .insertInto("audiobook")
         .values({ ...relations.audiobook, bookUuid: uuid })
         .execute()
+    }
+
+    if (relations.extractedIdentifiers) {
+      await linkExtractedIdentifiers(tr, uuid, relations.extractedIdentifiers)
     }
 
     if (relations.collections?.length) {
@@ -985,6 +1006,7 @@ export type BookRelationsUpdate = {
   status?: StatusRelation
   rating?: UserBookRatingRelation
   identifiers?: IdentifierRelation[]
+  extractedIdentifiers?: ExtractedIdentifiers
 }
 
 export async function updateBook(
@@ -1349,6 +1371,11 @@ export async function updateBook(
       }
     }
 
+    // link identifiers extracted from the file after we are sure the format rows are upserted
+    if (relations.extractedIdentifiers) {
+      await linkExtractedIdentifiers(tr, uuid, relations.extractedIdentifiers)
+    }
+
     if (relations.books) {
       await tr
         .updateTable("ebook")
@@ -1428,9 +1455,7 @@ export async function updateBook(
 
   if (!book) throw new Error(`Failed to retrieve book with uuid ${uuid}`)
 
-  // move the asset folder when title actually changed. renameBookAssets is
-  // imported dynamically to break the books.ts <-> fs.ts cycle at module
-  // load; both files are loaded by the time updateBook ever runs.
+  // move the asset folder when title actually changed
   if (before && before.title !== book.title) {
     const { renameBookAssets } = await import("@/assets/fs")
     book = await renameBookAssets(before, book)

@@ -93,7 +93,7 @@ export default async function writeMetadataToFiles({
     logger.info(`Writing metadata to epub ${book.title} ${book.assetDir}`)
     try {
       using epub = await Epub.from(book.ebook.filepath)
-      await writeMetadataToEpub(book, epub, { textCover })
+      await writeMetadataToEpub(book, epub, { textCover, format: "ebook" })
       await epub.saveAndClose()
       logger.info("Epub saved")
 
@@ -151,7 +151,11 @@ export default async function writeMetadataToFiles({
     logger.info(`Writing metadata to readaloud ${book.title} ${book.assetDir}`)
     try {
       using epub = await Epub.from(book.readaloud.filepath)
-      await writeMetadataToEpub(book, epub, { textCover, audioCover })
+      await writeMetadataToEpub(book, epub, {
+        textCover,
+        audioCover,
+        format: "readaloud",
+      })
       await epub.saveAndClose()
       logger.info("Readaloud saved")
 

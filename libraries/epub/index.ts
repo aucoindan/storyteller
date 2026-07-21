@@ -124,6 +124,33 @@ export interface DcSubject {
   term: string
 }
 
+export interface EpubIdentifier {
+  value: string
+  id?: string | undefined
+  /** the value of a refining `identifier-type` meta, if present */
+  identifierType?: string | undefined
+  /** the `scheme` of a refining `identifier-type` meta, or a legacy `opf:scheme` attribute */
+  scheme?: string | undefined
+}
+
+export interface EpubSource {
+  value: string
+  id?: string | undefined
+  /** the value of a refining `identifier-type` meta, if present */
+  identifierType?: string | undefined
+  /** the `scheme` of a refining `identifier-type` meta, or a legacy `opf:scheme` attribute */
+  scheme?: string | undefined
+  /**
+   * whether this source has a `source-of="pagination"` refinement
+   * or of a `<meta property="pageBreakSource">` element
+   *
+   * as of EPUB 3.4 `source-of` is advised-deprecated in favour of the
+   * publication-level `pageBreakSource` property. if you want to
+   * be sure to get the source of pagination, use {@link Epub.getPageBreakSource}
+   */
+  isPageBreakSource?: boolean | undefined
+}
+
 export interface AlternateScript {
   name: string
   locale: Intl.Locale
@@ -190,41 +217,14 @@ export interface FromOptions {
 export type EpubReader = Pick<
   Epub,
   | "storage"
-  | "getManifest"
-  | "getVersion"
-  | "getLayout"
-  | "getBaseDirection"
-  | "getMetadata"
   | "findMetadataItem"
   | "findAllMetadataItems"
-  | "getIdentifier"
-  | "getTitle"
-  | "getSubtitle"
-  | "getTitles"
-  | "getLanguage"
-  | "getPublicationDate"
-  | "getModifiedDate"
-  | "getDescription"
-  | "getType"
-  | "getCreators"
-  | "getContributors"
-  | "getSubjects"
-  | "getCollections"
-  | "getPackageVocabularyPrefixes"
-  | "getCoverImageItem"
-  | "getCoverImage"
-  | "getSpineItems"
-  | "getNcxTableOfContents"
-  | "getGuideEntries"
-  | "getTableOfContents"
-  | "getLandmarks"
-  | "getPageList"
   | "resolveHref"
   | "readFileContents"
   | "readItemContents"
   | "readXhtmlItemContents"
-  | "getItemArchiveLength"
   | "discardAndClose"
+  | Extract<keyof Epub, `get${string}`>
 > &
   Disposable
 
@@ -980,12 +980,15 @@ export class Epub {
   }
 
   /**
-   * Retrieve the identifier from the dc:identifier element
+   * Retrieve the first identifier from the dc:identifier element
    * in the EPUB metadata.
    *
    * If there is no dc:identifier element, returns null.
    *
    * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   *
+   * @deprecated Use {@link getUniqueIdentifier} instead to get the unique identifier,
+   * or {@link getIdentifiers} to get all identifiers.
    */
   async getIdentifier() {
     const metadata = await this.getMetadata()
@@ -1000,12 +1003,472 @@ export class Epub {
    * Otherwise creates a new element
    *
    * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   *
+   * @deprecated Use {@link setUniqueIdentifier} instead.
    */
   async setIdentifier(identifier: string) {
     await this.replaceMetadata(({ type }) => type === "dc:identifier", {
       type: "dc:identifier",
       properties: {},
       value: identifier,
+    })
+  }
+
+  /**
+   * Retrieve the identifier with the unique identifier id
+   * in the EPUB metadata.
+   *
+   * If there is no unique identifier id, returns the first dc:identifier element.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   */
+  async getUniqueIdentifier() {
+    const metadata = await this.getMetadata()
+
+    const uniqueId = await this.getUniqueIdentifierId()
+
+    if (!uniqueId) {
+      return null
+    }
+
+    const entry = metadata.find(
+      ({ type, id }) => type === "dc:identifier" && id === uniqueId,
+    )
+    return entry?.value ?? null
+  }
+
+  /**
+   * Set the unique identifier id for the EPUB.
+   *
+   * Updates the existing dc:identifier element referenced by the unique identifier id if one exists.
+   * Otherwise creates a new element with the provided identifier, and sets the unique identifier id to the new element's id.
+   *
+   * Note: you likely shouldn't change the unique identifier id unless you are producing a new EPUB.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   */
+  async setUniqueIdentifier(identifier: string) {
+    await this.withPackage(async (packageElement) => {
+      const metadata = Epub.findXmlChildByName(
+        "metadata",
+        Epub.getXmlChildren(packageElement),
+      )
+      if (!metadata) {
+        throw new Error(
+          "Failed to parse EPUB: found no metadata element in package document",
+        )
+      }
+
+      let uniqueId = await this.getUniqueIdentifierId()
+
+      if (!uniqueId) {
+        // Create a new unique identifier id
+        const newUniqueId = nanoid()
+        packageElement[":@"] = {
+          ...packageElement[":@"],
+          "@_unique-identifier": newUniqueId,
+        }
+        uniqueId = newUniqueId
+      }
+
+      const children = Epub.getXmlChildren(metadata)
+      const entry = Epub.findXmlChildByName(
+        "dc:identifier",
+        children,
+        (node) => node[":@"]?.["@_id"] === uniqueId,
+      )
+
+      if (entry) {
+        children.splice(
+          children.indexOf(entry),
+          1,
+          Epub.createXmlElement("dc:identifier", { id: uniqueId }, [
+            Epub.createXmlTextNode(identifier),
+          ]),
+        )
+        return
+      }
+
+      children.push(
+        Epub.createXmlElement("dc:identifier", { id: uniqueId }, [
+          Epub.createXmlTextNode(identifier),
+        ]),
+      )
+    })
+  }
+
+  /**
+   * Retrieve the id of the publication's unique identifier, as declared by the
+   * package element's `unique-identifier` attribute.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   */
+  async getUniqueIdentifierId(): Promise<string | null> {
+    const packageElement = await this.getPackageElement()
+    return packageElement[":@"]?.["@_unique-identifier"] ?? null
+  }
+
+  /**
+   * Collect `dc:identifier` or `dc:source` entries, attaching the value and
+   * scheme of any refining `identifier-type` meta (spec D.3.8) and a legacy
+   * `opf:scheme` attribute. Values are not interpreted.
+   *
+   * `onRefinement` is invoked for every other meta refining a collected entry,
+   * so callers can surface element-specific refinements (e.g. `source-of` on a
+   * `dc:source`).
+   */
+  private static collectDcEntries<E extends EpubIdentifier>(
+    metadata: EpubMetadata,
+    type: "dc:identifier" | "dc:source",
+    onRefinement?: (entry: E, property: string, value: string) => void,
+  ): E[] {
+    const entries = metadata
+      .filter((entry) => entry.type === type && entry.value !== undefined)
+      .map((entry) => ({
+        // filtered above, so value is defined
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        value: entry.value!,
+        ...(entry.id && { id: entry.id }),
+        ...(entry.properties["opf:scheme"] && {
+          scheme: entry.properties["opf:scheme"],
+        }),
+      })) as E[]
+
+    for (const meta of metadata) {
+      if (meta.type !== "meta" || meta.value === undefined) continue
+      const property = meta.properties["property"]
+      const refines = meta.properties["refines"]
+      if (!property || !refines) continue
+
+      // drop the leading # from the refines target
+      const target = entries.find((t) => t.id === refines.slice(1))
+      if (!target) continue
+
+      if (property === "identifier-type") {
+        target.identifierType = meta.value
+        if (meta.properties["scheme"]) target.scheme = meta.properties["scheme"]
+      } else {
+        onRefinement?.(target, property, meta.value)
+      }
+    }
+
+    return entries
+  }
+
+  /**
+   * Retrieve every `dc:identifier` entry, returned as found.
+   *
+   * Values are not interpreted. Any refining `identifier-type` meta (spec
+   * D.3.8) or legacy `opf:scheme` attribute is surfaced on the entry, but no
+   * parsing of the value itself is attempted. To read `dc:source` entries, use
+   * {@link getSources}.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   */
+  async getIdentifiers(): Promise<EpubIdentifier[]> {
+    const metadata = await this.getMetadata()
+    return Epub.collectDcEntries(metadata, "dc:identifier")
+  }
+
+  /**
+   * Retrieve every `dc:source` entry, returned as found.
+   *
+   * Like {@link getIdentifiers}, values are not interpreted. In addition to a
+   * refining `identifier-type`, a refining `source-of` meta (spec D.3.11) is
+   * surfaced as `sourceOf`.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcsource
+   */
+  async getSources(): Promise<EpubSource[]> {
+    const metadata = await this.getMetadata()
+    return Epub.collectDcEntries<EpubSource>(
+      metadata,
+      "dc:source",
+      (source, property) => {
+        if (property === "source-of") {
+          source.isPageBreakSource = true
+        }
+      },
+    )
+  }
+
+  /**
+   * Retrieve the `pageBreakSource` property (EPUB 3.4, spec D.2.9), the
+   * publication-level source for the source of its page break markers.
+   *
+   * This property replaces the refining `source-of="pagination"` meta (spec
+   * D.3.11), see {@link EpubSource.sourceOf}. If no `pageBreakSource` property is found,
+   * we fall back to finding a `dc:source` with a `source-of="pagination"` refinement.
+   *
+   * @link https://www.w3.org/TR/epub/#pageBreakSource
+   */
+  async getPageBreakSource(): Promise<EpubSource | null> {
+    const entry = await this.findMetadataItem(
+      (item) =>
+        item.type === "meta" &&
+        item.properties["property"] === "pageBreakSource" &&
+        !!item.value,
+    )
+
+    if (entry) {
+      return {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        value: entry.value!,
+        id: entry.id,
+        identifierType: undefined,
+        scheme: undefined,
+        isPageBreakSource: true,
+      }
+    }
+
+    const sources = await this.getSources()
+    const source = sources.find((source) => source.isPageBreakSource)
+    if (source) {
+      return source
+    }
+
+    return null
+  }
+
+  /**
+   * Set the `pageBreakSource` property (EPUB 3.4, spec D.2.9), or remove it when
+   * passed null. Replaces an existing `pageBreakSource` meta if present.
+   *
+   * Pass `none` to indicate the pagination is unique to this publication.
+   *
+   * @link https://www.w3.org/TR/epub/#pageBreakSource
+   */
+  async setPageBreakSource(value: string | null): Promise<void> {
+    if (value === null) {
+      await this.removeMetadata(
+        (item) => item.properties["property"] === "pageBreakSource",
+      )
+      return
+    }
+    await this.replaceMetadata(
+      (item) => item.properties["property"] === "pageBreakSource",
+      { type: "meta", properties: { property: "pageBreakSource" }, value },
+    )
+  }
+
+  /**
+   * Replace the publication's `dc:identifier` entries.
+   *
+   * This replaces ALL existing `dc:identifier` elements except the publication's
+   * unique identifier (the one referenced by the package element's
+   * `unique-identifier` attribute), which is always preserved and must not be
+   * included in the provided list. If included anyway, it is ignored. See
+   * {@link setUniqueIdentifier} to change it.
+   *
+   * Identifiers are placed in the order they are provided.
+   *
+   * `dc:source` entries are not touched, use {@link setSources} for those.
+   *
+   * When an entry has an `identifierType`, it is written in the refining form
+   * (a `meta` with `property="identifier-type"`, carrying the `scheme`
+   * attribute when provided). An entry with only a `scheme` is written using
+   * the legacy `opf:scheme` attribute.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcidentifier
+   */
+  async setIdentifiers(identifiers: EpubIdentifier[]) {
+    const uniqueId = await this.getUniqueIdentifierId()
+
+    await this.withPackage((packageElement) => {
+      const metadata = Epub.findXmlChildByName(
+        "metadata",
+        Epub.getXmlChildren(packageElement),
+      )
+      if (!metadata)
+        throw new Error(
+          "Failed to parse EPUB: found no metadata element in package document",
+        )
+
+      const children = Epub.getXmlChildren(metadata)
+
+      const removedIds = new Set<string>()
+      for (let i = children.length - 1; i >= 0; i--) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const node = children[i]!
+        if (
+          Epub.isXmlTextNode(node) ||
+          Epub.getXmlElementName(node) !== "dc:identifier"
+        ) {
+          continue
+        }
+
+        const id = node[":@"]?.["@_id"]
+        if (id && id === uniqueId) {
+          continue
+        }
+
+        if (id) {
+          removedIds.add(id)
+        }
+        children.splice(i, 1)
+      }
+
+      Epub.removeRefiningMetas(children, removedIds, ["identifier-type"])
+
+      for (const identifier of identifiers) {
+        // we don't allow you to set the unique identifier, you need to use setUniqueIdentifier
+        if (identifier.id && identifier.id === uniqueId) continue
+
+        const id =
+          identifier.id ??
+          (identifier.identifierType !== undefined ? nanoid() : undefined)
+
+        children.push(
+          Epub.createXmlElement(
+            "dc:identifier",
+            {
+              ...(id && { id }),
+              ...(identifier.scheme &&
+                identifier.identifierType === undefined && {
+                  "opf:scheme": identifier.scheme,
+                }),
+            },
+            [Epub.createXmlTextNode(identifier.value)],
+          ),
+        )
+
+        if (identifier.identifierType !== undefined && id) {
+          children.push(
+            Epub.createXmlElement(
+              "meta",
+              {
+                refines: `#${id}`,
+                property: "identifier-type",
+                ...(identifier.scheme && { scheme: identifier.scheme }),
+              },
+              [Epub.createXmlTextNode(identifier.identifierType)],
+            ),
+          )
+        }
+      }
+    })
+  }
+
+  /**
+   * Remove `meta` refinements pointing at any of the given ids,
+   * restricted to the given `property` values as a cleanup step
+   * Mutates `children` in place.
+   */
+  private static removeRefiningMetas(
+    children: ParsedXml,
+    ids: ReadonlySet<string>,
+    properties: string[],
+  ): void {
+    for (let i = children.length - 1; i >= 0; i--) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const node = children[i]!
+      if (Epub.isXmlTextNode(node) || Epub.getXmlElementName(node) !== "meta") {
+        continue
+      }
+      const property = node[":@"]?.["@_property"]
+      if (!property || !properties.includes(property)) continue
+
+      const refines = node[":@"]?.["@_refines"]?.slice(1)
+      if (refines && ids.has(refines)) {
+        children.splice(i, 1)
+      }
+    }
+  }
+
+  /**
+   * Replace the publication's `dc:source` entries.
+   *
+   * This replaces ALL existing `dc:source` elements (and their refining
+   * `identifier-type` / `source-of` metas). `dc:identifier` entries are not
+   * touched; use {@link setIdentifiers} for those. Pass an empty array to
+   * remove all sources.
+   *
+   * When an entry has an `identifierType`, it is written in the refining form.
+   * A `sourceOf` value is written as a refining `source-of` meta (spec D.3.11).
+   * An entry with only a `scheme` uses the legacy `opf:scheme` attribute.
+   *
+   * @link https://www.w3.org/TR/epub-33/#sec-opf-dcsource
+   */
+  async setSources(sources: EpubSource[]) {
+    await this.withPackage((packageElement) => {
+      const metadata = Epub.findXmlChildByName(
+        "metadata",
+        Epub.getXmlChildren(packageElement),
+      )
+      if (!metadata)
+        throw new Error(
+          "Failed to parse EPUB: found no metadata element in package document",
+        )
+
+      const children = Epub.getXmlChildren(metadata)
+
+      const removedIds = new Set<string>()
+      for (let i = children.length - 1; i >= 0; i--) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const node = children[i]!
+        if (
+          Epub.isXmlTextNode(node) ||
+          Epub.getXmlElementName(node) !== "dc:source"
+        ) {
+          continue
+        }
+
+        const id = node[":@"]?.["@_id"]
+        if (id) {
+          removedIds.add(id)
+        }
+        children.splice(i, 1)
+      }
+
+      Epub.removeRefiningMetas(children, removedIds, [
+        "identifier-type",
+        "source-of",
+      ])
+
+      for (const source of sources) {
+        const needsId =
+          source.identifierType !== undefined || source.isPageBreakSource
+
+        const id = source.id ?? (needsId ? nanoid() : undefined)
+
+        children.push(
+          Epub.createXmlElement(
+            "dc:source",
+            {
+              ...(id && { id }),
+              ...(source.scheme &&
+                source.identifierType === undefined && {
+                  "opf:scheme": source.scheme,
+                }),
+            },
+            [Epub.createXmlTextNode(source.value)],
+          ),
+        )
+
+        if (source.identifierType !== undefined && id) {
+          children.push(
+            Epub.createXmlElement(
+              "meta",
+              {
+                refines: `#${id}`,
+                property: "identifier-type",
+                ...(source.scheme && { scheme: source.scheme }),
+              },
+              [Epub.createXmlTextNode(source.identifierType)],
+            ),
+          )
+        }
+
+        if (source.isPageBreakSource && id) {
+          children.push(
+            Epub.createXmlElement(
+              "meta",
+              { refines: `#${id}`, property: "source-of" },
+              [Epub.createXmlTextNode("pagination")],
+            ),
+          )
+        }
+      }
     })
   }
 

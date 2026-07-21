@@ -247,6 +247,25 @@ export class Audiobook {
     return duration
   }
 
+  async getRawTags(): Promise<Record<string, string>> {
+    const merged: Record<string, string> = {}
+    for (const entry of this.entries) {
+      const tags = await entry.getRawTags()
+      for (const [key, value] of Object.entries(tags)) {
+        merged[key] ??= value
+      }
+    }
+    return merged
+  }
+
+  async getRawTag(name: string): Promise<string | null> {
+    const lower = name.toLowerCase()
+    return this.getFirstValue(async (entry) => {
+      const tags = await entry.getRawTags()
+      return tags[lower] ?? null
+    })
+  }
+
   async getChapters(): Promise<AudiobookChapter[]> {
     if (this.metadata.chapters) return this.metadata.chapters
 

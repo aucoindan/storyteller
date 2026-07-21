@@ -158,6 +158,8 @@ type FfprobeOutput = {
       Description?: string
       publisher?: string
       Publisher?: string
+      // get arbitrary tags
+      [key: string]: string | undefined
     }
     duration: string
     bit_rate?: string
@@ -260,6 +262,13 @@ export async function getTrackMetadata(path: string) {
       description: format.tags?.description ?? format.tags?.Description,
       publisher: format.tags?.publisher ?? format.tags?.Publisher,
     },
+    // every container tag, keyed by lowercased name, so callers can read
+    // arbitrary tags we don't map explicitly (e.g. audible_asin, series)
+    raw: Object.fromEntries(
+      Object.entries(format.tags ?? {})
+        .filter((entry): entry is [string, string] => entry[1] !== undefined)
+        .map(([key, value]) => [key.toLowerCase(), value]),
+    ),
     chapters: chapters.map(
       (chapter) =>
         ({

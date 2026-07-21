@@ -34,6 +34,13 @@ export const CORE_IDENTIFIERS: Record<IdentifierKind, CoreIdentifierSpec> = {
     renderUrl: (value) =>
       `https://www.amazon.com/dp/${encodeURIComponent(value.trim())}`,
   },
+  audible: {
+    kind: "audible",
+    displayName: "Audible ASIN",
+    validate: (value) => ASIN.test(value.trim()),
+    renderUrl: (value) =>
+      `https://www.audible.com/pd/${encodeURIComponent(value.trim())}`,
+  },
   "isbn-13": {
     kind: "isbn-13",
     displayName: "ISBN-13",

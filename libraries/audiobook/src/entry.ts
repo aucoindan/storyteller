@@ -34,6 +34,11 @@ export class AudiobookEntry {
     return info.tags
   }
 
+  async getRawTags(): Promise<Record<string, string>> {
+    const info = await this.getInfo()
+    return info.raw
+  }
+
   async getTitle(): Promise<string | null> {
     const tags = await this.getMetadataTags()
     return tags.album ?? tags.title ?? null

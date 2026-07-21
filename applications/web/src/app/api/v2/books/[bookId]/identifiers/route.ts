@@ -4,6 +4,7 @@ import { withHasPermission } from "@/auth/auth"
 import { type IdentifierRelation, updateBook } from "@/database/books"
 import { getIdentifiers } from "@/database/identifiers"
 import { type UUID } from "@/uuid"
+import { queueWritesToFiles } from "@/writeToFiles/fileWriteDistributor"
 
 type Params = Promise<{ bookId: UUID }>
 
@@ -32,5 +33,7 @@ export const PUT = withHasPermission<Params>("bookUpdate")(async (
   }
 
   await updateBook(bookId, null, { identifiers: body.identifiers })
+  void queueWritesToFiles(bookId)
+
   return new Response(null, { status: 204 })
 })

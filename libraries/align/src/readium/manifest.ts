@@ -123,7 +123,9 @@ export async function generateReadiumManifest(
     )
 
   const title = await epub.getTitle()
-  const identifier = await epub.getIdentifier()
+  const identifier =
+    (await epub.getUniqueIdentifier()) ||
+    (await epub.getIdentifiers())[0]?.value
   const subtitle = await epub.getSubtitle()
   const description = await epub.getDescription()
   const published = await epub.getPublicationDate()

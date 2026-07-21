@@ -1,4 +1,9 @@
-import { type Insertable, type Selectable, type Updateable } from "kysely"
+import {
+  type Insertable,
+  type Kysely,
+  type Selectable,
+  type Updateable,
+} from "kysely"
 
 import { type UUID } from "@/uuid"
 
@@ -8,11 +13,56 @@ import { type DB } from "./schema"
 export const IDENTIFIER_KINDS = [
   "doi",
   "asin",
+  "audible",
   "isbn-13",
   "hardcover-edition-id",
   "hardcover-book-slug",
 ] as const
 export type IdentifierKind = (typeof IDENTIFIER_KINDS)[number]
+
+const KNOWN_KINDS = new Set<string>(IDENTIFIER_KINDS)
+
+type IdentifierTypeResult = { uuid: UUID; kind: string | null }
+
+/**
+ * finds or creates an identifier type for a given scheme
+ */
+async function resolveIdentifierType(
+  tr: Kysely<DB>,
+  scheme: string,
+): Promise<IdentifierTypeResult> {
+  if (KNOWN_KINDS.has(scheme)) {
+    const byKind = await tr
+      .selectFrom("identifierType")
+      .select(["uuid", "kind"])
+      .where("kind", "=", scheme as IdentifierKind)
+      .executeTakeFirst()
+
+    if (byKind) {
+      return byKind
+    }
+  }
+
+  const name = scheme.charAt(0).toUpperCase() + scheme.slice(1)
+
+  const existing = await tr
+    .selectFrom("identifierType")
+    .select(["uuid", "kind"])
+    .where("name", "=", name)
+    .executeTakeFirst()
+
+  if (existing) {
+    return existing
+  }
+
+  const created = await tr
+    .insertInto("identifierType")
+    .values({ name })
+    .returning(["uuid", "kind"])
+    .executeTakeFirstOrThrow()
+
+  return created
+}
 
 export type IdentifierType = Selectable<DB["identifierType"]>
 export type NewIdentifierType = Insertable<DB["identifierType"]>
@@ -83,6 +133,61 @@ export async function getIdentifiers(bookUuid: UUID) {
     ])
     .where("identifier.bookUuid", "=", bookUuid)
     .execute()
+}
+
+export type IdentifierFormat = "ebook" | "audiobook" | "readaloud"
+
+export type ExtractedIdentifiers = {
+  format: IdentifierFormat
+  entries: { scheme: string; value: string }[]
+}
+
+/**
+ * Links identifiers extracted from a book's file to its format row.
+ */
+export async function linkExtractedIdentifiers(
+  tr: Kysely<DB>,
+  bookUuid: UUID,
+  { format, entries }: ExtractedIdentifiers,
+) {
+  if (!entries.length) return
+
+  const formatRow = await tr
+    .selectFrom(
+      // narrowing for kysely, otherwise "each member of the union type" errors
+      format as "ebook",
+    )
+    .select("uuid")
+    .where("bookUuid", "=", bookUuid)
+    .executeTakeFirst()
+  if (!formatRow) return
+
+  const formatUuid = formatRow.uuid
+  const formatColumn = `${format}Uuid` as const
+
+  for (const { scheme, value } of entries) {
+    const type = await resolveIdentifierType(tr, scheme)
+
+    const existing = await tr
+      .selectFrom("identifier")
+      .select("uuid")
+      .where("bookUuid", "=", bookUuid)
+      .where("identifierTypeUuid", "=", type.uuid)
+      .where("value", "=", value)
+      .where((eb) => eb(formatColumn, "=", formatUuid))
+      .executeTakeFirst()
+    if (existing) continue
+
+    await tr
+      .insertInto("identifier")
+      .values({
+        bookUuid,
+        identifierTypeUuid: type.uuid,
+        value,
+        [formatColumn]: formatUuid,
+      })
+      .execute()
+  }
 }
 
 export async function deleteIdentifier(uuid: UUID) {

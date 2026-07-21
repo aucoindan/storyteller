@@ -117,7 +117,7 @@ async function getFilepath(
       metadata: {
         "@type": "http://schema.org/Audiobook",
         conformsTo: "https://readium.org/webpub-manifest/profiles/audiobook",
-        identifier: epub?.getIdentifier() ?? book.audiobook?.uuid,
+        identifier: (await epub?.getUniqueIdentifier()) ?? book.audiobook?.uuid,
         title: book.title,
         description: book.description,
         subject: book.tags.map((tag) => tag.name),

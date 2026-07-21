@@ -114,6 +114,10 @@ export const reconcileMetadataStep = defineStep(
     await updateBook(input.bookUuid, metadataUpdate, {
       ...relationUpdate,
       ...formatRelation,
+      extractedIdentifiers: {
+        format: input.format,
+        entries: input.extractedIdentifiers,
+      },
     } as BookRelationsUpdate)
 
     const updated = await getBook(input.bookUuid)

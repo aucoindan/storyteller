@@ -1,3 +1,4 @@
+import { type ParsedIdentifier } from "@/assets/identifierParsing"
 import { defineStep } from "@/assets/library/scanner/step"
 import { type Prettify } from "@/assets/library/scanner/types"
 import {
@@ -11,11 +12,14 @@ import { type OpenedAudiobook, type OpenedEpub } from "./open"
 export const extractEpubMetadataStep = defineStep(
   "extract-epub-metadata",
   async (input: OpenedEpub, _ctx) => {
-    const { update, relations } = await getMetadataFromEpub(input.epub)
+    const { update, relations, identifiers } = await getMetadataFromEpub(
+      input.epub,
+    )
     return {
       ...input,
       extractedMetadata: update,
       extractedRelations: relations,
+      extractedIdentifiers: identifiers,
     }
   },
 )
@@ -24,19 +28,21 @@ export type ExtractedEpubMetadata = Prettify<
   OpenedEpub & {
     extractedMetadata: BookUpdate | null
     extractedRelations: BookRelationsUpdate
+    extractedIdentifiers: ParsedIdentifier[]
   }
 >
 
 export const extractAudiobookMetadataStep = defineStep(
   "extract-audiobook-metadata",
   async (input: OpenedAudiobook, _ctx) => {
-    const { update, relations } = await getMetadataFromAudiobook(
+    const { update, relations, identifiers } = await getMetadataFromAudiobook(
       input.audiobook,
     )
     return {
       ...input,
       extractedMetadata: update,
       extractedRelations: relations,
+      extractedIdentifiers: identifiers,
     }
   },
 )
@@ -44,4 +50,5 @@ export const extractAudiobookMetadataStep = defineStep(
 export type ExtractedAudiobookMetadata = OpenedAudiobook & {
   extractedMetadata: BookUpdate | null
   extractedRelations: BookRelationsUpdate
+  extractedIdentifiers: ParsedIdentifier[]
 }

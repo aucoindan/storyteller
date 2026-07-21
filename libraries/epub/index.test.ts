@@ -540,6 +540,229 @@ void describe("Epub", () => {
     assert.strictEqual(collections[0].position, "1")
     assert.strictEqual(collections[0].type, "series")
   })
+
+  void it("writes and reads back identifiers", async () => {
+    const outputPath = join("__fixtures__", "__output__", "identifiers.epub")
+    using epub = await Epub.create(outputPath, {
+      title: "Title",
+      language: new Intl.Locale("en-US"),
+      identifier: "urn:uuid:pub-value",
+    })
+
+    await epub.setIdentifiers([
+      // an isbn written in the refining ONIX form
+      {
+        value: "9781685891664",
+        identifierType: "15",
+        scheme: "onix:codelist5",
+      },
+      // a vendor id written as a plain prefix:value text form
+      { value: "goodreads:223855250" },
+      // a scheme-only entry, written via the legacy opf:scheme attribute
+      { value: "custom-1", scheme: "MyScheme" },
+    ])
+
+    await epub.saveAndClose()
+
+    using updated = await Epub.from(outputPath)
+
+    // the publication's unique identifier is untouched
+    assert.strictEqual(
+      await updated.getUniqueIdentifier(),
+      "urn:uuid:pub-value",
+    )
+
+    const identifiers = await updated.getIdentifiers()
+
+    // unique identifier is still present
+    assert.ok(identifiers.some((i) => i.value === "urn:uuid:pub-value"))
+
+    // setIdentifiers does not create dc:source entries
+    assert.deepStrictEqual(await updated.getSources(), [])
+
+    const isbn = identifiers.find((i) => i.value === "9781685891664")
+    assert.strictEqual(isbn?.identifierType, "15")
+    assert.strictEqual(isbn.scheme, "onix:codelist5")
+
+    const goodreads = identifiers.find((i) => i.value === "goodreads:223855250")
+    assert.ok(goodreads)
+    assert.strictEqual(goodreads.identifierType, undefined)
+    assert.strictEqual(goodreads.scheme, undefined)
+
+    const custom = identifiers.find((i) => i.value === "custom-1")
+    assert.strictEqual(custom?.scheme, "MyScheme")
+    assert.strictEqual(custom.identifierType, undefined)
+  })
+
+  void it("identifiers can be replaced", async () => {
+    const outputPath = join(
+      "__fixtures__",
+      "__output__",
+      "replaceIdentifiers.epub",
+    )
+    using epub = await Epub.create(outputPath, {
+      title: "Title",
+      language: new Intl.Locale("en-US"),
+      identifier: "urn:uuid:pub-value",
+    })
+
+    await epub.setIdentifiers([{ value: "amazon:B0DTN2CKDR" }])
+    await epub.setIdentifiers([{ value: "goodreads:223855250" }])
+    await epub.saveAndClose()
+
+    using updated = await Epub.from(outputPath)
+    const identifiers = await updated.getIdentifiers()
+
+    // the first-written identifier is gone bc we have overwritten it, the second remains
+    assert.strictEqual(identifiers.length, 2) // unique and goodreads
+    assert.ok(!identifiers.some((i) => i.value === "amazon:B0DTN2CKDR"))
+    assert.ok(identifiers.some((i) => i.value === "goodreads:223855250"))
+    // and the unique identifier is still intact
+    assert.strictEqual(
+      await updated.getUniqueIdentifier(),
+      "urn:uuid:pub-value",
+    )
+
+    // try and set the unique identifier
+    await updated.setUniqueIdentifier("urn:uuid:new-value")
+
+    await updated.saveAndClose()
+
+    using updated2 = await Epub.from(outputPath)
+
+    // lets see if we can set the unique identifier
+    await updated2.getUniqueIdentifier()
+    assert.strictEqual(
+      await updated2.getUniqueIdentifier(),
+      "urn:uuid:new-value",
+    )
+    // still have the goodreads identifier
+    const identifiers2 = await updated2.getIdentifiers()
+    assert.strictEqual(identifiers2.length, 2)
+    assert.ok(identifiers2.some((i) => i.value === "goodreads:223855250"))
+  })
+
+  void it("writes and reads back sources ", async () => {
+    const outputPath = join("__fixtures__", "__output__", "sources.epub")
+    using epub = await Epub.create(outputPath, {
+      title: "Title",
+      language: new Intl.Locale("en-US"),
+      identifier: "urn:uuid:pub-value",
+    })
+
+    await epub.setIdentifiers([{ value: "goodreads:223855250" }])
+    await epub.setSources([
+      {
+        value: "urn:isbn:9780375704024",
+        identifierType: "15",
+        scheme: "onix:codelist5",
+        isPageBreakSource: true,
+      },
+    ])
+    await epub.saveAndClose()
+
+    using updated = await Epub.from(outputPath)
+
+    const sources = await updated.getSources()
+    assert.strictEqual(sources.length, 1)
+    assert.strictEqual(sources[0]?.value, "urn:isbn:9780375704024")
+    assert.strictEqual(sources[0].identifierType, "15")
+    assert.strictEqual(sources[0].scheme, "onix:codelist5")
+    assert.strictEqual(sources[0].isPageBreakSource, true)
+
+    // setSources leaves dc:identifier entries untouched
+    assert.ok(
+      (await updated.getIdentifiers()).some(
+        (i) => i.value === "goodreads:223855250",
+      ),
+    )
+
+    // sources can be removed independently of identifiers
+    await updated.setSources([])
+    await updated.saveAndClose()
+
+    using cleared = await Epub.from(outputPath)
+    assert.deepStrictEqual(await cleared.getSources(), [])
+    assert.ok(
+      (await cleared.getIdentifiers()).some(
+        (i) => i.value === "goodreads:223855250",
+      ),
+    )
+  })
+
+  void it("writes, reads and clears the pageBreakSource property", async () => {
+    const outputPath = join(
+      "__fixtures__",
+      "__output__",
+      "pageBreakSource.epub",
+    )
+    using epub = await Epub.create(outputPath, {
+      title: "Title",
+      language: new Intl.Locale("en-US"),
+      identifier: "urn:uuid:pub-value",
+    })
+
+    // absent by default
+    assert.strictEqual(await epub.getPageBreakSource(), null)
+
+    // set a source with isPageBreakSource: true
+    // leading to a source-of="pagination" refinement
+    await epub.setSources([
+      {
+        id: "realBook",
+        value: "urn:isbn:9780010010001",
+        identifierType: "15",
+        scheme: "onix:codelist5",
+        isPageBreakSource: true,
+      },
+    ])
+
+    // await epub.setPageBreakSource("urn:isbn:9780010010001")
+    await epub.saveAndClose()
+
+    using updated = await Epub.from(outputPath)
+    // we find it as a fallback (dont care about the id)
+    assert.deepStrictEqual(await updated.getPageBreakSource(), {
+      id: "realBook",
+      value: "urn:isbn:9780010010001",
+      identifierType: "15",
+      scheme: "onix:codelist5",
+      isPageBreakSource: true,
+    })
+    // clear
+    await updated.setSources([])
+
+    await updated.setPageBreakSource("blabla")
+
+    assert.deepStrictEqual(
+      await updated.getSources(),
+      [],
+      "sources should be cleared",
+    )
+
+    assert.partialDeepStrictEqual(
+      await updated.getPageBreakSource(),
+      {
+        value: "blabla",
+        isPageBreakSource: true,
+      },
+      "page break source should be set",
+    )
+    assert.strictEqual(
+      (await updated.getMetadata()).filter(
+        (m) => m.properties["property"] === "pageBreakSource",
+      ).length,
+      1,
+    )
+
+    // clearing removes it
+    await updated.setPageBreakSource(null)
+    assert.strictEqual(
+      await updated.getPageBreakSource(),
+      null,
+      "null should clear the page break source",
+    )
+  })
 })
 
 void describe("Epub.using(MemoryAdapter) (read-only, in-memory)", () => {

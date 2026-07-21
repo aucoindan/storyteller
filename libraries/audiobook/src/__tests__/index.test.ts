@@ -106,4 +106,36 @@ void describe("Audiobook", () => {
 
     assert.deepStrictEqual(chapters, updatedChapters)
   })
+
+  void it("exposes raw container tags, including ones not mapped to metadata", async () => {
+    await cp(
+      "src/__fixtures__/sleepy_hollow_irving_64kb.mp3",
+      "src/__fixtures__/__output__/sleepy_hollow_irving_64kb.mp3",
+    )
+    using audiobook = await Audiobook.from(
+      "src/__fixtures__/__output__/sleepy_hollow_irving_64kb.mp3",
+    )
+
+    const raw = await audiobook.getRawTags()
+
+    // `encoder` isn't one of the tags we map to known metadata, so its presence
+    // proves getRawTags surfaces arbitrary tags (e.g. audible_asin) verbatim
+    assert.ok("encoder" in raw)
+    // keys are lowercased
+    assert.ok(Object.keys(raw).every((key) => key === key.toLowerCase()))
+  })
+
+  void it("reads a single raw tag case-insensitively", async () => {
+    await cp(
+      "src/__fixtures__/sleepy_hollow_irving_64kb.mp3",
+      "src/__fixtures__/__output__/sleepy_hollow_irving_64kb.mp3",
+    )
+    using audiobook = await Audiobook.from(
+      "src/__fixtures__/__output__/sleepy_hollow_irving_64kb.mp3",
+    )
+
+    const raw = await audiobook.getRawTags()
+    assert.strictEqual(await audiobook.getRawTag("ENCODER"), raw["encoder"])
+    assert.strictEqual(await audiobook.getRawTag("does-not-exist"), null)
+  })
 })
