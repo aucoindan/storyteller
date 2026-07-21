@@ -14817,7 +14817,7 @@ __metadata:
     "@storyteller-platform/eslint": "workspace:*"
     "@storyteller-platform/ghost-story": "workspace:^"
     "@storyteller-platform/mapping": "workspace:*"
-    "@storyteller-platform/transliteration": "npm:^4.0.2"
+    "@storyteller-platform/transliteration": "npm:^4.0.6"
     "@storyteller-platform/tsup": "workspace:*"
     "@tsconfig/strictest": "npm:^2.0.5"
     "@types/cli-progress": "npm:^3"
@@ -15014,7 +15014,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/mapping@npm:^0.1.2, @storyteller-platform/mapping@workspace:*, @storyteller-platform/mapping@workspace:libraries/mapping":
+"@storyteller-platform/mapping@npm:^0.1.3, @storyteller-platform/mapping@workspace:*, @storyteller-platform/mapping@workspace:libraries/mapping":
   version: 0.0.0-use.local
   resolution: "@storyteller-platform/mapping@workspace:libraries/mapping"
   dependencies:
@@ -15218,17 +15218,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@storyteller-platform/transliteration@npm:^4.0.2":
-  version: 4.0.2
-  resolution: "@storyteller-platform/transliteration@npm:4.0.2"
+"@storyteller-platform/transliteration@npm:^4.0.6":
+  version: 4.0.6
+  resolution: "@storyteller-platform/transliteration@npm:4.0.6"
   dependencies:
-    "@storyteller-platform/mapping": "npm:^0.1.2"
+    "@storyteller-platform/mapping": "npm:^0.1.3"
     havarotjs: "npm:^0.25.4"
     kuroshiro-analyzer-kuromoji: "npm:^1.1.0"
   bin:
     slugify: dist/bin/slugify
     transliterate: dist/bin/transliterate
-  checksum: 10c0/4cc8d6da939943ac2919a7810587b5c0a09636838686507a9926820da9c513a9bb598338b18c272b26e7b8835572f13796dbabf7fb96e57443fc3d098f0d78c0
+  checksum: 10c0/40d02c453288a4ff0fa2cf8b500e7f2e5190f1739b65e8dbc181d58cad1e1143feba9542a31c997f388f10118950106a807e40067373d63b370b6b5a5af5842f
   languageName: node
   linkType: hard
 

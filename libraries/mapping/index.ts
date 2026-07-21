@@ -85,23 +85,30 @@ export class Mapping {
     const inverted = this.invert().cursor()
 
     // Rebase each incoming mutation from `mapping`'s input space (this
-    // mapping's output space) back into the original position space.
+    // mapping's output space) back into the original position space. Mapping
+    // the end position with "end" assoc widens a span that starts or ends
+    // inside an existing entry's output to cover that entry's whole original
+    // span, so the merge below coalesces with it. Each entry carries its size
+    // delta (newSize - oldSize) rather than its newSize: deltas survive
+    // rebasing verbatim, and summing the constituents' deltas when coalescing
+    // is what keeps the composed mapping's total length exact — a later stage
+    // deleting content an earlier stage inserted subtracts exactly what the
+    // insertion added.
     const rebasedStarts: number[] = []
     const rebasedOldSizes: number[] = []
-    const rebasedNewSizes: number[] = []
+    const rebasedDeltas: number[] = []
     for (const { start, oldSize, newSize } of mapping.entries()) {
-      const origStart = inverted.map(start)
-      const origEnd = inverted.map(start + oldSize)
+      const origStart = inverted.map(start, "start")
+      const origEnd = inverted.map(start + oldSize, "end")
       rebasedStarts.push(origStart)
-      rebasedOldSizes.push(origEnd - origStart)
-      rebasedNewSizes.push(newSize)
+      rebasedOldSizes.push(Math.max(0, origEnd - origStart))
+      rebasedDeltas.push(newSize - oldSize)
     }
 
     // Merge the existing entries with the rebased incoming entries into a
-    // single sorted, non-overlapping list. A rebased incoming entry describes
-    // original -> final directly, so it supersedes any existing entry whose
-    // original span it overlaps; overlapping spans are coalesced into one
-    // entry (keeping the mapping monotonic).
+    // single sorted, non-overlapping list. Overlapping spans are coalesced
+    // into one entry (keeping the mapping monotonic) whose newSize is its
+    // oldSize plus the sum of its constituents' deltas.
     const starts: number[] = []
     const oldSizes: number[] = []
     const newSizes: number[] = []
@@ -122,31 +129,41 @@ export class Mapping {
 
       let start = rebasedStarts[j]!
       let end = start + rebasedOldSizes[j]!
-      const newSize = rebasedNewSizes[j]!
+      let delta = rebasedDeltas[j]!
       j++
 
-      // Coalesce any already-emitted entry that overlaps from the left.
-      while (
-        starts.length > 0 &&
-        starts[starts.length - 1]! + oldSizes[oldSizes.length - 1]! > start
-      ) {
-        start = Math.min(start, starts[starts.length - 1]!)
-        end = Math.max(
-          end,
-          starts[starts.length - 1]! + oldSizes[oldSizes.length - 1]!,
-        )
+      // Coalesce any already-emitted entry that overlaps from the left. A
+      // zero-width emitted entry that merely touches must also coalesce: it
+      // is a mutation of inserted content at this exact position, and this
+      // entry's delta may be consuming that same inserted content.
+      while (starts.length > 0) {
+        const prevStart = starts[starts.length - 1]!
+        const prevOldSize = oldSizes[oldSizes.length - 1]!
+        const overlaps =
+          prevStart + prevOldSize > start ||
+          (prevOldSize === 0 && prevStart === start)
+        if (!overlaps) break
+        start = Math.min(start, prevStart)
+        end = Math.max(end, prevStart + prevOldSize)
+        delta += newSizes.pop()! - oldSizes.pop()!
         starts.pop()
-        oldSizes.pop()
-        newSizes.pop()
       }
 
       // Coalesce existing entries whose span this incoming entry overlaps.
-      while (i < this.starts.length && this.starts[i]! < end) {
+      // A touching insertion must also coalesce: deleting content that
+      // insertion produced rebases to a zero-width span at its position.
+      while (
+        i < this.starts.length &&
+        (this.starts[i]! < end ||
+          (this.starts[i]! === end && this.oldSizes[i]! === 0))
+      ) {
         end = Math.max(end, this.starts[i]! + this.oldSizes[i]!)
+        delta += this.newSizes[i]! - this.oldSizes[i]!
         i++
       }
 
       const oldSize = end - start
+      const newSize = oldSize + delta
       // Drop entries that collapse to a no-op after coalescing.
       if (oldSize !== newSize) {
         starts.push(start)
@@ -178,6 +195,11 @@ export class Mapping {
       if (start < prevEnd) {
         throw new Error(
           `Mapping has overlapping entries: entry starting at ${start} overlaps previous entry ending at ${prevEnd}`,
+        )
+      }
+      if (oldSize < 0 || newSize < 0) {
+        throw new Error(
+          `Mapping has an entry with a negative size at ${start}: oldSize ${oldSize}, newSize ${newSize}`,
         )
       }
       prevEnd = start + oldSize
