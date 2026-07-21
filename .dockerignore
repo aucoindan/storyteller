@@ -20,6 +20,11 @@
 /libraries/path/index.js
 /libraries/path/index.cjs
 /libraries/path/index.d.ts
+!/libraries/mapping
+/libraries/mapping/node_modules
+/libraries/mapping/index.js
+/libraries/mapping/index.cjs
+/libraries/mapping/index.d.ts
 !/libraries/audiobook
 /libraries/audiobook/src/__fixtures__/
 /libraries/audiobook/node_modules
