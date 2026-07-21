@@ -44,7 +44,10 @@ const AUDIO_FILE_EXTENSIONS = [
 ] as const
 
 function isAudioFile(filenameOrExt: string): boolean {
-  return AUDIO_FILE_EXTENSIONS.some((ext) => filenameOrExt.endsWith(ext))
+  // Rips from older tools arrive with uppercase extensions (".MP3"); the
+  // extension's casing says nothing about the contents.
+  const lowered = filenameOrExt.toLowerCase()
+  return AUDIO_FILE_EXTENSIONS.some((ext) => lowered.endsWith(ext))
 }
 
 function mintRootPath(): string {

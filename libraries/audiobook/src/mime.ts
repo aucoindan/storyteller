@@ -40,11 +40,14 @@ export const AUDIO_FILE_EXTENSIONS = [
  * @returns Whether the file *may* contain audio
  */
 export function isAudioFile(filenameOrExt: string): boolean {
-  return AUDIO_FILE_EXTENSIONS.some((ext) => filenameOrExt.endsWith(ext))
+  // Rips from older tools arrive with uppercase extensions (".MP3"); the
+  // extension's casing says nothing about the contents.
+  const lowered = filenameOrExt.toLowerCase()
+  return AUDIO_FILE_EXTENSIONS.some((ext) => lowered.endsWith(ext))
 }
 
 export function isZipArchive(filenameOrExt: string): boolean {
-  return filenameOrExt.endsWith(".zip")
+  return filenameOrExt.toLowerCase().endsWith(".zip")
 }
 
 /**

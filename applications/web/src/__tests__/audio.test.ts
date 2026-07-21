@@ -2,7 +2,7 @@ import assert from "node:assert"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { getTrackDuration, isAudioFile } from "@/audio"
+import { getTrackDuration, isAudioFile, isZipArchive } from "@/audio"
 
 void describe("getTrackInfo", () => {
   void it("can get track duration from an mp3 file", async () => {
@@ -57,5 +57,24 @@ void describe("isAudioFile", () => {
     assert.ok(!isAudioFile("cover.png"))
     assert.ok(!isAudioFile("A Book.epub"))
     assert.ok(!isAudioFile("README.txt"))
+  })
+
+  void it("ignores extension casing, which rips from older tools vary", () => {
+    // "Track 01.MP3" is the same audio as "Track 01.mp3"; a case-sensitive
+    // check silently dropped every track of an uppercase rip, so the book
+    // imported with no audio at all.
+    assert.ok(isAudioFile("Track 01.MP3"))
+    assert.ok(isAudioFile("Track 01.Mp3"))
+    assert.ok(isAudioFile("book.M4B"))
+    assert.ok(isAudioFile(".FLAC"))
+    assert.ok(!isAudioFile("README.TXT"))
+  })
+})
+
+void describe("isZipArchive", () => {
+  void it("accepts .zip regardless of casing", () => {
+    assert.ok(isZipArchive("book.zip"))
+    assert.ok(isZipArchive("book.ZIP"))
+    assert.ok(!isZipArchive("book.epub"))
   })
 })
