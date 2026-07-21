@@ -15,7 +15,7 @@ import {
 import { move } from "@/assets/fs"
 import { type PipelineCtx, type ScanCtx } from "@/assets/library/scanner/ctx"
 import { type Candidate } from "@/assets/library/scanner/types"
-import { isAudioFile } from "@/audio"
+import { isAudioFile, isHiddenFile } from "@/audio"
 import {
   type BookWithRelations,
   createBookFromAudiobook,
@@ -130,7 +130,7 @@ export async function openAudiobookDir(
   try {
     const entries = await readdir(candidate.filepath, { recursive: true })
     tracks = entries
-      .filter((entry) => isAudioFile(entry))
+      .filter((entry) => isAudioFile(entry) && !isHiddenFile(entry))
       .map((entry) => join(candidate.filepath, entry)) as AudiobookInputs
   } catch (error) {
     ctx.report.warn({

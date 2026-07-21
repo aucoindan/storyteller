@@ -8,7 +8,7 @@ import { Epub, MemoryAdapter } from "@storyteller-platform/epub"
 import { deleteAssets } from "@/assets/fs"
 import { filepathFolder, scan } from "@/assets/library/scanner/scan"
 import { type Candidate } from "@/assets/library/scanner/types"
-import { isAudioFile, isZipArchive } from "@/audio"
+import { isAudioFile, isHiddenFile, isZipArchive } from "@/audio"
 import { withHasPermission } from "@/auth/auth"
 import { deleteBook, getBook, getBooks } from "@/database/books"
 import {
@@ -88,7 +88,9 @@ export const POST = withHasPermission("bookCreate")(async (request) => {
   }
 
   const epubs = paths.filter((path) => extname(path) === ".epub")
-  const audio = paths.filter((path) => isAudioFile(path) || isZipArchive(path))
+  const audio = paths.filter(
+    (path) => (isAudioFile(path) || isZipArchive(path)) && !isHiddenFile(path),
+  )
 
   // when strategy is "auto" and import mode could be affected by the user's
   // choice, probe all epubs and ask if any are epub2.

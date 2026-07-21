@@ -2,7 +2,12 @@ import assert from "node:assert"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { getTrackDuration, isAudioFile, isZipArchive } from "@/audio"
+import {
+  getTrackDuration,
+  isAudioFile,
+  isHiddenFile,
+  isZipArchive,
+} from "@/audio"
 
 void describe("getTrackInfo", () => {
   void it("can get track duration from an mp3 file", async () => {
@@ -76,5 +81,21 @@ void describe("isZipArchive", () => {
     assert.ok(isZipArchive("book.zip"))
     assert.ok(isZipArchive("book.ZIP"))
     assert.ok(!isZipArchive("book.epub"))
+  })
+})
+
+void describe("isHiddenFile", () => {
+  void it("catches hidden files, including ones that shadow real audio names", () => {
+    assert.ok(isHiddenFile("._Track 01.mp3"))
+    assert.ok(isHiddenFile("/library/A Book/._Track 01.mp3"))
+    assert.ok(isHiddenFile(".DS_Store"))
+    assert.ok(isHiddenFile(".hidden.mp3"))
+  })
+
+  void it("leaves visible files alone", () => {
+    assert.ok(!isHiddenFile("Track 01.mp3"))
+    assert.ok(!isHiddenFile("/library/A Book/Track 01.mp3"))
+    assert.ok(!isHiddenFile("_underscore name.mp3"))
+    assert.ok(!isHiddenFile("Thumbs.db"))
   })
 })

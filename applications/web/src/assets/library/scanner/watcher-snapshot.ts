@@ -17,7 +17,7 @@ const WATCHER_OPTIONS = {
   ignore: [
     "**/*.watchman-cookie*",
     "**/*.json",
-    "**/.DS_Store",
+    "**/.*",
     "**/.autoimport/**",
     "**/image-cache/**",
     "**/uploads/**",

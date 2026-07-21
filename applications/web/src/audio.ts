@@ -1,7 +1,7 @@
 import { exec } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { copyFile } from "node:fs/promises"
-import { extname } from "node:path"
+import { basename, extname } from "node:path"
 import { promisify } from "util"
 
 import memoize from "memoize"
@@ -104,6 +104,16 @@ export function isAudioFile(filenameOrExt: string): boolean {
   // extension's casing says nothing about the contents.
   const lowered = filenameOrExt.toLowerCase()
   return AUDIO_FILE_EXTENSIONS.some((ext) => lowered.endsWith(ext))
+}
+
+/**
+ * Determines if a file is hidden, and so not book content.
+ *
+ * @param filenameOrPath The filename (or full path) to check
+ * @returns Whether the file is hidden
+ */
+export function isHiddenFile(filenameOrPath: string): boolean {
+  return basename(filenameOrPath).startsWith(".")
 }
 
 export function isZipArchive(filenameOrExt: string): boolean {

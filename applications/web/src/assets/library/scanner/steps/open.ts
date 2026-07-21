@@ -9,7 +9,7 @@ import { type InMemoryEpubReader } from "@storyteller-platform/epub"
 
 import { openOrUpgradeEpub } from "@/assets/library/scanner/create-book"
 import { defineStep } from "@/assets/library/scanner/step"
-import { isAudioFile } from "@/audio"
+import { isAudioFile, isHiddenFile } from "@/audio"
 
 import { type FingerPrinted } from "./check-fingerprint"
 
@@ -38,7 +38,7 @@ const AUDIOBOOK_STEP = "open-audiobook" as const
 async function getAudiobookTracks(directory: string): Promise<AudiobookInputs> {
   const entries = await readdir(directory, { recursive: true })
   const tracks = entries
-    .filter((entry) => isAudioFile(entry))
+    .filter((entry) => isAudioFile(entry) && !isHiddenFile(entry))
     .map((entry) => join(directory, entry))
 
   return tracks as AudiobookInputs
