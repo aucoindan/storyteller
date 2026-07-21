@@ -1,3 +1,3 @@
 export function quotePath(path: string) {
-  return `"${path.replaceAll(/(["\\$`])/g, "\\$1")}"`
+  return `"${path.replaceAll(/(["$`])/g, "\\$1")}"`
 }

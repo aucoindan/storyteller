@@ -10,7 +10,13 @@ import {
   writeFile,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname as autoDirname, extname, join as autoJoin } from "node:path"
+import {
+  basename as autoBasename,
+  dirname as autoDirname,
+  extname,
+  join as autoJoin,
+  parse as autoParse,
+} from "node:path"
 import { basename, dirname, parse, relative } from "node:path/posix"
 
 import { type SegmentationResult } from "@echogarden/text-segmentation"
@@ -174,19 +180,24 @@ export async function align(
       ? autoJoin(
           tmpdir(),
           `storyteller-platform-align-${randomUUID()}`,
-          basename(output),
+          autoBasename(output),
         )
       : input
 
   using stack = new DisposableStack()
   stack.defer(() => {
     if (outFormat === "epub") {
-      rmSync(dirname(epubPath), { recursive: true, force: true })
+      try {
+        rmSync(autoDirname(epubPath), { recursive: true, force: true })
+      } catch {
+        // This is a best effort cleanup of a tmp file, it's fine
+        // if it fails
+      }
     }
   })
 
   if (outFormat === "epub") {
-    await mkdir(dirname(epubPath), { recursive: true })
+    await mkdir(autoDirname(epubPath), { recursive: true })
     await copyFile(input, epubPath)
   }
 
@@ -245,7 +256,7 @@ export async function align(
 
   if (outFormat === "epub") {
     await epub.saveAndClose()
-    await mkdir(dirname(output), { recursive: true })
+    await mkdir(autoDirname(output), { recursive: true })
     await copyFile(epubPath, output)
   } else {
     const guidedNavigationDocuments =
@@ -253,7 +264,7 @@ export async function align(
 
     const manifest = generateGuidedNavigationManifest(
       new LocalizedString(
-        (await epub.getTitle()) ?? basename(input, extname(input)),
+        (await epub.getTitle()) ?? autoBasename(input, extname(input)),
       ),
       guidedNavigationDocuments,
     )
@@ -497,7 +508,7 @@ export class Aligner {
 
     await Promise.all(
       audiofiles.map(async (audiofile) => {
-        const { name, base } = parse(audiofile)
+        const { name, base } = autoParse(audiofile)
 
         const id = `audio_${name}`
 
