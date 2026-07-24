@@ -1,0 +1,17 @@
+[BDFL]
+* @smoores
+
+[Applications]
+/applications/docs/ @@maintainer
+/applications/mobile/ @trcoffman
+/applications/tauri/ @tefkah
+/applications/web/ @tefkah
+/Dockerfile* @tefkah
+
+[Libraries]
+/libraries/ghost-story/ @tefkah
+/libraries/okmain/ @tefkah
+/libraries/opds/ @tefkah
+
+[Config]
+/config/ @tefkah
