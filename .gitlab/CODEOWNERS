@@ -1,17 +1,30 @@
 [BDFL]
 * @smoores
+!/applications/docs/
+!/applications/mobile/
+!/applications/tauri/
+!/applications/web/
+!/Dockerfile*
+!/libraries/ghost-story/
+!/libraries/okmain/
+!/libraries/opds/
+!/config/
+!/yarn.lock
 
 [Applications]
-/applications/docs/ @@maintainer
-/applications/mobile/ @trcoffman
-/applications/tauri/ @tefkah
-/applications/web/ @tefkah
-/Dockerfile* @tefkah
+/applications/docs/ @smoores @@maintainer
+/applications/mobile/ @smoores @trcoffman
+/applications/tauri/ @smoores @tefkah
+/applications/web/ @smoores @tefkah
+/Dockerfile* @smoores @tefkah
 
 [Libraries]
-/libraries/ghost-story/ @tefkah
-/libraries/okmain/ @tefkah
-/libraries/opds/ @tefkah
+/libraries/ghost-story/ @smoores @tefkah
+/libraries/okmain/ @smoores @tefkah
+/libraries/opds/ @smoores @tefkah
 
 [Config]
-/config/ @tefkah
+/config/ @smoores @tefkah
+
+[Dependencies]
+/yarn.lock @smoores @tefkah @trcoffman
