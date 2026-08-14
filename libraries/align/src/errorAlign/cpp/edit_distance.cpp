@@ -1,4 +1,5 @@
 #include <napi.h>
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <cmath>
@@ -242,6 +243,101 @@ static Napi::Value ComputeErrorAlignDistanceMatrix(const Napi::CallbackInfo& inf
     return matrix_to_napi(env, score_matrix);
 }
 
+// --- Unambiguous word matches ------------------------------------------------
+//
+// Computes the same result as BacktraceGraph.getUnambiguousNodeMatches over a
+// word-level Levenshtein backtrace, without ever materializing the score or
+// backtrace matrices as JavaScript values. The graph used by the JavaScript
+// implementation is exactly the set of matrix cells reachable backwards from
+// the terminal cell by following backtrace operations, with each reachable
+// cell's incoming ("parent") operations given by that cell's op combination,
+// so a reachability sweep plus per-cell op inspection reproduces it.
+
+static Napi::Value ComputeUnambiguousWordMatches(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    auto ref = napi_to_string_vec(info[0]);
+    auto hyp = napi_to_string_vec(info[1]);
+
+    auto [score_matrix, backtrace_matrix] = compute_distance_matrix(ref, hyp, "levenshtein", true);
+    (void)score_matrix;
+
+    const int ref_dim = static_cast<int>(ref.size()) + 1;
+    const int hyp_dim = static_cast<int>(hyp.size()) + 1;
+
+    // Reachability sweep, in the same reverse topological order as
+    // BacktraceGraph.nodes (hyp descending, then ref descending). Every
+    // parent produced by an op has coordinates <= the current cell's in both
+    // dimensions, and strictly smaller in at least one, so parents are always
+    // marked before the sweep reaches them.
+    std::vector<uint8_t> reachable(static_cast<size_t>(hyp_dim) * ref_dim, 0);
+    auto at = [ref_dim](int i, int j) { return static_cast<size_t>(i) * ref_dim + j; };
+    reachable[at(hyp_dim - 1, ref_dim - 1)] = 1;
+
+    for (int i = hyp_dim - 1; i >= 0; --i) {
+        for (int j = ref_dim - 1; j >= 0; --j) {
+            if (!reachable[at(i, j)] || (i == 0 && j == 0)) continue;
+            const auto& ops = OP_TYPE_COMBO_MAP.at(backtrace_matrix[i][j]);
+            for (OpType op : ops) {
+                const int pi = (op != DELETE) ? i - 1 : i;
+                const int pj = (op != INSERT) ? j - 1 : j;
+                reachable[at(pi, pj)] = 1;
+            }
+        }
+    }
+
+    // Candidate matches are reachable cells whose only incoming op is MATCH.
+    // A candidate is unambiguous when it is the only reachable cell consuming
+    // its ref token (via MATCH/SUBSTITUTE/DELETE) and the only reachable cell
+    // consuming its hyp token (via MATCH/SUBSTITUTE/INSERT).
+    std::vector<int> ref_count(ref_dim, 0);
+    std::vector<int> hyp_count(hyp_dim, 0);
+    std::vector<std::pair<int, int>> candidates;
+
+    for (int i = 0; i < hyp_dim; ++i) {
+        for (int j = 0; j < ref_dim; ++j) {
+            if (!reachable[at(i, j)] || (i == 0 && j == 0)) continue;
+            const auto& ops = OP_TYPE_COMBO_MAP.at(backtrace_matrix[i][j]);
+
+            if (ops.size() == 1 && ops[0] == MATCH) {
+                candidates.emplace_back(i, j);
+            }
+
+            bool consumes_ref = false;
+            bool consumes_hyp = false;
+            for (OpType op : ops) {
+                if (op == MATCH || op == SUBSTITUTE) {
+                    consumes_ref = true;
+                    consumes_hyp = true;
+                } else if (op == DELETE) {
+                    consumes_ref = true;
+                } else if (op == INSERT) {
+                    consumes_hyp = true;
+                }
+            }
+            if (consumes_ref) ref_count[j]++;
+            if (consumes_hyp) hyp_count[i]++;
+        }
+    }
+
+    std::vector<std::pair<int, int>> matches;
+    for (const auto& [i, j] : candidates) {
+        if (ref_count[j] == 1 && hyp_count[i] == 1) {
+            matches.emplace_back(i - 1, j - 1);
+        }
+    }
+    std::sort(matches.begin(), matches.end(),
+              [](const auto& a, const auto& b) { return a.second < b.second; });
+
+    Napi::Array result = Napi::Array::New(env, matches.size());
+    for (size_t k = 0; k < matches.size(); ++k) {
+        Napi::Array pair = Napi::Array::New(env, 2);
+        pair.Set((uint32_t)0, Napi::Number::New(env, matches[k].first));
+        pair.Set((uint32_t)1, Napi::Number::New(env, matches[k].second));
+        result.Set((uint32_t)k, pair);
+    }
+    return result;
+}
+
 // --- Module init (called from module.cpp) ------------------------------------
 
 void InitEditDistance(Napi::Env env, Napi::Object exports) {
@@ -249,4 +345,6 @@ void InitEditDistance(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, ComputeLevenshteinDistanceMatrix));
     exports.Set("computeErrorAlignDistanceMatrix",
                 Napi::Function::New(env, ComputeErrorAlignDistanceMatrix));
+    exports.Set("computeUnambiguousWordMatches",
+                Napi::Function::New(env, ComputeUnambiguousWordMatches));
 }

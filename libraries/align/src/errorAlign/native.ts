@@ -19,6 +19,10 @@ const native = requireBinding(
     hyp: string | string[],
     backtrace: boolean,
   ): number[][] | { scoreMatrix: number[][]; backtraceMatrix: number[][] }
+  computeUnambiguousWordMatches(
+    ref: string | string[],
+    hyp: string | string[],
+  ): [number, number][]
   errorAlignBeamSearch(
     src: SubgraphMetadata,
     beamSize: number,
@@ -57,6 +61,20 @@ export function computeErrorAlignDistanceMatrix(
   backtrace = false,
 ): number[][] | { scoreMatrix: number[][]; backtraceMatrix: number[][] } {
   return native.computeErrorAlignDistanceMatrix(ref, hyp, backtrace)
+}
+
+/**
+ * Compute unambiguous word-level match indices between two token sequences.
+ *
+ * Equivalent to running computeLevenshteinDistanceMatrix with backtrace and
+ * BacktraceGraph.getUnambiguousNodeMatches over the result, but the matrices
+ * never cross the native boundary.
+ */
+export function computeUnambiguousWordMatches(
+  ref: string | string[],
+  hyp: string | string[],
+): [number, number][] {
+  return native.computeUnambiguousWordMatches(ref, hyp)
 }
 
 export function errorAlignBeamSearch(
