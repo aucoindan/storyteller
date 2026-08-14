@@ -5,6 +5,7 @@ import { BacktraceGraph } from "./backtraceGraph.ts"
 import { type GraphMetadata, SubgraphMetadata } from "./graphMetadata.ts"
 import {
   computeLevenshteinDistanceMatrix,
+  computeUnambiguousWordMatches,
   errorAlignBeamSearch,
 } from "./native.ts"
 import { getAlignments } from "./pathToAlignment.ts"
@@ -117,13 +118,21 @@ function alignWithWordLevelPass(
   graphMetadata: GraphMetadata,
   beamSize: number,
 ) {
-  const { backtraceMatrix } = computeLevenshteinDistanceMatrix(
-    graphMetadata.refNorm,
-    graphMetadata.hypNorm,
-    true,
-  )
-  const backtraceGraph = new BacktraceGraph(backtraceMatrix)
-  const matchIndices = backtraceGraph.getUnambiguousNodeMatches()
+  let matchIndices: (readonly [number, number])[]
+  if (process.env["STORYTELLER_LEGACY_WORD_PASS"]) {
+    const { backtraceMatrix } = computeLevenshteinDistanceMatrix(
+      graphMetadata.refNorm,
+      graphMetadata.hypNorm,
+      true,
+    )
+    const backtraceGraph = new BacktraceGraph(backtraceMatrix)
+    matchIndices = backtraceGraph.getUnambiguousNodeMatches()
+  } else {
+    matchIndices = computeUnambiguousWordMatches(
+      graphMetadata.refNorm,
+      graphMetadata.hypNorm,
+    )
+  }
   // NOTE: We always add an artificial terminal match node to simplify subspan extraction.
   matchIndices.push([
     graphMetadata.hypNorm.length,
